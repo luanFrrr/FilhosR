@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ChildProvider } from "@/hooks/use-child-context";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { useAuth } from "@/hooks/use-auth";
+import { Loader2 } from "lucide-react";
 
 // Pages
 import Dashboard from "@/pages/dashboard";
@@ -15,9 +17,10 @@ import Onboarding from "@/pages/onboarding";
 import Settings from "@/pages/settings";
 import VaccineCard from "@/pages/vaccine-card";
 import DailyPhotos from "@/pages/daily-photos";
+import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 
-function Router() {
+function AuthenticatedRouter() {
   const [location] = useLocation();
   const isAuthPage = location === "/onboarding";
 
@@ -39,14 +42,37 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Landing />;
+  }
+
+  return (
+    <ChildProvider>
+      <AuthenticatedRouter />
+    </ChildProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <ChildProvider>
-          <Router />
-          <Toaster />
-        </ChildProvider>
+        <AppContent />
+        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   );
