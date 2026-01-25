@@ -191,6 +191,23 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/children/:childId/milestones/:milestoneId',
+      input: insertMilestoneSchema.omit({ childId: true }).partial(),
+      responses: {
+        200: z.custom<typeof milestones.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/children/:childId/milestones/:milestoneId',
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 
   // Diary
