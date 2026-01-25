@@ -5,11 +5,36 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Camera, ChevronLeft, ChevronRight, Check, ImagePlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoView } from "@/components/ui/photo-view";
+
+const MENSAGENS_MOMENTO = [
+  "Momento guardado com carinho",
+  "Esse registro vai valer muito no futuro",
+  "Um pedacinho do crescimento ficou salvo hoje",
+  "Mais um dia especial registrado",
+  "Que bom ter você presente nesse momento",
+  "Essa memória agora é para sempre",
+  "O tempo passa, mas esse momento fica",
+  "Cada foto conta uma história de amor",
+];
+
+const MENSAGENS_SEQUENCIA = [
+  "Você está construindo uma linda linha do tempo",
+  "A constância transforma dias em memórias",
+  "Cada dia seguido é uma prova de presença",
+  "Sua dedicação está criando algo especial",
+];
+
+const MENSAGENS_RETORNO = [
+  "Que bom ter você de volta",
+  "Nunca é tarde para registrar um momento",
+  "O importante é estar presente agora",
+  "Cada dia é uma nova oportunidade",
+];
 
 export default function DailyPhotos() {
   const { activeChild } = useChildContext();
@@ -27,6 +52,28 @@ export default function DailyPhotos() {
 
   const totalPhotos = sortedPhotos.length;
   const streakDays = calculateStreak(sortedPhotos.map(p => p.date));
+
+  const getEmotionalMessage = useCallback((currentStreak: number, hadRecentPhotos: boolean) => {
+    const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+    
+    if (currentStreak >= 2) {
+      return pickRandom(MENSAGENS_SEQUENCIA);
+    }
+    
+    if (!hadRecentPhotos && totalPhotos > 0) {
+      return pickRandom(MENSAGENS_RETORNO);
+    }
+    
+    return pickRandom(MENSAGENS_MOMENTO);
+  }, [totalPhotos]);
+
+  const hadPhotoYesterday = useMemo(() => {
+    if (sortedPhotos.length === 0) return false;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    return sortedPhotos.some(p => p.date === yesterdayStr);
+  }, [sortedPhotos]);
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,9 +93,14 @@ export default function DailyPhotos() {
           photoUrl,
         });
         
+        const newStreak = hadPhotoYesterday ? streakDays + 1 : 1;
+        const mensagem = getEmotionalMessage(newStreak, hadPhotoYesterday);
+        
         toast({
-          title: "Foto registrada!",
-          description: "Mais um dia registrado com carinho.",
+          title: mensagem,
+          description: newStreak >= 2 
+            ? `${newStreak} dias seguidos registrando momentos` 
+            : undefined,
         });
         setCurrentIndex(0);
       };
@@ -65,7 +117,7 @@ export default function DailyPhotos() {
         fileInputRef.current.value = "";
       }
     }
-  }, [activeChild, createPhoto, toast]);
+  }, [activeChild, createPhoto, toast, hadPhotoYesterday, streakDays, getEmotionalMessage]);
 
   const goToPrevious = () => {
     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
