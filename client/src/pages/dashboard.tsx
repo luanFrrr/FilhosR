@@ -1,12 +1,13 @@
 import { useChildContext } from "@/hooks/use-child-context";
 import { useGrowthRecords } from "@/hooks/use-growth";
 import { useSusVaccines, useVaccineRecords } from "@/hooks/use-vaccines";
+import { useTodayPhoto, useDailyPhotos } from "@/hooks/use-daily-photos";
 import { useGamification } from "@/hooks/use-auth";
 import { Header } from "@/components/layout/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { formatDistanceToNow, differenceInMonths, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy, AlertTriangle } from "lucide-react";
+import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy, AlertTriangle, Camera, Check } from "lucide-react";
 import { Link } from "wouter";
 import { parseLocalDate } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -144,6 +145,8 @@ export default function Dashboard() {
   const { data: susVaccines } = useSusVaccines();
   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
   const { data: gamification } = useGamification(activeChild?.id || null);
+  const { data: todayPhoto } = useTodayPhoto(activeChild?.id || 0);
+  const { data: allPhotos } = useDailyPhotos(activeChild?.id || 0);
 
   if (isLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Carregando...</div>;
@@ -287,6 +290,46 @@ export default function Dashboard() {
             </div>
           </Link>
         </div>
+
+        {/* Foto do Dia Card */}
+        <Link href="/daily-photos">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            className="rounded-2xl border p-4 cursor-pointer active:scale-[0.98] transition-transform"
+            style={{ 
+              backgroundColor: todayPhoto ? 'rgb(236 253 245)' : 'rgb(254 252 232)',
+              borderColor: todayPhoto ? 'rgb(167 243 208)' : 'rgb(254 240 138)'
+            }}
+            data-testid="card-daily-photo"
+          >
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: todayPhoto ? 'rgb(167 243 208)' : 'rgb(254 240 138)' }}
+              >
+                {todayPhoto ? (
+                  <Check className="w-7 h-7 text-green-600" />
+                ) : (
+                  <Camera className="w-7 h-7 text-amber-600" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-base">
+                  {todayPhoto ? "Foto de hoje registrada!" : "Foto do Dia"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {todayPhoto 
+                    ? `${allPhotos?.length || 0} foto${(allPhotos?.length || 0) !== 1 ? 's' : ''} no total`
+                    : "Um registro por dia do crescimento"
+                  }
+                </p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+            </div>
+          </motion.div>
+        </Link>
 
         {/* Quick Actions */}
         <motion.div 

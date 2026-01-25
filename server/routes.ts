@@ -298,12 +298,30 @@ export async function registerRoutes(
   // Daily Photos (Foto do dia)
   app.get(api.dailyPhotos.list.path, async (req, res) => {
     const childId = Number(req.params.childId);
+    
+    // Verify user has access to this child
+    // @ts-ignore
+    const userChildren = await storage.getChildrenByUserId(req.user.id);
+    const hasAccess = userChildren.some(c => c.id === childId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    
     const photos = await storage.getDailyPhotos(childId);
     res.json(photos);
   });
 
   app.get(api.dailyPhotos.today.path, async (req, res) => {
     const childId = Number(req.params.childId);
+    
+    // Verify user has access to this child
+    // @ts-ignore
+    const userChildren = await storage.getChildrenByUserId(req.user.id);
+    const hasAccess = userChildren.some(c => c.id === childId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    
     const today = new Date().toISOString().split('T')[0];
     const photo = await storage.getDailyPhotoByDate(childId, today);
     res.json(photo || null);
@@ -311,19 +329,36 @@ export async function registerRoutes(
 
   app.post(api.dailyPhotos.create.path, async (req, res) => {
     const childId = Number(req.params.childId);
-    const input = api.dailyPhotos.create.input.parse(req.body);
     
-    // Check if photo already exists for today
-    const existing = await storage.getDailyPhotoByDate(childId, input.date);
-    if (existing) {
-      return res.status(409).json({ message: "Já existe uma foto para hoje" });
+    // Verify user has access to this child
+    // @ts-ignore
+    const userChildren = await storage.getChildrenByUserId(req.user.id);
+    const hasAccess = userChildren.some(c => c.id === childId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Acesso negado" });
     }
     
-    const photo = await storage.createDailyPhoto({ ...input, childId });
+    const input = api.dailyPhotos.create.input.parse(req.body);
     
-    // Gamification: evento foto_do_dia_registrada
-    await storage.addPoints(childId, 5);
-    res.status(201).json(photo);
+    // Check if photo already exists for this date
+    const existing = await storage.getDailyPhotoByDate(childId, input.date);
+    if (existing) {
+      return res.status(409).json({ message: "Já existe uma foto para esta data" });
+    }
+    
+    try {
+      const photo = await storage.createDailyPhoto({ ...input, childId });
+      
+      // Gamification: evento foto_do_dia_registrada
+      await storage.addPoints(childId, 5);
+      res.status(201).json(photo);
+    } catch (error: any) {
+      // Handle unique constraint violation (race condition)
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Já existe uma foto para esta data" });
+      }
+      throw error;
+    }
   });
 
   return httpServer;
