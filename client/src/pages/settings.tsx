@@ -61,6 +61,7 @@ export default function Settings() {
     theme: "neutral",
     initialWeight: "",
     initialHeight: "",
+    initialHeadCircumference: "",
   });
 
   const openEditDialog = (child: Child) => {
@@ -73,6 +74,7 @@ export default function Settings() {
       theme: child.theme || "neutral",
       initialWeight: child.initialWeight || "",
       initialHeight: child.initialHeight || "",
+      initialHeadCircumference: child.initialHeadCircumference || "",
     });
   };
 
@@ -103,6 +105,7 @@ export default function Settings() {
         theme: editForm.theme,
         initialWeight: editForm.initialWeight || null,
         initialHeight: editForm.initialHeight || null,
+        initialHeadCircumference: editForm.initialHeadCircumference || null,
         photoUrl: editPhoto,
       });
       toast({ title: "Dados atualizados!", description: `${editForm.name} foi atualizado com sucesso.` });
@@ -358,9 +361,9 @@ export default function Settings() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="edit-weight">Peso (kg)</Label>
+                <Label htmlFor="edit-weight" className="text-xs">Peso (kg)</Label>
                 <Input 
                   id="edit-weight"
                   type="number"
@@ -371,7 +374,7 @@ export default function Settings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-height">Altura (cm)</Label>
+                <Label htmlFor="edit-height" className="text-xs">Altura (cm)</Label>
                 <Input 
                   id="edit-height"
                   type="number"
@@ -379,6 +382,17 @@ export default function Settings() {
                   value={editForm.initialHeight}
                   onChange={(e) => setEditForm(f => ({ ...f, initialHeight: e.target.value }))}
                   data-testid="input-edit-height"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-head" className="text-xs">P. Cefálico (cm)</Label>
+                <Input 
+                  id="edit-head"
+                  type="number"
+                  step="0.1"
+                  value={editForm.initialHeadCircumference}
+                  onChange={(e) => setEditForm(f => ({ ...f, initialHeadCircumference: e.target.value }))}
+                  data-testid="input-edit-head"
                 />
               </div>
             </div>
