@@ -2,7 +2,7 @@
 
 ## Overview
 
-BabyTracker is a mobile-first web application for parents to track their children's growth, health, vaccinations, and memories. Built with a React frontend and Express backend, it provides a comprehensive parenting companion with features like growth charts, vaccine schedules (aligned with Brazilian SUS standards), health records, milestone tracking, and a digital diary. The app supports multiple children with personalized themes and includes a gamification system to encourage consistent tracking.
+Filhos is a mobile-first web application for parents to track their children's growth, health, vaccinations, and memories. Built with a React frontend and Express backend, it provides a comprehensive parenting companion with features like growth charts, vaccine schedules (aligned with Brazilian SUS standards), health records, milestone tracking, and a digital diary. The app supports multiple children with personalized themes and includes a gamification system to encourage consistent tracking.
 
 ## User Preferences
 
