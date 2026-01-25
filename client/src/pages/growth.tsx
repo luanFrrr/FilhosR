@@ -174,7 +174,7 @@ export default function Growth() {
              <h2 className="text-lg font-display font-bold text-foreground">
                {activeTab === "weight" ? "Evolução do Peso" : "Evolução da Altura"}
              </h2>
-             <p className="text-sm text-muted-foreground">Últimos registros</p>
+             <p className="text-sm text-muted-foreground">Cada registro ajuda a acompanhar o desenvolvimento dele</p>
           </div>
           <GrowthChart 
             data={activeTab === "weight" ? weightData : heightData} 
