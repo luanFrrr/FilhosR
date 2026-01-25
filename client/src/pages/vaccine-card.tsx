@@ -168,6 +168,11 @@ export default function VaccineCard() {
       photoUrls: photoUrls.length > 0 ? photoUrls : null,
     };
 
+    // Ensure we send YYYY-MM-DD which parseISO handles correctly
+    if (payload.applicationDate.includes('T')) {
+      payload.applicationDate = payload.applicationDate.split('T')[0];
+    }
+
     if (formMode === "edit" && editingRecord) {
       updateRecord.mutate({
         id: editingRecord.id,
@@ -365,7 +370,7 @@ export default function VaccineCard() {
                               <span className="font-medium">{record.dose}</span>
                               <span className="text-muted-foreground">-</span>
                               <span className="text-muted-foreground">
-                                {format(new Date(record.applicationDate), "dd/MM/yyyy")}
+                                {format(parseISO(record.applicationDate), "dd/MM/yyyy")}
                               </span>
                               {record.photoUrls && record.photoUrls.length > 0 && (
                                 <Camera className="w-3 h-3 text-muted-foreground ml-auto" />
@@ -580,7 +585,7 @@ export default function VaccineCard() {
                   
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-4 h-4" />
-                    <span>Aplicada em {format(new Date(detailRecord.applicationDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+                    <span>Aplicada em {format(parseISO(detailRecord.applicationDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
                   </div>
 
                   {detailRecord.applicationPlace && (

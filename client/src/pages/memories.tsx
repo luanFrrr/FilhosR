@@ -95,9 +95,14 @@ export default function Memories() {
 
   const onSubmitMilestone = (data: any) => {
     if (!activeChild) return;
+    
+    // Fix date offset issue by ensuring YYYY-MM-DD
+    const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
+    
     createMilestone.mutate({ 
       childId: activeChild.id, 
       ...data,
+      date,
       photoUrl: milestoneImage || null
     }, {
       onSuccess: () => {
@@ -111,10 +116,15 @@ export default function Memories() {
 
   const onSubmitEdit = (data: any) => {
     if (!activeChild || !editingMilestone) return;
-    updateMilestone.mutate({
+    
+    // Fix date offset issue
+    const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
+    
+    updateRecord.mutate({
       childId: activeChild.id,
       milestoneId: editingMilestone.id,
       ...data,
+      date,
       photoUrl: milestoneImage
     }, {
       onSuccess: () => {
@@ -302,7 +312,7 @@ export default function Memories() {
                  >
                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
                    <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">
-                     {format(new Date(milestone.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
+                     {format(parseISO(milestone.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
                    </span>
                    <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
                      {milestone.photoUrl && (
@@ -357,7 +367,7 @@ export default function Memories() {
                 <div key={entry.id} className="bg-white p-5 rounded-2xl border border-border shadow-sm">
                   <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
                     <span className="font-hand text-lg font-bold text-primary">
-                       {format(new Date(entry.date), "dd/MM/yyyy")}
+                       {format(parseISO(entry.date), "dd/MM/yyyy")}
                     </span>
                     {entry.photoUrls && entry.photoUrls.length > 0 && <ImageIcon className="w-4 h-4 text-muted-foreground" />}
                   </div>
@@ -382,7 +392,7 @@ export default function Memories() {
               <DialogHeader>
                 <DialogTitle className="text-xl">{viewMilestone.title}</DialogTitle>
                 <DialogDescription>
-                  {format(new Date(viewMilestone.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  {format(parseISO(viewMilestone.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                 </DialogDescription>
               </DialogHeader>
               
