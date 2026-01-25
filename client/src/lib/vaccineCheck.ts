@@ -99,14 +99,38 @@ export function getPendingVaccines(
 ): VaccineExpectation[] {
   const expected = getExpectedVaccinesForAge(susVaccines, childAgeMonths);
   
+  // Check each expected dose - dose-aware comparison
   const pending = expected.filter(exp => {
-    const hasRecord = vaccineRecords.some(
-      rec => rec.susVaccineId === exp.vaccineId
-    );
-    return !hasRecord;
+    // Check if there's a record for this vaccine with a matching dose
+    const hasMatchingDoseRecord = vaccineRecords.some(rec => {
+      if (rec.susVaccineId !== exp.vaccineId) return false;
+      // Normalize dose strings for comparison
+      const recDose = rec.dose.toLowerCase().trim();
+      const expDose = exp.dose.toLowerCase().trim();
+      return recDose === expDose || recDose.includes(expDose) || expDose.includes(recDose);
+    });
+    return !hasMatchingDoseRecord;
   });
   
   return pending;
+}
+
+// Get pending doses grouped by vaccine for display
+export function getPendingDosesByVaccine(
+  susVaccines: SusVaccine[],
+  vaccineRecords: VaccineRecord[],
+  childAgeMonths: number
+): Map<number, VaccineExpectation[]> {
+  const pending = getPendingVaccines(susVaccines, vaccineRecords, childAgeMonths);
+  const byVaccine = new Map<number, VaccineExpectation[]>();
+  
+  for (const exp of pending) {
+    const existing = byVaccine.get(exp.vaccineId) || [];
+    existing.push(exp);
+    byVaccine.set(exp.vaccineId, existing);
+  }
+  
+  return byVaccine;
 }
 
 export function getVaccineStatus(
