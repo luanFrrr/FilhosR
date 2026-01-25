@@ -158,6 +158,25 @@ export async function registerRoutes(
     res.status(201).json(record);
   });
 
+  app.patch(api.milestones.update.path, async (req, res) => {
+    const milestoneId = Number(req.params.milestoneId);
+    const input = api.milestones.update.input.parse(req.body);
+    const record = await storage.updateMilestone(milestoneId, input);
+    if (!record) {
+      return res.status(404).json({ message: "Marco não encontrado" });
+    }
+    res.json(record);
+  });
+
+  app.delete(api.milestones.delete.path, async (req, res) => {
+    const milestoneId = Number(req.params.milestoneId);
+    const deleted = await storage.deleteMilestone(milestoneId);
+    if (!deleted) {
+      return res.status(404).json({ message: "Marco não encontrado" });
+    }
+    res.status(204).send();
+  });
+
   // Diary
   app.get(api.diary.list.path, async (req, res) => {
     const records = await storage.getDiaryEntries(Number(req.params.childId));

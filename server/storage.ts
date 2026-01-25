@@ -43,6 +43,8 @@ export interface IStorage {
   // Milestones
   getMilestones(childId: number): Promise<Milestone[]>;
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
+  updateMilestone(id: number, data: Partial<InsertMilestone>): Promise<Milestone | undefined>;
+  deleteMilestone(id: number): Promise<boolean>;
 
   // Diary
   getDiaryEntries(childId: number): Promise<DiaryEntry[]>;
@@ -163,6 +165,16 @@ export class DatabaseStorage implements IStorage {
   async createMilestone(milestone: InsertMilestone): Promise<Milestone> {
     const [newMilestone] = await db.insert(milestones).values(milestone).returning();
     return newMilestone;
+  }
+
+  async updateMilestone(id: number, data: Partial<InsertMilestone>): Promise<Milestone | undefined> {
+    const [updated] = await db.update(milestones).set(data).where(eq(milestones.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMilestone(id: number): Promise<boolean> {
+    const result = await db.delete(milestones).where(eq(milestones.id, id)).returning();
+    return result.length > 0;
   }
 
   // Diary
