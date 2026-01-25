@@ -55,8 +55,9 @@ export interface IStorage {
   createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
 
   // Gamification
-  getGamification(userId: number): Promise<Gamification | undefined>;
-  addPoints(userId: number, points: number): Promise<Gamification>;
+  getGamification(childId: number): Promise<Gamification | undefined>;
+  addPoints(childId: number, points: number): Promise<Gamification>;
+  initializeGamification(childId: number): Promise<Gamification>;
 
   // SUS Vaccines
   getSusVaccines(): Promise<SusVaccine[]>;
@@ -83,8 +84,6 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
-    // Initialize gamification
-    await db.insert(gamification).values({ userId: user.id, points: 0, level: 'Iniciante' });
     return user;
   }
 
@@ -123,6 +122,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(milestones).where(eq(milestones.childId, id));
     await db.delete(diaryEntries).where(eq(diaryEntries.childId, id));
     await db.delete(vaccineRecords).where(eq(vaccineRecords.childId, id));
+    await db.delete(gamification).where(eq(gamification.childId, id));
     await db.delete(children).where(eq(children.id, id));
   }
 
@@ -219,13 +219,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Gamification
-  async getGamification(userId: number): Promise<Gamification | undefined> {
-    const [g] = await db.select().from(gamification).where(eq(gamification.userId, userId));
+  async getGamification(childId: number): Promise<Gamification | undefined> {
+    const [g] = await db.select().from(gamification).where(eq(gamification.childId, childId));
     return g;
   }
 
-  async addPoints(userId: number, points: number): Promise<Gamification> {
-    const current = await this.getGamification(userId);
+  async initializeGamification(childId: number): Promise<Gamification> {
+    const existing = await this.getGamification(childId);
+    if (existing) return existing;
+    
+    const [created] = await db.insert(gamification).values({ 
+      childId, 
+      points: 0, 
+      level: 'Iniciante' 
+    }).returning();
+    return created;
+  }
+
+  async addPoints(childId: number, points: number): Promise<Gamification> {
+    // Ensure gamification exists for this child
+    await this.initializeGamification(childId);
+    
+    const current = await this.getGamification(childId);
     const newPoints = (current?.points || 0) + points;
     
     // Simple level logic
@@ -237,7 +252,7 @@ export class DatabaseStorage implements IStorage {
 
     const [updated] = await db.update(gamification)
       .set({ points: newPoints, level, updatedAt: new Date() })
-      .where(eq(gamification.userId, userId))
+      .where(eq(gamification.childId, childId))
       .returning();
     return updated;
   }

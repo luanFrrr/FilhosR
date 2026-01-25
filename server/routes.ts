@@ -36,9 +36,22 @@ export async function registerRoutes(
     res.json(req.user);
   });
 
+  // Gamification is now per-child - this endpoint requires childId as query param
   app.get(api.auth.gamification.path, async (req, res) => {
+    const childId = Number(req.query.childId);
+    if (!childId || isNaN(childId)) {
+      return res.json({ points: 0, level: 'Iniciante' });
+    }
+    
+    // Verify user has access to this child
     // @ts-ignore
-    const g = await storage.getGamification(req.user.id);
+    const userChildren = await storage.getChildrenByUserId(req.user.id);
+    const hasAccess = userChildren.some(c => c.id === childId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    
+    const g = await storage.getGamification(childId);
     res.json(g || { points: 0, level: 'Iniciante' });
   });
 
@@ -64,9 +77,8 @@ export async function registerRoutes(
         role: 'owner'
       });
 
-      // Gamification points
-      // @ts-ignore
-      await storage.addPoints(req.user.id, 50);
+      // Gamification points - initialize for new child
+      await storage.addPoints(child.id, 50);
 
       res.status(201).json(child);
     } catch (err) {
@@ -101,8 +113,7 @@ export async function registerRoutes(
     const input = api.growth.create.input.parse(req.body);
     const record = await storage.createGrowthRecord({ ...input, childId });
     
-    // @ts-ignore
-    await storage.addPoints(req.user.id, 10);
+    await storage.addPoints(childId, 10);
     res.status(201).json(record);
   });
 
@@ -136,8 +147,7 @@ export async function registerRoutes(
     const input = api.vaccines.create.input.parse(req.body);
     const record = await storage.createVaccine({ ...input, childId });
     
-    // @ts-ignore
-    await storage.addPoints(req.user.id, 10);
+    await storage.addPoints(childId, 10);
     res.status(201).json(record);
   });
 
@@ -191,8 +201,7 @@ export async function registerRoutes(
     const input = api.milestones.create.input.parse(req.body);
     const record = await storage.createMilestone({ ...input, childId });
     
-    // @ts-ignore
-    await storage.addPoints(req.user.id, 20);
+    await storage.addPoints(childId, 20);
     res.status(201).json(record);
   });
 
@@ -226,8 +235,7 @@ export async function registerRoutes(
     const input = api.diary.create.input.parse(req.body);
     const record = await storage.createDiaryEntry({ ...input, childId });
     
-    // @ts-ignore
-    await storage.addPoints(req.user.id, 5);
+    await storage.addPoints(childId, 5);
     res.status(201).json(record);
   });
 
@@ -251,8 +259,7 @@ export async function registerRoutes(
     const record = await storage.createVaccineRecord({ ...input, childId });
     
     // Gamification: evento vacina_registrada
-    // @ts-ignore
-    await storage.addPoints(req.user.id, 15);
+    await storage.addPoints(childId, 15);
     res.status(201).json(record);
   });
 
