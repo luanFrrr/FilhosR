@@ -37,7 +37,10 @@ export function useCreateChild() {
       if (!res.ok) throw new Error("Failed to create child");
       return api.children.create.responses[201].parse(await res.json());
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.children.list.path] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.children.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
+    },
   });
 }
 

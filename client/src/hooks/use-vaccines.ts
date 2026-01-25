@@ -41,7 +41,7 @@ export function useCreateVaccineRecord() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.vaccineRecords.list.path, variables.childId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/gamification"] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
 }
