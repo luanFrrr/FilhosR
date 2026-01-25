@@ -9,13 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, differenceInMonths, parseISO } from "date-fns";
+import { format, differenceInMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image, Heart, Star, Sparkles, AlertTriangle } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { compressImage } from "@/lib/imageUtils";
-import { cn } from "@/lib/utils";
+import { cn, parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { getPendingVaccines, getPendingDosesByVaccine } from "@/lib/vaccineCheck";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
@@ -168,7 +168,7 @@ export default function VaccineCard() {
       photoUrls: photoUrls.length > 0 ? photoUrls : null,
     };
 
-    // Ensure we send YYYY-MM-DD which parseISO handles correctly
+    // Ensure we send YYYY-MM-DD format
     if (payload.applicationDate.includes('T')) {
       payload.applicationDate = payload.applicationDate.split('T')[0];
     }
@@ -239,7 +239,7 @@ export default function VaccineCard() {
   
   // Calculate child age in months and pending vaccines
   const childAgeMonths = activeChild?.birthDate 
-    ? differenceInMonths(new Date(), parseISO(activeChild.birthDate)) 
+    ? differenceInMonths(new Date(), parseLocalDate(activeChild.birthDate)) 
     : 0;
   
   const pendingByVaccine = useMemo((): Map<number, { vaccineId: number; vaccineName: string; dose: string; expectedMonths: number }[]> => {
@@ -370,7 +370,7 @@ export default function VaccineCard() {
                               <span className="font-medium">{record.dose}</span>
                               <span className="text-muted-foreground">-</span>
                               <span className="text-muted-foreground">
-                                {format(parseISO(record.applicationDate), "dd/MM/yyyy")}
+                                {format(parseLocalDate(record.applicationDate), "dd/MM/yyyy")}
                               </span>
                               {record.photoUrls && record.photoUrls.length > 0 && (
                                 <Camera className="w-3 h-3 text-muted-foreground ml-auto" />
@@ -585,7 +585,7 @@ export default function VaccineCard() {
                   
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-4 h-4" />
-                    <span>Aplicada em {format(parseISO(detailRecord.applicationDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+                    <span>Aplicada em {format(parseLocalDate(detailRecord.applicationDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
                   </div>
 
                   {detailRecord.applicationPlace && (

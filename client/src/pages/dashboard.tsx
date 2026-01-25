@@ -4,10 +4,11 @@ import { useSusVaccines, useVaccineRecords } from "@/hooks/use-vaccines";
 import { useGamification } from "@/hooks/use-auth";
 import { Header } from "@/components/layout/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import { formatDistanceToNow, differenceInMonths, differenceInDays, parseISO } from "date-fns";
+import { formatDistanceToNow, differenceInMonths, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
+import { parseLocalDate } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { getVaccineStatus } from "@/lib/vaccineCheck";
 
@@ -54,7 +55,7 @@ export default function Dashboard() {
   }
 
   // Calculations
-  const birthDate = parseISO(activeChild.birthDate);
+  const birthDate = parseLocalDate(activeChild.birthDate);
   const age = formatDistanceToNow(birthDate, { locale: ptBR, addSuffix: false });
   const months = differenceInMonths(new Date(), birthDate);
   const totalDays = differenceInDays(new Date(), birthDate);
