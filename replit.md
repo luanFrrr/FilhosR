@@ -59,6 +59,8 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **Growth Records CRUD**: Added UPDATE (edit existing) and ARCHIVE (soft delete) functionality
 - **Gamification Cache**: Points now update dynamically when navigating between pages
 - **Archive Pattern**: Uses notes field prefix "[ARCHIVED]" to hide records without adding database fields
+- **Child-specific Gamification**: Points and levels are now tracked per child instead of per user
+- **Initial Growth Record**: When creating a new child, initial measurements (weight, height, head circumference) are automatically saved as the first growth record with the birth date
 
 ## External Dependencies
 
