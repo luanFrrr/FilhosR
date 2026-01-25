@@ -105,7 +105,7 @@ export default function Dashboard() {
             color="bg-emerald-50/50 border-emerald-100"
             delay={0.3}
           />
-          <Link href="/vaccine-card">
+          <Link href="/vaccines">
             <div className="cursor-pointer">
               <StatsCard 
                 title="Vacinas" 
