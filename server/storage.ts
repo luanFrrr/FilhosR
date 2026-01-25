@@ -206,23 +206,54 @@ export class DatabaseStorage implements IStorage {
 
   async initializeSusVaccines(): Promise<void> {
     const existing = await this.getSusVaccines();
-    if (existing.length > 0) return;
+    // Se já temos 19 vacinas (lista completa), está atualizado
+    if (existing.length >= 19) return;
 
-    // Lista de vacinas do calendário infantil do SUS (PNI)
+    // Limpa vacinas antigas para reinicializar com lista completa
+    if (existing.length > 0) {
+      await db.delete(susVaccines);
+    }
+
+    // Lista completa de vacinas do calendário infantil do SUS (PNI) - 0 a 14 anos
     const vaccineList: InsertSusVaccine[] = [
+      // Nascimento
       { name: "BCG", diseasesPrevented: "Tuberculose (formas graves)", recommendedDoses: "Dose única", ageRange: "Ao nascer" },
-      { name: "Hepatite B", diseasesPrevented: "Hepatite B", recommendedDoses: "Dose ao nascer", ageRange: "Ao nascer" },
-      { name: "Pentavalente (DTP+Hib+HepB)", diseasesPrevented: "Difteria, Tétano, Coqueluche, Haemophilus influenzae b, Hepatite B", recommendedDoses: "1ª dose, 2ª dose, 3ª dose", ageRange: "2, 4, 6 meses" },
-      { name: "Poliomielite (VIP/VOP)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "1ª dose, 2ª dose, 3ª dose, Reforços", ageRange: "2, 4, 6 meses + reforços" },
-      { name: "Rotavírus Humano", diseasesPrevented: "Diarreia por rotavírus", recommendedDoses: "1ª dose, 2ª dose", ageRange: "2, 4 meses" },
-      { name: "Pneumocócica 10-valente", diseasesPrevented: "Pneumonia, Meningite, Otite", recommendedDoses: "1ª dose, 2ª dose, Reforço", ageRange: "2, 4 meses + reforço 12m" },
-      { name: "Meningocócica C (conjugada)", diseasesPrevented: "Meningite meningocócica C", recommendedDoses: "1ª dose, 2ª dose, Reforço", ageRange: "3, 5 meses + reforço 12m" },
-      { name: "Febre Amarela", diseasesPrevented: "Febre amarela", recommendedDoses: "Dose inicial, Reforço", ageRange: "9 meses + reforço 4 anos" },
-      { name: "Tríplice Viral (SCR)", diseasesPrevented: "Sarampo, Caxumba, Rubéola", recommendedDoses: "1ª dose, 2ª dose", ageRange: "12 meses, 15 meses" },
+      { name: "Hepatite B", diseasesPrevented: "Hepatite B", recommendedDoses: "1ª dose (ao nascer)", ageRange: "Ao nascer (primeiras 24h)" },
+      
+      // 2 meses
+      { name: "Pentavalente (DTP+Hib+HB)", diseasesPrevented: "Difteria, Tétano, Coqueluche, Haemophilus influenzae b, Hepatite B", recommendedDoses: "1ª, 2ª, 3ª dose", ageRange: "2, 4, 6 meses" },
+      { name: "VIP (Pólio Inativada)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "1ª, 2ª, 3ª dose", ageRange: "2, 4, 6 meses" },
+      { name: "Pneumocócica 10-valente", diseasesPrevented: "Pneumonia, Meningite, Otite", recommendedDoses: "1ª, 2ª dose + Reforço", ageRange: "2, 4 meses + reforço 12m" },
+      { name: "Rotavírus Humano", diseasesPrevented: "Diarreia por rotavírus", recommendedDoses: "1ª, 2ª dose", ageRange: "2, 4 meses" },
+      
+      // 3 e 5 meses
+      { name: "Meningocócica C (conjugada)", diseasesPrevented: "Meningite meningocócica C", recommendedDoses: "1ª, 2ª dose + Reforço", ageRange: "3, 5 meses + reforço 12m" },
+      
+      // 6 meses
+      { name: "COVID-19 Infantil", diseasesPrevented: "COVID-19", recommendedDoses: "Esquema conforme vacina", ageRange: "6 meses a 4 anos" },
+      { name: "Influenza (Gripe)", diseasesPrevented: "Gripe", recommendedDoses: "Dose anual", ageRange: "6 meses em diante (campanhas)" },
+      
+      // 9 meses
+      { name: "Febre Amarela", diseasesPrevented: "Febre amarela", recommendedDoses: "Dose inicial + Reforço", ageRange: "9 meses + reforço 4 anos" },
+      
+      // 12 meses
+      { name: "Tríplice Viral (SCR)", diseasesPrevented: "Sarampo, Caxumba, Rubéola", recommendedDoses: "1ª dose", ageRange: "12 meses" },
+      
+      // 15 meses
+      { name: "Tetra Viral (SCRV)", diseasesPrevented: "Sarampo, Caxumba, Rubéola, Varicela", recommendedDoses: "Dose única (2ª SCR + 1ª Varicela)", ageRange: "15 meses" },
       { name: "Hepatite A", diseasesPrevented: "Hepatite A", recommendedDoses: "Dose única", ageRange: "15 meses" },
-      { name: "Tetra Viral (SCRV)", diseasesPrevented: "Sarampo, Caxumba, Rubéola, Varicela", recommendedDoses: "Dose única", ageRange: "15 meses" },
-      { name: "Varicela", diseasesPrevented: "Catapora (varicela)", recommendedDoses: "1ª dose, 2ª dose", ageRange: "15 meses, 4 anos" },
-      { name: "DTP (Tríplice Bacteriana)", diseasesPrevented: "Difteria, Tétano, Coqueluche", recommendedDoses: "1º reforço, 2º reforço", ageRange: "15 meses, 4 anos" },
+      { name: "DTP (Tríplice Bacteriana)", diseasesPrevented: "Difteria, Tétano, Coqueluche", recommendedDoses: "1º e 2º reforço", ageRange: "15 meses e 4 anos" },
+      
+      // 18 meses
+      { name: "VOP (Pólio Oral)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "Reforço", ageRange: "15 meses e 4 anos" },
+      
+      // 4 anos
+      { name: "Varicela", diseasesPrevented: "Catapora (varicela)", recommendedDoses: "2ª dose", ageRange: "4 anos" },
+      
+      // 9-14 anos (Pré-adolescentes)
+      { name: "HPV Quadrivalente", diseasesPrevented: "HPV (Papilomavírus Humano)", recommendedDoses: "2 doses (intervalo 6 meses)", ageRange: "9-14 anos (meninas) / 11-14 anos (meninos)" },
+      { name: "Meningocócica ACWY", diseasesPrevented: "Meningite meningocócica A, C, W, Y", recommendedDoses: "Reforço", ageRange: "11-14 anos" },
+      { name: "dT (Dupla Adulto)", diseasesPrevented: "Difteria e Tétano", recommendedDoses: "Reforço a cada 10 anos", ageRange: "A partir de 7 anos" },
     ];
 
     await db.insert(susVaccines).values(vaccineList);

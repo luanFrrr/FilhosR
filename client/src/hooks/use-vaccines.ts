@@ -45,3 +45,39 @@ export function useCreateVaccineRecord() {
     },
   });
 }
+
+export function useUpdateVaccineRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId, ...data }: { id: number; childId: number } & Partial<InsertVaccineRecord>) => {
+      const url = buildUrl(api.vaccineRecords.update.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update vaccine record");
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.vaccineRecords.list.path, variables.childId] });
+    },
+  });
+}
+
+export function useDeleteVaccineRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
+      const url = buildUrl(api.vaccineRecords.delete.path, { id });
+      const res = await fetch(url, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete vaccine record");
+      return true;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.vaccineRecords.list.path, variables.childId] });
+    },
+  });
+}
