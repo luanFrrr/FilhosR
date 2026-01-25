@@ -15,13 +15,15 @@ export function useUser() {
   });
 }
 
-export function useGamification() {
+export function useGamification(childId: number | null) {
   return useQuery({
-    queryKey: [api.auth.gamification.path],
+    queryKey: [api.auth.gamification.path, childId],
     queryFn: async () => {
-      const res = await fetch(api.auth.gamification.path);
+      if (!childId) return { points: 0, level: 'Iniciante' };
+      const res = await fetch(`${api.auth.gamification.path}?childId=${childId}`);
       if (!res.ok) throw new Error("Failed to fetch gamification");
       return api.auth.gamification.responses[200].parse(await res.json());
     },
+    enabled: childId !== null,
   });
 }

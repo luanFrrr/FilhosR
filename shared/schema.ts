@@ -89,7 +89,7 @@ export const diaryEntries = pgTable("diary_entries", {
 
 export const gamification = pgTable("gamification", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  childId: integer("child_id").notNull(),
   points: integer("points").default(0),
   level: text("level").default('Iniciante'),
   achievements: jsonb("achievements").default([]),
@@ -122,10 +122,9 @@ export const vaccineRecords = pgTable("vaccine_records", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   caregiverEntries: many(caregivers),
-  gamification: many(gamification),
 }));
 
-export const childrenRelations = relations(children, ({ many }) => ({
+export const childrenRelations = relations(children, ({ many, one }) => ({
   caregivers: many(caregivers),
   growthRecords: many(growthRecords),
   vaccines: many(vaccines),
@@ -133,6 +132,7 @@ export const childrenRelations = relations(children, ({ many }) => ({
   milestones: many(milestones),
   diaryEntries: many(diaryEntries),
   vaccineRecords: many(vaccineRecords),
+  gamification: one(gamification),
 }));
 
 export const caregiversRelations = relations(caregivers, ({ one }) => ({
@@ -182,9 +182,9 @@ export const diaryEntriesRelations = relations(diaryEntries, ({ one }) => ({
 }));
 
 export const gamificationRelations = relations(gamification, ({ one }) => ({
-  user: one(users, {
-    fields: [gamification.userId],
-    references: [users.id],
+  child: one(children, {
+    fields: [gamification.childId],
+    references: [children.id],
   }),
 }));
 

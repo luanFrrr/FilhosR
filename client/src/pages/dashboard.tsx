@@ -38,7 +38,7 @@ export default function Dashboard() {
   const { data: growth } = useGrowthRecords(activeChild?.id || 0);
   const { data: susVaccines } = useSusVaccines();
   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
-  const { data: gamification } = useGamification();
+  const { data: gamification } = useGamification(activeChild?.id || null);
 
   if (isLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Carregando...</div>;
