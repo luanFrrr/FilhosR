@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { getZodiacSign } from "@/lib/zodiac";
+import { format, parseISO } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +52,7 @@ export default function Settings() {
 
   const [editForm, setEditForm] = useState({
     name: "",
+    birthDate: "",
     gender: "unspecified",
     theme: "neutral",
     initialWeight: "",
@@ -60,6 +63,7 @@ export default function Settings() {
     setEditingChild(child);
     setEditForm({
       name: child.name,
+      birthDate: child.birthDate,
       gender: child.gender,
       theme: child.theme || "neutral",
       initialWeight: child.initialWeight || "",
@@ -73,6 +77,7 @@ export default function Settings() {
       await updateChild.mutateAsync({
         id: editingChild.id,
         name: editForm.name,
+        birthDate: editForm.birthDate,
         gender: editForm.gender,
         theme: editForm.theme,
         initialWeight: editForm.initialWeight || null,
@@ -145,15 +150,24 @@ export default function Settings() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold truncate">{child.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Tema: {child.theme === 'blue' ? 'Azul' : child.theme === 'pink' ? 'Rosa' : 'Neutro'}
-                  </p>
+                  {(() => {
+                    const zodiac = getZodiacSign(child.birthDate);
+                    return (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{format(parseISO(child.birthDate), "dd/MM/yyyy")}</span>
+                        {zodiac && (
+                          <span className="text-primary font-medium">
+                            {zodiac.symbol} {zodiac.name}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="flex gap-1">
                   <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="h-9 w-9 text-muted-foreground hover:text-primary"
                     onClick={() => openEditDialog(child)}
                     data-testid={`button-edit-child-${child.id}`}
                   >
@@ -162,7 +176,6 @@ export default function Settings() {
                   <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="h-9 w-9 text-muted-foreground hover:text-red-500"
                     onClick={() => setDeletingChild(child)}
                     data-testid={`button-delete-child-${child.id}`}
                   >
@@ -231,6 +244,24 @@ export default function Settings() {
                 onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
                 data-testid="input-edit-name"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-birthdate">Data de Nascimento</Label>
+              <Input 
+                id="edit-birthdate"
+                type="date"
+                value={editForm.birthDate}
+                onChange={(e) => setEditForm(f => ({ ...f, birthDate: e.target.value }))}
+                data-testid="input-edit-birthdate"
+              />
+              {(() => {
+                const zodiac = editForm.birthDate ? getZodiacSign(editForm.birthDate) : null;
+                return zodiac ? (
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    Signo: <span className="text-primary font-medium">{zodiac.symbol} {zodiac.name}</span>
+                  </p>
+                ) : null;
+              })()}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-gender">Sexo</Label>
