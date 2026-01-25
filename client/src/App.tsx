@@ -18,6 +18,7 @@ import Settings from "@/pages/settings";
 import VaccineCard from "@/pages/vaccine-card";
 import DailyPhotos from "@/pages/daily-photos";
 import Landing from "@/pages/landing";
+import Privacy from "@/pages/privacy";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRouter() {
@@ -44,6 +45,12 @@ function AuthenticatedRouter() {
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  // Páginas públicas que não precisam de autenticação
+  if (location === "/privacy") {
+    return <Privacy />;
+  }
 
   if (isLoading) {
     return (
