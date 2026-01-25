@@ -161,6 +161,25 @@ export async function registerRoutes(
     res.status(201).json(record);
   });
 
+  app.patch(api.health.update.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const input = api.health.update.input.parse(req.body);
+    const record = await storage.updateHealthRecord(id, input);
+    if (!record) {
+      return res.status(404).json({ message: "Registro não encontrado" });
+    }
+    res.json(record);
+  });
+
+  app.post(api.health.archive.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const record = await storage.archiveHealthRecord(id);
+    if (!record) {
+      return res.status(404).json({ message: "Registro não encontrado" });
+    }
+    res.json(record);
+  });
+
   // Milestones
   app.get(api.milestones.list.path, async (req, res) => {
     const records = await storage.getMilestones(Number(req.params.childId));

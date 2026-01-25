@@ -188,6 +188,23 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/health/:id',
+      input: insertHealthRecordSchema.partial(),
+      responses: {
+        200: z.custom<typeof healthRecords.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    archive: {
+      method: 'POST' as const,
+      path: '/api/health/:id/archive',
+      responses: {
+        200: z.custom<typeof healthRecords.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 
   // Milestones
