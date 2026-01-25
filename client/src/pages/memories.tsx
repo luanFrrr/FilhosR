@@ -14,6 +14,7 @@ import { Star, Book, Image as ImageIcon, Camera, X, Edit2, Trash2, Heart, Sparkl
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { compressImage } from "@/lib/imageUtils";
+import { parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Milestone } from "@shared/schema";
 
@@ -312,7 +313,7 @@ export default function Memories() {
                  >
                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
                    <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">
-                     {format(parseISO(milestone.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
+                     {format(parseLocalDate(milestone.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
                    </span>
                    <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
                      {milestone.photoUrl && (
@@ -367,7 +368,7 @@ export default function Memories() {
                 <div key={entry.id} className="bg-white p-5 rounded-2xl border border-border shadow-sm">
                   <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
                     <span className="font-hand text-lg font-bold text-primary">
-                       {format(parseISO(entry.date), "dd/MM/yyyy")}
+                       {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
                     </span>
                     {entry.photoUrls && entry.photoUrls.length > 0 && <ImageIcon className="w-4 h-4 text-muted-foreground" />}
                   </div>
@@ -392,7 +393,7 @@ export default function Memories() {
               <DialogHeader>
                 <DialogTitle className="text-xl">{viewMilestone.title}</DialogTitle>
                 <DialogDescription>
-                  {format(parseISO(viewMilestone.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  {format(parseLocalDate(viewMilestone.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                 </DialogDescription>
               </DialogHeader>
               

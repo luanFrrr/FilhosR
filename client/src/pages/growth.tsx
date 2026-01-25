@@ -15,7 +15,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, parseLocalDate } from "@/lib/utils";
 import type { GrowthRecord } from "@shared/schema";
 
 const recordSchema = z.object({
@@ -235,9 +235,9 @@ export default function Growth() {
             {records?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((record) => (
               <div key={record.id} data-testid={`growth-record-${record.id}`} className="bg-white p-4 rounded-xl border border-border flex justify-between items-center">
                 <div>
-                  <p className="font-bold text-foreground">{format(parseISO(record.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}</p>
+                  <p className="font-bold text-foreground">{format(parseLocalDate(record.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {formatDistanceToNow(parseISO(record.date), { locale: ptBR, addSuffix: true })}
+                    {formatDistanceToNow(parseLocalDate(record.date), { locale: ptBR, addSuffix: true })}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

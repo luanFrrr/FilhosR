@@ -15,6 +15,7 @@ import { ptBR } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { parseLocalDate } from "@/lib/utils";
 import { useVaccineRecords } from "@/hooks/use-vaccines";
 import type { HealthRecord } from "@shared/schema";
 
@@ -212,7 +213,7 @@ export default function Health() {
                 <div key={record.id} className="bg-white p-5 rounded-xl border border-border shadow-sm" data-testid={`health-record-${record.id}`}>
                   <div className="flex justify-between items-start mb-2">
                     <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-md">
-                      {format(parseISO(record.date), "dd MMM yyyy", { locale: ptBR })}
+                      {format(parseLocalDate(record.date), "dd MMM yyyy", { locale: ptBR })}
                     </span>
                     <div className="flex gap-1">
                       <Button 

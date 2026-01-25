@@ -13,7 +13,8 @@ import { compressImage } from "@/lib/imageUtils";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getZodiacSign } from "@/lib/zodiac";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -184,7 +185,7 @@ export default function Settings() {
                     const zodiac = getZodiacSign(child.birthDate);
                     return (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{format(parseISO(child.birthDate), "dd/MM/yyyy")}</span>
+                        <span>{format(parseLocalDate(child.birthDate), "dd/MM/yyyy")}</span>
                         {zodiac && (
                           <span className="text-primary font-medium">
                             {zodiac.symbol} {zodiac.name}

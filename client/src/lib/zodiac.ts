@@ -1,4 +1,4 @@
-import { parseISO } from "date-fns";
+import { parseLocalDate } from "@/lib/utils";
 
 const zodiacSigns = [
   { name: "Capricórnio", symbol: "♑", start: [12, 22], end: [1, 19] },
@@ -16,11 +16,11 @@ const zodiacSigns = [
 ];
 
 export function getZodiacSign(birthDate: string | Date): { name: string; symbol: string } | null {
-  const date = typeof birthDate === "string" ? parseISO(birthDate) : birthDate;
+  const date = typeof birthDate === "string" ? parseLocalDate(birthDate) : birthDate;
   if (isNaN(date.getTime())) return null;
 
-  const month = date.getUTCMonth() + 1;
-  const day = date.getUTCDate();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
 
   for (const sign of zodiacSigns) {
     const [startMonth, startDay] = sign.start;
