@@ -40,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Child } from "@shared/schema";
+import { PhotoView } from "@/components/ui/photo-view";
 
 export default function Settings() {
   const { activeChild, setActiveChildId } = useChildContext();
@@ -166,22 +166,24 @@ export default function Settings() {
                 className={`bg-white p-4 rounded-xl border ${activeChild?.id === child.id ? 'border-primary ring-2 ring-primary/20' : 'border-border'} flex items-center gap-3`}
                 data-testid={`child-card-${child.id}`}
               >
-                {child.photoUrl ? (
-                  <img 
-                    src={child.photoUrl} 
-                    alt={child.name}
-                    className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
-                  />
-                ) : (
-                  <div 
-                    className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
-                      child.theme === 'blue' ? 'bg-blue-400' : 
-                      child.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
-                    }`}
-                  >
-                    {child.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <PhotoView src={child.photoUrl || null} alt={child.name}>
+                  {child.photoUrl ? (
+                    <img 
+                      src={child.photoUrl} 
+                      alt={child.name}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                    />
+                  ) : (
+                    <div 
+                      className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                        child.theme === 'blue' ? 'bg-blue-400' : 
+                        child.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
+                      }`}
+                    >
+                      {child.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </PhotoView>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold truncate">{child.name}</p>
                   {(() => {

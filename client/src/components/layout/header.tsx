@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Link } from "wouter";
 
+import { PhotoView } from "@/components/ui/photo-view";
+
 export function Header({ title, showChildSelector = true }: { title?: string, showChildSelector?: boolean }) {
   const { activeChild, setActiveChildId } = useChildContext();
   const { data: children } = useChildren();
@@ -26,21 +28,23 @@ export function Header({ title, showChildSelector = true }: { title?: string, sh
           <div className="flex flex-col">
             <span className="text-xs font-medium text-muted-foreground mb-0.5">{displayDate}</span>
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-2 outline-none">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-primary">
+              <div className="flex items-center gap-2">
+                <PhotoView src={activeChild?.photoUrl || null} alt={activeChild?.name}>
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-primary overflow-hidden">
                     {activeChild?.photoUrl ? (
-                      <img src={activeChild.photoUrl} alt={activeChild.name} className="w-full h-full rounded-full object-cover" />
+                      <img src={activeChild.photoUrl} alt={activeChild.name} className="w-full h-full object-cover" />
                     ) : (
                       <Baby className="w-5 h-5" />
                     )}
                   </div>
+                </PhotoView>
+                <DropdownMenuTrigger className="flex items-center gap-2 outline-none group">
                   <h1 className="text-xl font-display font-bold text-foreground">
                     {activeChild?.name || "Olá!"}
                   </h1>
-                </div>
-                <ChevronDown className="w-4 h-4 text-muted-foreground opacity-70" />
-              </DropdownMenuTrigger>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground opacity-70 group-data-[state=open]:rotate-180 transition-transform" />
+                </DropdownMenuTrigger>
+              </div>
               <DropdownMenuContent align="start" className="w-56 rounded-xl shadow-xl border-border/50 bg-white/95 backdrop-blur">
                 {children?.map((child) => (
                   <DropdownMenuItem
