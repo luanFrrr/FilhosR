@@ -127,7 +127,7 @@ export default function Dashboard() {
             <Link href="/growth">
               <div className="min-w-[140px] p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform">
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-3">
-                  <Scale className="w-5 h-5 text-blue-600" />
+                  <Scale className="w-5 h-5 text-blue-600" strokeWidth={1.5} />
                 </div>
                 <p className="font-bold text-sm">Registrar Medidas</p>
               </div>
@@ -135,7 +135,7 @@ export default function Dashboard() {
             <Link href="/health">
                <div className="min-w-[140px] p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform">
                 <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center mb-3">
-                  <Heart className="w-5 h-5 text-rose-600" />
+                  <Heart className="w-5 h-5 text-rose-600" strokeWidth={1.5} />
                 </div>
                 <p className="font-bold text-sm">Anotar Sintomas</p>
               </div>
@@ -143,7 +143,7 @@ export default function Dashboard() {
             <Link href="/memories">
                <div className="min-w-[140px] p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform">
                 <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-3">
-                  <Trophy className="w-5 h-5 text-amber-600" />
+                  <Trophy className="w-5 h-5 text-amber-600" strokeWidth={1.5} />
                 </div>
                 <p className="font-bold text-sm">Novo Marco</p>
               </div>
