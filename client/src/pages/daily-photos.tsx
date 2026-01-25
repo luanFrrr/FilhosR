@@ -166,7 +166,7 @@ export default function DailyPhotos() {
     <div className="min-h-screen bg-background pb-24">
       <Header />
       
-      <main className="max-w-md mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-md mx-auto px-4 py-6 space-y-10">
         <div className="text-center">
           <h1 className="text-2xl font-display font-bold">Foto do Dia</h1>
           <p className="text-sm text-muted-foreground mt-1">
