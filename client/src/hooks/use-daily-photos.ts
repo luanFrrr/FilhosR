@@ -44,3 +44,17 @@ export function useCreateDailyPhoto() {
     },
   });
 }
+
+export function useDeleteDailyPhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
+      const url = buildUrl(api.dailyPhotos.delete.path, { id });
+      await apiRequest("DELETE", url);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.dailyPhotos.list.path, variables.childId] });
+      queryClient.invalidateQueries({ queryKey: [api.dailyPhotos.today.path, variables.childId] });
+    },
+  });
+}

@@ -73,7 +73,9 @@ export interface IStorage {
   // Daily Photos
   getDailyPhotos(childId: number): Promise<DailyPhoto[]>;
   getDailyPhotoByDate(childId: number, date: string): Promise<DailyPhoto | undefined>;
+  getDailyPhotoById(id: number): Promise<DailyPhoto | undefined>;
   createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto>;
+  deleteDailyPhoto(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -361,9 +363,18 @@ export class DatabaseStorage implements IStorage {
     return photo;
   }
 
+  async getDailyPhotoById(id: number): Promise<DailyPhoto | undefined> {
+    const [photo] = await db.select().from(dailyPhotos).where(eq(dailyPhotos.id, id));
+    return photo;
+  }
+
   async createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto> {
     const [newPhoto] = await db.insert(dailyPhotos).values(photo).returning();
     return newPhoto;
+  }
+
+  async deleteDailyPhoto(id: number): Promise<void> {
+    await db.delete(dailyPhotos).where(eq(dailyPhotos.id, id));
   }
 }
 

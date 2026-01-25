@@ -361,5 +361,29 @@ export async function registerRoutes(
     }
   });
 
+  app.delete(api.dailyPhotos.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+    
+    // Get the photo to check ownership
+    const photo = await storage.getDailyPhotoById(id);
+    if (!photo) {
+      return res.status(404).json({ message: "Foto não encontrada" });
+    }
+    
+    // Verify user has access to this child
+    // @ts-ignore
+    const userChildren = await storage.getChildrenByUserId(req.user.id);
+    const hasAccess = userChildren.some(c => c.id === photo.childId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    
+    await storage.deleteDailyPhoto(id);
+    res.status(204).end();
+  });
+
   return httpServer;
 }
