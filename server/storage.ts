@@ -30,6 +30,8 @@ export interface IStorage {
   // Growth
   getGrowthRecords(childId: number): Promise<GrowthRecord[]>;
   createGrowthRecord(record: InsertGrowthRecord): Promise<GrowthRecord>;
+  updateGrowthRecord(id: number, record: Partial<InsertGrowthRecord>): Promise<GrowthRecord>;
+  archiveGrowthRecord(id: number): Promise<GrowthRecord>;
 
   // Vaccines
   getVaccines(childId: number): Promise<Vaccine[]>;
@@ -124,12 +126,25 @@ export class DatabaseStorage implements IStorage {
 
   // Growth
   async getGrowthRecords(childId: number): Promise<GrowthRecord[]> {
-    return await db.select().from(growthRecords).where(eq(growthRecords.childId, childId));
+    const records = await db.select().from(growthRecords).where(eq(growthRecords.childId, childId));
+    return records.filter(r => !r.notes?.startsWith("[ARCHIVED]"));
   }
 
   async createGrowthRecord(record: InsertGrowthRecord): Promise<GrowthRecord> {
     const [newRecord] = await db.insert(growthRecords).values(record).returning();
     return newRecord;
+  }
+
+  async updateGrowthRecord(id: number, updates: Partial<InsertGrowthRecord>): Promise<GrowthRecord> {
+    const [updated] = await db.update(growthRecords).set(updates).where(eq(growthRecords.id, id)).returning();
+    return updated;
+  }
+
+  async archiveGrowthRecord(id: number): Promise<GrowthRecord> {
+    const [record] = await db.select().from(growthRecords).where(eq(growthRecords.id, id));
+    const newNotes = "[ARCHIVED]" + (record?.notes || "");
+    const [archived] = await db.update(growthRecords).set({ notes: newNotes }).where(eq(growthRecords.id, id)).returning();
+    return archived;
   }
 
   // Vaccines

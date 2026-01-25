@@ -46,12 +46,19 @@ Core entities include:
 All API routes are prefixed with `/api/` and organized by resource:
 - `/api/auth/*` - User authentication and gamification
 - `/api/children/*` - CRUD for child profiles
-- `/api/children/:childId/growth` - Growth records
+- `/api/children/:childId/growth` - Growth records (list, create)
+- `/api/growth/:id` - Update growth record (PATCH)
+- `/api/growth/:id/archive` - Archive growth record (POST) - uses notes field prefix "[ARCHIVED]"
 - `/api/children/:childId/vaccines` - Vaccine records
 - `/api/children/:childId/health` - Health records
-- `/api/children/:childId/milestones` - Milestone tracking
+- `/api/children/:childId/milestones` - Milestone tracking (full CRUD)
 - `/api/children/:childId/diary` - Diary entries
 - `/api/sus-vaccines` - Brazilian SUS vaccine reference data
+
+### Recent Changes (Jan 2026)
+- **Growth Records CRUD**: Added UPDATE (edit existing) and ARCHIVE (soft delete) functionality
+- **Gamification Cache**: Points now update dynamically when navigating between pages
+- **Archive Pattern**: Uses notes field prefix "[ARCHIVED]" to hide records without adding database fields
 
 ## External Dependencies
 
