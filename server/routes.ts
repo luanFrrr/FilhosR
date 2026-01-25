@@ -77,10 +77,17 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.children.get.path, async (req, res) => {
-    const child = await storage.getChild(Number(req.params.id));
-    if (!child) return res.status(404).json({ message: "Not found" });
-    res.json(child);
+  app.put(api.children.update.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const input = api.children.update.input.parse(req.body);
+    const record = await storage.updateChild(id, input);
+    res.json(record);
+  });
+
+  app.delete(api.children.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    await storage.deleteChild(id);
+    res.status(204).end();
   });
 
   // Growth
