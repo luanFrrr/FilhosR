@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
-import { useHealthRecords, useCreateHealthRecord } from "@/hooks/use-health";
+import { useHealthRecords, useCreateHealthRecord, useUpdateHealthRecord, useArchiveHealthRecord } from "@/hooks/use-health";
 import { Header } from "@/components/layout/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -8,21 +8,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
-import { Syringe, Thermometer, Shield, ChevronRight } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Syringe, Thermometer, Shield, ChevronRight, Pencil, Archive } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { useVaccineRecords } from "@/hooks/use-vaccines";
+import type { HealthRecord } from "@shared/schema";
 
 export default function Health() {
   const { activeChild } = useChildContext();
   const { data: sickRecords } = useHealthRecords(activeChild?.id || 0);
   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
   const createSickRecord = useCreateHealthRecord();
+  const updateSickRecord = useUpdateHealthRecord();
+  const archiveSickRecord = useArchiveHealthRecord();
   const { toast } = useToast();
   const [sickDialogOpen, setSickDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<HealthRecord | null>(null);
 
   const sickForm = useForm({
     defaultValues: {
@@ -35,14 +40,65 @@ export default function Health() {
 
   const onSickSubmit = (data: any) => {
     if(!activeChild) return;
-    createSickRecord.mutate({ childId: activeChild.id, ...data }, {
+    
+    if (editingRecord) {
+      updateSickRecord.mutate({ 
+        id: editingRecord.id, 
+        childId: activeChild.id, 
+        ...data 
+      }, {
+        onSuccess: () => {
+          setSickDialogOpen(false);
+          setEditingRecord(null);
+          sickForm.reset();
+          toast({ title: "Registro atualizado!" });
+        }
+      });
+    } else {
+      createSickRecord.mutate({ childId: activeChild.id, ...data }, {
+        onSuccess: () => {
+          setSickDialogOpen(false);
+          sickForm.reset();
+          toast({ title: "Registro salvo!" });
+        }
+      });
+    }
+  };
+
+  const handleEdit = (record: HealthRecord) => {
+    setEditingRecord(record);
+    sickForm.reset({
+      date: record.date,
+      symptoms: record.symptoms,
+      medication: record.medication || "",
+      notes: record.notes || ""
+    });
+    setSickDialogOpen(true);
+  };
+
+  const handleArchive = (record: HealthRecord) => {
+    if(!activeChild) return;
+    archiveSickRecord.mutate({ id: record.id, childId: activeChild.id }, {
       onSuccess: () => {
-        setSickDialogOpen(false);
-        sickForm.reset();
-        toast({ title: "Registro salvo!" });
+        toast({ title: "Registro arquivado!" });
       }
     });
   };
+
+  const handleDialogClose = (open: boolean) => {
+    setSickDialogOpen(open);
+    if (!open) {
+      setEditingRecord(null);
+      sickForm.reset({
+        date: new Date().toISOString().split('T')[0],
+        symptoms: "",
+        medication: "",
+        notes: ""
+      });
+    }
+  };
+
+  const visibleRecords = sickRecords?.filter(r => !r.notes?.startsWith('[ARQUIVADO]'));
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -91,14 +147,16 @@ export default function Health() {
           <TabsContent value="history" className="space-y-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-display font-bold">Histórico de Doenças</h3>
-              <Dialog open={sickDialogOpen} onOpenChange={setSickDialogOpen}>
+              <Dialog open={sickDialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
-                  <Button className="rounded-full" data-testid="button-add-health-record">+ Registrar</Button>
+                  <Button data-testid="button-add-health-record">+ Registrar</Button>
                 </DialogTrigger>
                 <DialogContent className="rounded-2xl max-w-sm mx-auto">
                    <DialogHeader>
-                     <DialogTitle>Registrar Sintoma/Doença</DialogTitle>
-                     <DialogDescription>Anote os sintomas e medicações</DialogDescription>
+                     <DialogTitle>{editingRecord ? "Editar Registro" : "Registrar Sintoma/Doença"}</DialogTitle>
+                     <DialogDescription>
+                       {editingRecord ? "Edite as informações do registro" : "Anote os sintomas e medicações"}
+                     </DialogDescription>
                    </DialogHeader>
                    <form onSubmit={sickForm.handleSubmit(onSickSubmit)} className="space-y-4 pt-2">
                      <div className="space-y-2">
@@ -122,8 +180,22 @@ export default function Health() {
                          data-testid="input-health-medication"
                        />
                      </div>
-                     <Button type="submit" className="w-full" disabled={createSickRecord.isPending} data-testid="button-save-health">
-                       {createSickRecord.isPending ? "Salvando..." : "Salvar"}
+                     <div className="space-y-2">
+                       <Label>Observações (Opcional)</Label>
+                       <Textarea 
+                         {...sickForm.register("notes")} 
+                         className="min-h-[60px]" 
+                         placeholder="Informações adicionais..."
+                         data-testid="input-health-notes"
+                       />
+                     </div>
+                     <Button 
+                       type="submit" 
+                       className="w-full" 
+                       disabled={createSickRecord.isPending || updateSickRecord.isPending} 
+                       data-testid="button-save-health"
+                     >
+                       {(createSickRecord.isPending || updateSickRecord.isPending) ? "Salvando..." : "Salvar"}
                      </Button>
                    </form>
                 </DialogContent>
@@ -131,12 +203,50 @@ export default function Health() {
             </div>
 
             <div className="space-y-4">
-              {sickRecords?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => (
-                <div key={record.id} className="bg-white p-5 rounded-xl border border-border shadow-sm">
+              {visibleRecords?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(record => (
+                <div key={record.id} className="bg-white p-5 rounded-xl border border-border shadow-sm" data-testid={`health-record-${record.id}`}>
                   <div className="flex justify-between items-start mb-2">
                     <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-md">
                       {format(new Date(record.date), "dd MMM yyyy", { locale: ptBR })}
                     </span>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleEdit(record)}
+                        data-testid={`button-edit-health-${record.id}`}
+                      >
+                        <Pencil className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            data-testid={`button-archive-health-${record.id}`}
+                          >
+                            <Archive className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="max-w-sm mx-auto">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Arquivar registro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              O registro será permanentemente ocultado da lista.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleArchive(record)}
+                              data-testid={`button-confirm-archive-${record.id}`}
+                            >
+                              Arquivar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                   <h4 className="font-bold text-foreground text-lg mb-1">{record.symptoms}</h4>
                   {record.medication && (
@@ -145,9 +255,12 @@ export default function Health() {
                       <span>{record.medication}</span>
                     </div>
                   )}
+                  {record.notes && !record.notes.startsWith('[ARQUIVADO]') && (
+                    <p className="text-sm text-muted-foreground mt-2">{record.notes}</p>
+                  )}
                 </div>
               ))}
-              {(!sickRecords || sickRecords.length === 0) && (
+              {(!visibleRecords || visibleRecords.length === 0) && (
                 <div className="text-center py-12 bg-white rounded-2xl border border-dashed">
                   <Thermometer className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-muted-foreground">Nenhum registro de doença.</p>

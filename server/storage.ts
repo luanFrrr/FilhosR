@@ -41,6 +41,8 @@ export interface IStorage {
   // Health
   getHealthRecords(childId: number): Promise<HealthRecord[]>;
   createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord>;
+  updateHealthRecord(id: number, data: Partial<InsertHealthRecord>): Promise<HealthRecord | undefined>;
+  archiveHealthRecord(id: number): Promise<HealthRecord | undefined>;
 
   // Milestones
   getMilestones(childId: number): Promise<Milestone[]>;
@@ -170,6 +172,20 @@ export class DatabaseStorage implements IStorage {
   async createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord> {
     const [newRecord] = await db.insert(healthRecords).values(record).returning();
     return newRecord;
+  }
+
+  async updateHealthRecord(id: number, data: Partial<InsertHealthRecord>): Promise<HealthRecord | undefined> {
+    const [updated] = await db.update(healthRecords).set(data).where(eq(healthRecords.id, id)).returning();
+    return updated;
+  }
+
+  async archiveHealthRecord(id: number): Promise<HealthRecord | undefined> {
+    const existing = await db.select().from(healthRecords).where(eq(healthRecords.id, id));
+    if (!existing.length) return undefined;
+    const record = existing[0];
+    const archivedNotes = record.notes?.startsWith('[ARQUIVADO]') ? record.notes : `[ARQUIVADO] ${record.notes || ''}`;
+    const [updated] = await db.update(healthRecords).set({ notes: archivedNotes }).where(eq(healthRecords.id, id)).returning();
+    return updated;
   }
 
   // Milestones

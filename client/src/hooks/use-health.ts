@@ -89,3 +89,40 @@ export function useCreateHealthRecord() {
     },
   });
 }
+
+export function useUpdateHealthRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId, ...data }: { id: number; childId: number } & Partial<InsertHealthRecord>) => {
+      const url = buildUrl(api.health.update.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update health record");
+      return api.health.update.responses[200].parse(await res.json());
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.health.list.path, variables.childId] });
+    },
+  });
+}
+
+export function useArchiveHealthRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
+      const url = buildUrl(api.health.archive.path, { id });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("Failed to archive health record");
+      return api.health.archive.responses[200].parse(await res.json());
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.health.list.path, variables.childId] });
+    },
+  });
+}
