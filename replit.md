@@ -1,0 +1,84 @@
+# replit.md
+
+## Overview
+
+BabyTracker is a mobile-first web application for parents to track their children's growth, health, vaccinations, and memories. Built with a React frontend and Express backend, it provides a comprehensive parenting companion with features like growth charts, vaccine schedules (aligned with Brazilian SUS standards), health records, milestone tracking, and a digital diary. The app supports multiple children with personalized themes and includes a gamification system to encourage consistent tracking.
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+- **Framework**: React 18 with TypeScript
+- **Routing**: Wouter (lightweight React router)
+- **State Management**: TanStack React Query for server state, React Context for local state (child selection)
+- **UI Components**: Shadcn/ui component library built on Radix UI primitives
+- **Styling**: Tailwind CSS with CSS variables for theming (supports neutral, pink, and blue themes per child)
+- **Animations**: Framer Motion for smooth mobile-like transitions
+- **Charts**: Recharts for growth visualization
+- **Forms**: React Hook Form with Zod validation
+
+### Backend Architecture
+- **Framework**: Express 5 on Node.js
+- **API Pattern**: RESTful endpoints defined in `shared/routes.ts` with Zod schemas for request/response validation
+- **Database**: PostgreSQL with Drizzle ORM
+- **Schema Location**: `shared/schema.ts` contains all table definitions and relations
+
+### Build System
+- **Development**: Vite with HMR for the React frontend, tsx for running the Express server
+- **Production**: Vite builds frontend to `dist/public`, esbuild bundles server to `dist/index.cjs`
+- **Path Aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
+
+### Data Model
+Core entities include:
+- **Users**: Parent/caregiver accounts
+- **Children**: Child profiles with birth date, gender, theme preferences
+- **Caregivers**: Many-to-many relationship between users and children with roles
+- **GrowthRecords**: Weight, height, head circumference tracking over time
+- **Vaccines/VaccineRecords**: Custom vaccines and SUS-standard vaccine tracking
+- **HealthRecords**: Illness tracking with symptoms and medications
+- **Milestones/DiaryEntries**: Memory keeping features
+- **Gamification**: Points and levels to encourage engagement
+
+### API Structure
+All API routes are prefixed with `/api/` and organized by resource:
+- `/api/auth/*` - User authentication and gamification
+- `/api/children/*` - CRUD for child profiles
+- `/api/children/:childId/growth` - Growth records
+- `/api/children/:childId/vaccines` - Vaccine records
+- `/api/children/:childId/health` - Health records
+- `/api/children/:childId/milestones` - Milestone tracking
+- `/api/children/:childId/diary` - Diary entries
+- `/api/sus-vaccines` - Brazilian SUS vaccine reference data
+
+## External Dependencies
+
+### Database
+- **PostgreSQL**: Primary database, connection via `DATABASE_URL` environment variable
+- **Drizzle ORM**: Type-safe database queries with schema defined in `shared/schema.ts`
+- **connect-pg-simple**: Session storage in PostgreSQL (configured but auth is currently mocked)
+
+### UI Libraries
+- **Radix UI**: Full suite of accessible, unstyled primitives (dialogs, dropdowns, tabs, etc.)
+- **Shadcn/ui**: Pre-styled components using Radix + Tailwind (new-york style variant)
+- **Lucide React**: Icon library
+
+### Key NPM Packages
+- **date-fns**: Date formatting with Portuguese (Brazil) locale support
+- **recharts**: Charting library for growth visualization
+- **framer-motion**: Animation library
+- **zod**: Schema validation for API contracts
+- **drizzle-zod**: Automatic Zod schema generation from Drizzle tables
+
+### Development Tools
+- **Vite**: Frontend build tool with React plugin
+- **esbuild**: Server bundling for production
+- **TypeScript**: Full type coverage across client, server, and shared code
+
+### Fonts (Google Fonts)
+- DM Sans: Body text
+- Outfit: Headings/display
+- Architects Daughter: Playful accents
+- Fira Code/Geist Mono: Code display
