@@ -11,11 +11,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image } from "lucide-react";
+import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image, Heart, Star, Sparkles } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
+
+const encouragingMessages = [
+  "Cada vacina é um abraço de proteção!",
+  "Você está construindo o escudo de saúde do seu filho!",
+  "Amor de mãe/pai é também cuidar da saúde!",
+  "Que orgulho! Seu pequeno está mais protegido!",
+  "Vacininha dada, coração de mãe/pai tranquilo!",
+];
 
 const doseOptions = [
   "Dose única",
@@ -49,6 +58,8 @@ export default function VaccineCard() {
   const [recordToDelete, setRecordToDelete] = useState<VaccineRecord | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [selectedVaccine, setSelectedVaccine] = useState<SusVaccine | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationVaccine, setCelebrationVaccine] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm({
@@ -173,6 +184,7 @@ export default function VaccineCard() {
         }
       });
     } else {
+      const vaccineName = selectedVaccine?.name || "Vacina";
       createRecord.mutate({
         childId: activeChild.id,
         ...payload,
@@ -182,7 +194,8 @@ export default function VaccineCard() {
           form.reset();
           setPhotoUrls([]);
           setSelectedVaccine(null);
-          toast({ title: "Vacina registrada!" });
+          setCelebrationVaccine(vaccineName);
+          setShowCelebration(true);
         },
         onError: () => {
           toast({ title: "Erro ao registrar", variant: "destructive" });
@@ -590,6 +603,107 @@ export default function VaccineCard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AnimatePresence>
+        {showCelebration && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowCelebration(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.5, opacity: 0, y: 50 }}
+              transition={{ type: "spring", duration: 0.6, bounce: 0.4 }}
+              className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-3xl p-8 mx-4 max-w-sm text-center shadow-2xl border-2 border-green-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1, rotate: [0, -10, 10, -10, 0] }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                className="w-24 h-24 mx-auto mb-4 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg"
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                >
+                  <Heart className="w-12 h-12 text-white fill-white" />
+                </motion.div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <div className="flex items-center justify-center gap-1 mb-2">
+                  <Sparkles className="w-5 h-5 text-yellow-500" />
+                  <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                  <Sparkles className="w-5 h-5 text-yellow-500" />
+                </div>
+                
+                <h2 className="font-display text-2xl font-bold text-green-700 mb-2">
+                  Parabéns!
+                </h2>
+                
+                <p className="text-green-600 font-medium mb-3">
+                  {celebrationVaccine} registrada com sucesso!
+                </p>
+
+                <div className="bg-white/70 rounded-xl p-4 mb-4">
+                  <p className="text-green-700 text-sm italic">
+                    "{encouragingMessages[Math.floor(Math.random() * encouragingMessages.length)]}"
+                  </p>
+                </div>
+
+                <p className="text-green-600 text-sm mb-4">
+                  Você ganhou <span className="font-bold text-green-700">+15 pontos</span> por cuidar da saúde de {activeChild?.name}!
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+              >
+                <Button
+                  onClick={() => setShowCelebration(false)}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl py-3"
+                  data-testid="button-close-celebration"
+                >
+                  Continuar
+                </Button>
+              </motion.div>
+
+              <motion.div
+                className="absolute -top-4 -left-4 text-4xl"
+                animate={{ rotate: [0, 20, 0], y: [0, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 2, delay: 0 }}
+              >
+                <Sparkles className="w-8 h-8 text-yellow-400" />
+              </motion.div>
+              <motion.div
+                className="absolute -top-2 -right-4 text-3xl"
+                animate={{ rotate: [0, -20, 0], y: [0, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 2, delay: 0.3 }}
+              >
+                <Star className="w-7 h-7 text-yellow-400 fill-yellow-400" />
+              </motion.div>
+              <motion.div
+                className="absolute -bottom-3 -right-2 text-3xl"
+                animate={{ rotate: [0, 15, 0], y: [0, -3, 0] }}
+                transition={{ repeat: Infinity, duration: 2, delay: 0.6 }}
+              >
+                <Heart className="w-6 h-6 text-pink-400 fill-pink-400" />
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
