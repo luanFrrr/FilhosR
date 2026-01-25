@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { formatDistanceToNow, differenceInMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Scale, Ruler, Heart, Trophy, ArrowRight, Activity } from "lucide-react";
+import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope } from "lucide-react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 
@@ -123,29 +123,29 @@ export default function Dashboard() {
           <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
             Acesso Rápido <ArrowRight className="w-4 h-4 text-muted-foreground" />
           </h3>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-4 px-4">
+          <div className="grid grid-cols-3 gap-3">
             <Link href="/growth">
-              <div className="min-w-[140px] p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-3">
-                  <Scale className="w-5 h-5 text-blue-600" strokeWidth={1.5} />
+              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform text-center">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3 mx-auto">
+                  <Scale className="w-6 h-6 text-blue-600" />
                 </div>
-                <p className="font-bold text-sm">Registrar Medidas</p>
+                <p className="font-bold text-xs leading-tight">Registrar<br/>Medidas</p>
               </div>
             </Link>
             <Link href="/health">
-               <div className="min-w-[140px] p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform">
-                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center mb-3">
-                  <Heart className="w-5 h-5 text-rose-600" strokeWidth={1.5} />
+               <div className="p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform text-center">
+                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
+                  <Stethoscope className="w-6 h-6 text-rose-600" />
                 </div>
-                <p className="font-bold text-sm">Anotar Sintomas</p>
+                <p className="font-bold text-xs leading-tight">Anotar<br/>Sintomas</p>
               </div>
             </Link>
             <Link href="/memories">
-               <div className="min-w-[140px] p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-3">
-                  <Trophy className="w-5 h-5 text-amber-600" strokeWidth={1.5} />
+               <div className="p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform text-center">
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3 mx-auto">
+                  <Star className="w-6 h-6 text-amber-600" />
                 </div>
-                <p className="font-bold text-sm">Novo Marco</p>
+                <p className="font-bold text-xs leading-tight">Novo<br/>Marco</p>
               </div>
             </Link>
           </div>
