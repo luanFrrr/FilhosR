@@ -1,6 +1,6 @@
 import { 
   users, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords, dailyPhotos,
-  type User, type InsertUser,
+  type User,
   type Child, type InsertChild,
   type GrowthRecord, type InsertGrowthRecord,
   type Vaccine, type InsertVaccine,
@@ -16,37 +16,40 @@ import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
-  // Users
-  getUser(id: number): Promise<User | undefined>;
+  // Users (OIDC users have string IDs)
+  getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
 
   // Children
   getChild(id: number): Promise<Child | undefined>;
-  getChildrenByUserId(userId: number): Promise<Child[]>;
+  getChildrenByUserId(userId: string): Promise<Child[]>;
   createChild(child: InsertChild): Promise<Child>;
   updateChild(id: number, child: Partial<InsertChild>): Promise<Child>;
   deleteChild(id: number): Promise<void>;
 
   // Growth
   getGrowthRecords(childId: number): Promise<GrowthRecord[]>;
+  getGrowthRecordById(id: number): Promise<GrowthRecord | undefined>;
   createGrowthRecord(record: InsertGrowthRecord): Promise<GrowthRecord>;
   updateGrowthRecord(id: number, record: Partial<InsertGrowthRecord>): Promise<GrowthRecord>;
   archiveGrowthRecord(id: number): Promise<GrowthRecord>;
 
   // Vaccines
   getVaccines(childId: number): Promise<Vaccine[]>;
+  getVaccineById(id: number): Promise<Vaccine | undefined>;
   createVaccine(vaccine: InsertVaccine): Promise<Vaccine>;
   updateVaccine(id: number, vaccine: Partial<InsertVaccine>): Promise<Vaccine>;
 
   // Health
   getHealthRecords(childId: number): Promise<HealthRecord[]>;
+  getHealthRecordById(id: number): Promise<HealthRecord | undefined>;
   createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord>;
   updateHealthRecord(id: number, data: Partial<InsertHealthRecord>): Promise<HealthRecord | undefined>;
   archiveHealthRecord(id: number): Promise<HealthRecord | undefined>;
 
   // Milestones
   getMilestones(childId: number): Promise<Milestone[]>;
+  getMilestoneById(id: number): Promise<Milestone | undefined>;
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
   updateMilestone(id: number, data: Partial<InsertMilestone>): Promise<Milestone | undefined>;
   deleteMilestone(id: number): Promise<boolean>;
@@ -66,6 +69,7 @@ export interface IStorage {
 
   // Vaccine Records
   getVaccineRecords(childId: number): Promise<VaccineRecord[]>;
+  getVaccineRecordById(id: number): Promise<VaccineRecord | undefined>;
   createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord>;
   updateVaccineRecord(id: number, record: Partial<InsertVaccineRecord>): Promise<VaccineRecord>;
   deleteVaccineRecord(id: number): Promise<void>;
@@ -79,19 +83,15 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // Users
-  async getUser(id: number): Promise<User | undefined> {
+  // Users (Auth module handles user creation - we just read)
+  async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
+    if (!email) return undefined;
     const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
@@ -101,7 +101,7 @@ export class DatabaseStorage implements IStorage {
     return child;
   }
 
-  async getChildrenByUserId(userId: number): Promise<Child[]> {
+  async getChildrenByUserId(userId: string): Promise<Child[]> {
     // Join caregivers to find children
     const results = await db
       .select({ child: children })
@@ -141,6 +141,11 @@ export class DatabaseStorage implements IStorage {
     return records.filter(r => !r.notes?.startsWith("[ARCHIVED]"));
   }
 
+  async getGrowthRecordById(id: number): Promise<GrowthRecord | undefined> {
+    const [record] = await db.select().from(growthRecords).where(eq(growthRecords.id, id));
+    return record;
+  }
+
   async createGrowthRecord(record: InsertGrowthRecord): Promise<GrowthRecord> {
     const [newRecord] = await db.insert(growthRecords).values(record).returning();
     return newRecord;
@@ -163,6 +168,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vaccines).where(eq(vaccines.childId, childId));
   }
 
+  async getVaccineById(id: number): Promise<Vaccine | undefined> {
+    const [record] = await db.select().from(vaccines).where(eq(vaccines.id, id));
+    return record;
+  }
+
   async createVaccine(vaccine: InsertVaccine): Promise<Vaccine> {
     const [newVaccine] = await db.insert(vaccines).values(vaccine).returning();
     return newVaccine;
@@ -176,6 +186,11 @@ export class DatabaseStorage implements IStorage {
   // Health
   async getHealthRecords(childId: number): Promise<HealthRecord[]> {
     return await db.select().from(healthRecords).where(eq(healthRecords.childId, childId));
+  }
+
+  async getHealthRecordById(id: number): Promise<HealthRecord | undefined> {
+    const [record] = await db.select().from(healthRecords).where(eq(healthRecords.id, id));
+    return record;
   }
 
   async createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord> {
@@ -200,6 +215,11 @@ export class DatabaseStorage implements IStorage {
   // Milestones
   async getMilestones(childId: number): Promise<Milestone[]> {
     return await db.select().from(milestones).where(eq(milestones.childId, childId));
+  }
+
+  async getMilestoneById(id: number): Promise<Milestone | undefined> {
+    const [record] = await db.select().from(milestones).where(eq(milestones.id, id));
+    return record;
   }
 
   async createMilestone(milestone: InsertMilestone): Promise<Milestone> {
@@ -336,6 +356,11 @@ export class DatabaseStorage implements IStorage {
   // Vaccine Records
   async getVaccineRecords(childId: number): Promise<VaccineRecord[]> {
     return await db.select().from(vaccineRecords).where(eq(vaccineRecords.childId, childId));
+  }
+
+  async getVaccineRecordById(id: number): Promise<VaccineRecord | undefined> {
+    const [record] = await db.select().from(vaccineRecords).where(eq(vaccineRecords.id, id));
+    return record;
   }
 
   async createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord> {

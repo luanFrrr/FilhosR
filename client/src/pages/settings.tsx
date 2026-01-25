@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useChildren, useUpdateChild, useDeleteChild } from "@/hooks/use-children";
+import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/layout/header";
+import type { Child } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -48,6 +50,7 @@ export default function Settings() {
   const updateChild = useUpdateChild();
   const deleteChild = useDeleteChild();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [deletingChild, setDeletingChild] = useState<Child | null>(null);
@@ -139,13 +142,25 @@ export default function Settings() {
 
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
         
-        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm flex items-center gap-4">
-           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-             <User className="w-8 h-8 text-muted-foreground" />
-           </div>
+        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm flex items-center gap-4" data-testid="user-profile-card">
+           {user?.profileImageUrl ? (
+             <img 
+               src={user.profileImageUrl} 
+               alt={user.firstName || 'Usuário'} 
+               className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
+             />
+           ) : (
+             <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+               <User className="w-8 h-8 text-muted-foreground" />
+             </div>
+           )}
            <div>
-             <h2 className="font-display font-bold text-lg">Responsável</h2>
-             <p className="text-sm text-muted-foreground">admin@exemplo.com</p>
+             <h2 className="font-display font-bold text-lg" data-testid="text-user-name">
+               {user?.firstName && user?.lastName 
+                 ? `${user.firstName} ${user.lastName}` 
+                 : user?.firstName || 'Responsável'}
+             </h2>
+             <p className="text-sm text-muted-foreground" data-testid="text-user-email">{user?.email || ''}</p>
            </div>
         </div>
 
@@ -260,9 +275,11 @@ export default function Settings() {
           </div>
         </div>
 
-        <Button variant="outline" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100 mt-8" data-testid="button-logout">
-           <LogOut className="w-4 h-4 mr-2" /> Sair
-        </Button>
+        <a href="/api/logout" data-testid="link-logout">
+          <Button variant="outline" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100 mt-8" data-testid="button-logout">
+             <LogOut className="w-4 h-4 mr-2" /> Sair da Conta
+          </Button>
+        </a>
       </main>
 
       <Dialog open={!!editingChild} onOpenChange={(open) => !open && setEditingChild(null)}>

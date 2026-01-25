@@ -55,7 +55,19 @@ All API routes are prefixed with `/api/` and organized by resource:
 - `/api/children/:childId/diary` - Diary entries
 - `/api/sus-vaccines` - Brazilian SUS vaccine reference data
 
+### Authentication
+- **Provider**: Replit Auth (OIDC) - supports Google, GitHub, Apple, email/password login
+- **Session Storage**: PostgreSQL via connect-pg-simple
+- **Auth Routes**:
+  - `/api/login` - Initiates login flow
+  - `/api/logout` - Logs out user
+  - `/api/auth/user` - Returns current authenticated user
+- **User Claims**: sub (unique ID), email, firstName, lastName, profileImageUrl
+- **Protected Routes**: All `/api/*` routes except `/api/sus-vaccines` require authentication
+- **Frontend**: Landing page for unauthenticated users, useAuth hook for auth state
+
 ### Recent Changes (Jan 2026)
+- **Replit Auth Integration**: Added real user authentication via Replit OIDC. Users table now uses varchar ID (OIDC sub claim), caregivers table updated to reference string user IDs. Landing page shows when not logged in.
 - **Growth Records CRUD**: Added UPDATE (edit existing) and ARCHIVE (soft delete) functionality
 - **Gamification Cache**: Points now update dynamically when navigating between pages
 - **Archive Pattern**: Uses notes field prefix "[ARCHIVED]" to hide records without adding database fields
@@ -70,7 +82,7 @@ All API routes are prefixed with `/api/` and organized by resource:
 ### Database
 - **PostgreSQL**: Primary database, connection via `DATABASE_URL` environment variable
 - **Drizzle ORM**: Type-safe database queries with schema defined in `shared/schema.ts`
-- **connect-pg-simple**: Session storage in PostgreSQL (configured but auth is currently mocked)
+- **connect-pg-simple**: Session storage in PostgreSQL for Replit Auth sessions
 
 ### UI Libraries
 - **Radix UI**: Full suite of accessible, unstyled primitives (dialogs, dropdowns, tabs, etc.)

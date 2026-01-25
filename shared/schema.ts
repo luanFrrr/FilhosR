@@ -1,16 +1,14 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, decimal, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, decimal, jsonb, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// === TABLE DEFINITIONS ===
+// === AUTH TABLES (from Replit Auth) ===
+import { users, sessions } from "./models/auth";
+export { users, sessions };
+export type { User, UpsertUser } from "./models/auth";
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
-  name: text("name").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// === TABLE DEFINITIONS ===
 
 export const children = pgTable("children", {
   id: serial("id").primaryKey(),
@@ -29,7 +27,7 @@ export const children = pgTable("children", {
 export const caregivers = pgTable("caregivers", {
   id: serial("id").primaryKey(),
   childId: integer("child_id").notNull(),
-  userId: integer("user_id").notNull(),
+  userId: varchar("user_id").notNull(), // OIDC sub claim (UUID string)
   relationship: text("relationship").notNull(), // 'father', 'mother', 'guardian', etc.
   role: text("role").notNull().default('viewer'), // 'owner', 'editor', 'viewer'
   createdAt: timestamp("created_at").defaultNow(),
@@ -224,7 +222,6 @@ export const vaccineRecordsRelations = relations(vaccineRecords, ({ one }) => ({
 
 // === BASE SCHEMAS ===
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertChildSchema = createInsertSchema(children).omit({ id: true, createdAt: true });
 export const insertCaregiverSchema = createInsertSchema(caregivers).omit({ id: true, createdAt: true });
 export const insertGrowthRecordSchema = createInsertSchema(growthRecords).omit({ id: true, createdAt: true });
@@ -237,9 +234,7 @@ export const insertVaccineRecordSchema = createInsertSchema(vaccineRecords).omit
 export const insertDailyPhotoSchema = createInsertSchema(dailyPhotos).omit({ id: true, createdAt: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
-
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+// Note: User and UpsertUser types are re-exported from ./models/auth
 
 export type Child = typeof children.$inferSelect;
 export type InsertChild = z.infer<typeof insertChildSchema>;
