@@ -297,7 +297,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45 }}
-            className="rounded-2xl border p-4 cursor-pointer active:scale-[0.98] transition-transform"
+            className="rounded-2xl border p-4 cursor-pointer active:scale-[0.98] transition-transform mt-4"
             style={{ 
               backgroundColor: todayPhoto ? 'rgb(236 253 245)' : 'rgb(254 252 232)',
               borderColor: todayPhoto ? 'rgb(167 243 208)' : 'rgb(254 240 138)'
