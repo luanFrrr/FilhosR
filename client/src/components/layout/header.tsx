@@ -47,11 +47,23 @@ export function Header({ title, showChildSelector = true }: { title?: string, sh
                     key={child.id}
                     onClick={() => setActiveChildId(child.id)}
                     className="cursor-pointer py-3 focus:bg-primary/5 rounded-lg"
+                    data-testid={`dropdown-child-${child.id}`}
                   >
                     <div className="flex items-center gap-3">
-                       <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs">
-                          {child.name.charAt(0)}
-                       </div>
+                       {child.photoUrl ? (
+                         <img 
+                           src={child.photoUrl} 
+                           alt={child.name}
+                           className="w-6 h-6 rounded-full object-cover"
+                         />
+                       ) : (
+                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium ${
+                           child.theme === 'blue' ? 'bg-blue-400' : 
+                           child.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
+                         }`}>
+                            {child.name.charAt(0).toUpperCase()}
+                         </div>
+                       )}
                        <span className={activeChild?.id === child.id ? "font-bold text-primary" : ""}>
                          {child.name}
                        </span>

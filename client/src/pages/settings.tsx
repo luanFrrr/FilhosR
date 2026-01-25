@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useChildren, useUpdateChild, useDeleteChild } from "@/hooks/use-children";
 import { Header } from "@/components/layout/header";
@@ -7,8 +7,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { 
-  User, Bell, Shield, LogOut, Baby, Pencil, Trash2, Plus, X, Check 
+  User, Bell, Shield, LogOut, Baby, Pencil, Trash2, Plus, X, Check, Camera 
 } from "lucide-react";
+import { compressImage } from "@/lib/imageUtils";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getZodiacSign } from "@/lib/zodiac";
@@ -49,6 +50,8 @@ export default function Settings() {
 
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [deletingChild, setDeletingChild] = useState<Child | null>(null);
+  const [editPhoto, setEditPhoto] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -61,6 +64,7 @@ export default function Settings() {
 
   const openEditDialog = (child: Child) => {
     setEditingChild(child);
+    setEditPhoto(child.photoUrl || null);
     setEditForm({
       name: child.name,
       birthDate: child.birthDate,
@@ -69,6 +73,22 @@ export default function Settings() {
       initialWeight: child.initialWeight || "",
       initialHeight: child.initialHeight || "",
     });
+  };
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 10MB", variant: "destructive" });
+        return;
+      }
+      try {
+        const compressed = await compressImage(file, 400, 0.8);
+        setEditPhoto(compressed);
+      } catch {
+        toast({ title: "Erro ao processar imagem", variant: "destructive" });
+      }
+    }
   };
 
   const handleUpdate = async () => {
@@ -82,9 +102,11 @@ export default function Settings() {
         theme: editForm.theme,
         initialWeight: editForm.initialWeight || null,
         initialHeight: editForm.initialHeight || null,
+        photoUrl: editPhoto,
       });
       toast({ title: "Dados atualizados!", description: `${editForm.name} foi atualizado com sucesso.` });
       setEditingChild(null);
+      setEditPhoto(null);
     } catch {
       toast({ title: "Erro", description: "Não foi possível atualizar os dados.", variant: "destructive" });
     }
@@ -140,14 +162,22 @@ export default function Settings() {
                 className={`bg-white p-4 rounded-xl border ${activeChild?.id === child.id ? 'border-primary ring-2 ring-primary/20' : 'border-border'} flex items-center gap-3`}
                 data-testid={`child-card-${child.id}`}
               >
-                <div 
-                  className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
-                    child.theme === 'blue' ? 'bg-blue-400' : 
-                    child.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
-                  }`}
-                >
-                  {child.name.charAt(0).toUpperCase()}
-                </div>
+                {child.photoUrl ? (
+                  <img 
+                    src={child.photoUrl} 
+                    alt={child.name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                  />
+                ) : (
+                  <div 
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                      child.theme === 'blue' ? 'bg-blue-400' : 
+                      child.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
+                    }`}
+                  >
+                    {child.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="font-bold truncate">{child.name}</p>
                   {(() => {
@@ -236,6 +266,44 @@ export default function Settings() {
             <DialogDescription>Atualize os dados de {editingChild?.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="flex flex-col items-center gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                ref={photoInputRef}
+                onChange={handlePhotoChange}
+                className="hidden"
+                data-testid="input-edit-photo"
+              />
+              <div className="relative">
+                {editPhoto ? (
+                  <img 
+                    src={editPhoto} 
+                    alt="Foto"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-md"
+                  />
+                ) : (
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
+                    editForm.theme === 'blue' ? 'bg-blue-400' : 
+                    editForm.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
+                  }`}>
+                    {editForm.name?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white shadow-sm"
+                  onClick={() => photoInputRef.current?.click()}
+                  data-testid="button-upload-child-photo"
+                >
+                  <Camera className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Toque para adicionar foto</p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="edit-name">Nome</Label>
               <Input 
