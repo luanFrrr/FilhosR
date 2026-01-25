@@ -23,6 +23,7 @@ export interface IStorage {
   getChildrenByUserId(userId: number): Promise<Child[]>;
   createChild(child: InsertChild): Promise<Child>;
   updateChild(id: number, child: Partial<InsertChild>): Promise<Child>;
+  deleteChild(id: number): Promise<void>;
 
   // Growth
   getGrowthRecords(childId: number): Promise<GrowthRecord[]>;
@@ -94,6 +95,16 @@ export class DatabaseStorage implements IStorage {
   async updateChild(id: number, updates: Partial<InsertChild>): Promise<Child> {
     const [updated] = await db.update(children).set(updates).where(eq(children.id, id)).returning();
     return updated;
+  }
+
+  async deleteChild(id: number): Promise<void> {
+    await db.delete(caregivers).where(eq(caregivers.childId, id));
+    await db.delete(growthRecords).where(eq(growthRecords.childId, id));
+    await db.delete(vaccines).where(eq(vaccines.childId, id));
+    await db.delete(healthRecords).where(eq(healthRecords.childId, id));
+    await db.delete(milestones).where(eq(milestones.childId, id));
+    await db.delete(diaryEntries).where(eq(diaryEntries.childId, id));
+    await db.delete(children).where(eq(children.id, id));
   }
 
   // Growth
