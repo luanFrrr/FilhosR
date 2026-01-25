@@ -57,11 +57,15 @@ export default function Dashboard() {
   const birthDate = parseISO(activeChild.birthDate);
   const age = formatDistanceToNow(birthDate, { locale: ptBR, addSuffix: false });
   const months = differenceInMonths(new Date(), birthDate);
-  const days = differenceInDays(new Date(), birthDate) % 30;
+  const totalDays = differenceInDays(new Date(), birthDate);
   
   // Emotional age subtitle
   const getAgeSubtitle = () => {
-    if (months < 1) return `${days} dias de puro amor`;
+    if (months < 1) {
+      if (totalDays === 0) return "Primeiro dia juntos!";
+      if (totalDays === 1) return "1 dia de puro amor";
+      return `${totalDays} dias de puro amor`;
+    }
     if (months === 1) return "1 mês de descobertas";
     if (months <= 3) return `${months} meses de conexão`;
     if (months <= 6) return `${months} meses crescendo juntos`;
