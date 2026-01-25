@@ -1,19 +1,21 @@
 import { useChildContext } from "@/hooks/use-child-context";
 import { useGrowthRecords } from "@/hooks/use-growth";
-import { useVaccines } from "@/hooks/use-health";
+import { useSusVaccines, useVaccineRecords } from "@/hooks/use-vaccines";
 import { useGamification } from "@/hooks/use-auth";
 import { Header } from "@/components/layout/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import { formatDistanceToNow, differenceInMonths } from "date-fns";
+import { formatDistanceToNow, differenceInMonths, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy } from "lucide-react";
+import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
+import { getVaccineStatus } from "@/lib/vaccineCheck";
 
 export default function Dashboard() {
   const { activeChild, isLoading } = useChildContext();
   const { data: growth } = useGrowthRecords(activeChild?.id || 0);
-  const { data: vaccines } = useVaccines(activeChild?.id || 0);
+  const { data: susVaccines } = useSusVaccines();
+  const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
   const { data: gamification } = useGamification();
 
   if (isLoading) {
@@ -31,8 +33,9 @@ export default function Dashboard() {
   }
 
   // Calculations
-  const age = formatDistanceToNow(new Date(activeChild.birthDate), { locale: ptBR, addSuffix: false });
-  const months = differenceInMonths(new Date(), new Date(activeChild.birthDate));
+  const birthDate = parseISO(activeChild.birthDate);
+  const age = formatDistanceToNow(birthDate, { locale: ptBR, addSuffix: false });
+  const months = differenceInMonths(new Date(), birthDate);
   
   const latestWeight = growth?.filter(g => g.weight).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.weight 
     || activeChild.initialWeight 
@@ -42,8 +45,11 @@ export default function Dashboard() {
     || activeChild.initialHeight 
     || "--";
 
-  const nextVaccine = vaccines?.filter(v => v.status === 'pending')
-    .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())[0];
+  const vaccineStatus = susVaccines && vaccineRecords 
+    ? getVaccineStatus(susVaccines, vaccineRecords, months)
+    : { status: "upToDate" as const, pendingCount: 0, pendingVaccines: [] };
+  
+  const hasPendingVaccines = vaccineStatus.status === "pending";
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -99,14 +105,20 @@ export default function Dashboard() {
             color="bg-emerald-50/50 border-emerald-100"
             delay={0.3}
           />
-          <Link href="/health">
+          <Link href="/vaccine-card">
             <div className="cursor-pointer">
               <StatsCard 
                 title="Vacinas" 
-                value={nextVaccine ? "Pendente" : "Em dia"}
-                subtitle={nextVaccine ? `Próxima: ${nextVaccine.name}` : "Tudo certo!"}
-                icon={<Heart className="w-5 h-5 text-rose-500" />}
-                color="bg-rose-50/50 border-rose-100"
+                value={hasPendingVaccines ? "Pendentes" : "Em dia"}
+                subtitle={hasPendingVaccines 
+                  ? `${vaccineStatus.pendingCount} vacina${vaccineStatus.pendingCount > 1 ? 's' : ''} atrasada${vaccineStatus.pendingCount > 1 ? 's' : ''}`
+                  : "Tudo certo!"}
+                icon={hasPendingVaccines 
+                  ? <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  : <Heart className="w-5 h-5 text-rose-500" />}
+                color={hasPendingVaccines 
+                  ? "bg-amber-50/50 border-amber-200" 
+                  : "bg-rose-50/50 border-rose-100"}
                 delay={0.4}
               />
             </div>
