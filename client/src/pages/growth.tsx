@@ -60,10 +60,13 @@ export default function Growth() {
   const onSubmit = (data: RecordForm) => {
     if (!activeChild) return;
     
+    // Fix date offset issue
+    const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
+    
     createRecord.mutate({
       childId: activeChild.id,
       ...data,
-      date: data.date, 
+      date, 
       weight: data.weight?.toString(),
       height: data.height?.toString(),
       headCircumference: data.headCircumference?.toString(),
@@ -93,10 +96,13 @@ export default function Growth() {
   const onEditSubmit = (data: RecordForm) => {
     if (!activeChild || !selectedRecord) return;
     
+    // Fix date offset issue
+    const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
+    
     updateRecord.mutate({
       id: selectedRecord.id,
       childId: activeChild.id,
-      date: data.date,
+      date,
       weight: data.weight?.toString(),
       height: data.height?.toString(),
       headCircumference: data.headCircumference?.toString(),
@@ -229,9 +235,9 @@ export default function Growth() {
             {records?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((record) => (
               <div key={record.id} data-testid={`growth-record-${record.id}`} className="bg-white p-4 rounded-xl border border-border flex justify-between items-center">
                 <div>
-                  <p className="font-bold text-foreground">{format(new Date(record.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}</p>
+                  <p className="font-bold text-foreground">{format(parseISO(record.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {formatDistanceToNow(new Date(record.date), { locale: ptBR, addSuffix: true })}
+                    {formatDistanceToNow(parseISO(record.date), { locale: ptBR, addSuffix: true })}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

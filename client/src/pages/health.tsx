@@ -45,7 +45,8 @@ export default function Health() {
       updateSickRecord.mutate({ 
         id: editingRecord.id, 
         childId: activeChild.id, 
-        ...data 
+        ...data,
+        date: data.date.includes('T') ? data.date.split('T')[0] : data.date
       }, {
         onSuccess: () => {
           setSickDialogOpen(false);
@@ -55,7 +56,11 @@ export default function Health() {
         }
       });
     } else {
-      createSickRecord.mutate({ childId: activeChild.id, ...data }, {
+      createSickRecord.mutate({ 
+        childId: activeChild.id, 
+        ...data,
+        date: data.date.includes('T') ? data.date.split('T')[0] : data.date
+      }, {
         onSuccess: () => {
           setSickDialogOpen(false);
           sickForm.reset();
@@ -207,7 +212,7 @@ export default function Health() {
                 <div key={record.id} className="bg-white p-5 rounded-xl border border-border shadow-sm" data-testid={`health-record-${record.id}`}>
                   <div className="flex justify-between items-start mb-2">
                     <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-md">
-                      {format(new Date(record.date), "dd MMM yyyy", { locale: ptBR })}
+                      {format(parseISO(record.date), "dd MMM yyyy", { locale: ptBR })}
                     </span>
                     <div className="flex gap-1">
                       <Button 
