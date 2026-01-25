@@ -1,5 +1,6 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -34,8 +35,11 @@ export function PhotoView({ src, alt, children, triggerClassName }: PhotoViewPro
                 className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm"
               />
             </DialogPrimitive.Overlay>
-            <DialogPrimitive.Content asChild>
+            <DialogPrimitive.Content asChild aria-describedby={undefined}>
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <VisuallyHidden>
+                  <DialogPrimitive.Title>Visualizar foto</DialogPrimitive.Title>
+                </VisuallyHidden>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
