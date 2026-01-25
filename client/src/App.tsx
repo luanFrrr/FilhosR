@@ -14,6 +14,7 @@ import Memories from "@/pages/memories";
 import Onboarding from "@/pages/onboarding";
 import Settings from "@/pages/settings";
 import VaccineCard from "@/pages/vaccine-card";
+import DailyPhotos from "@/pages/daily-photos";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/settings" component={Settings} />
         <Route path="/onboarding" component={Onboarding} />
         <Route path="/vaccines" component={VaccineCard} />
+        <Route path="/daily-photos" component={DailyPhotos} />
         <Route component={NotFound} />
       </Switch>
       {!isAuthPage && <BottomNav />}

@@ -63,6 +63,7 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **Initial Growth Record**: When creating a new child, initial measurements (weight, height, head circumference) are automatically saved as the first growth record with the birth date
 - **PhotoView Component**: Instagram-style fullscreen photo viewer using Radix Dialog + Framer Motion with accessibility fixes (DialogTitle via VisuallyHidden)
 - **Dynamic Home Page Text**: Daily rotating emotional messages, contextual encouragement based on recent activity (growth + vaccines) and level progress, subtle micro-invites below quick actions
+- **Foto do Dia Feature**: Daily photo habit feature allowing one photo per day per child. Includes Home card with status indicator, chronological gallery with swipe navigation, streak counter, and gamification integration (5 points per photo). Database enforces one-photo-per-day constraint with unique index.
 
 ## External Dependencies
 

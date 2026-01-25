@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, decimal, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, decimal, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -112,7 +112,9 @@ export const dailyPhotos = pgTable("daily_photos", {
   date: date("date").notNull(),
   photoUrl: text("photo_url").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueChildDate: uniqueIndex("daily_photos_child_date_unique").on(table.childId, table.date),
+}));
 
 // Registros vacinais individuais
 export const vaccineRecords = pgTable("vaccine_records", {
