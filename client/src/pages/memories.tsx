@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { Star, Book, Image as ImageIcon, Camera, X, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
+import { compressImage } from "@/lib/imageUtils";
 
 export default function Memories() {
   const { activeChild } = useChildContext();
@@ -29,18 +30,19 @@ export default function Memories() {
   const milestoneForm = useForm();
   const diaryForm = useForm();
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 5MB", variant: "destructive" });
+      if (file.size > 15 * 1024 * 1024) {
+        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setMilestoneImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressedImage = await compressImage(file, 1200, 0.8);
+        setMilestoneImage(compressedImage);
+      } catch {
+        toast({ title: "Erro ao processar imagem", variant: "destructive" });
+      }
     }
   };
 

@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image, Heart, Star, Sparkles } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
+import { compressImage } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
@@ -87,18 +88,19 @@ export default function VaccineCard() {
     }
   }, [editingRecord, formMode, susVaccines, form]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 5MB", variant: "destructive" });
+      if (file.size > 15 * 1024 * 1024) {
+        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoUrls(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressedImage = await compressImage(file, 1200, 0.8);
+        setPhotoUrls(prev => [...prev, compressedImage]);
+      } catch {
+        toast({ title: "Erro ao processar imagem", variant: "destructive" });
+      }
     }
   };
 
