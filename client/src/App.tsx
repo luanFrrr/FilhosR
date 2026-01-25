@@ -13,6 +13,7 @@ import Health from "@/pages/health";
 import Memories from "@/pages/memories";
 import Onboarding from "@/pages/onboarding";
 import Settings from "@/pages/settings";
+import VaccineCard from "@/pages/vaccine-card";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/memories" component={Memories} />
         <Route path="/settings" component={Settings} />
         <Route path="/onboarding" component={Onboarding} />
+        <Route path="/vaccines" component={VaccineCard} />
         <Route component={NotFound} />
       </Switch>
       {!isAuthPage && <BottomNav />}

@@ -96,6 +96,28 @@ export const gamification = pgTable("gamification", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Catálogo de vacinas do SUS (PNI)
+export const susVaccines = pgTable("sus_vaccines", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  diseasesPrevented: text("diseases_prevented").notNull(),
+  recommendedDoses: text("recommended_doses").notNull(), // Ex: "1ª dose, 2ª dose, reforço"
+  ageRange: text("age_range"), // Ex: "Ao nascer", "2 meses", "4 meses"
+});
+
+// Registros vacinais individuais
+export const vaccineRecords = pgTable("vaccine_records", {
+  id: serial("id").primaryKey(),
+  childId: integer("child_id").notNull(),
+  susVaccineId: integer("sus_vaccine_id").notNull(),
+  dose: text("dose").notNull(), // Ex: "1ª dose", "2ª dose", "Reforço"
+  applicationDate: date("application_date").notNull(),
+  applicationPlace: text("application_place"),
+  notes: text("notes"),
+  photoUrls: text("photo_urls").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -110,6 +132,7 @@ export const childrenRelations = relations(children, ({ many }) => ({
   healthRecords: many(healthRecords),
   milestones: many(milestones),
   diaryEntries: many(diaryEntries),
+  vaccineRecords: many(vaccineRecords),
 }));
 
 export const caregiversRelations = relations(caregivers, ({ one }) => ({
@@ -165,6 +188,21 @@ export const gamificationRelations = relations(gamification, ({ one }) => ({
   }),
 }));
 
+export const susVaccinesRelations = relations(susVaccines, ({ many }) => ({
+  records: many(vaccineRecords),
+}));
+
+export const vaccineRecordsRelations = relations(vaccineRecords, ({ one }) => ({
+  child: one(children, {
+    fields: [vaccineRecords.childId],
+    references: [children.id],
+  }),
+  susVaccine: one(susVaccines, {
+    fields: [vaccineRecords.susVaccineId],
+    references: [susVaccines.id],
+  }),
+}));
+
 // === BASE SCHEMAS ===
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -175,6 +213,8 @@ export const insertVaccineSchema = createInsertSchema(vaccines).omit({ id: true,
 export const insertHealthRecordSchema = createInsertSchema(healthRecords).omit({ id: true, createdAt: true });
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true, createdAt: true });
 export const insertDiaryEntrySchema = createInsertSchema(diaryEntries).omit({ id: true, createdAt: true });
+export const insertSusVaccineSchema = createInsertSchema(susVaccines).omit({ id: true });
+export const insertVaccineRecordSchema = createInsertSchema(vaccineRecords).omit({ id: true, createdAt: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
 
@@ -203,6 +243,12 @@ export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type InsertDiaryEntry = z.infer<typeof insertDiaryEntrySchema>;
 
 export type Gamification = typeof gamification.$inferSelect;
+
+export type SusVaccine = typeof susVaccines.$inferSelect;
+export type InsertSusVaccine = z.infer<typeof insertSusVaccineSchema>;
+
+export type VaccineRecord = typeof vaccineRecords.$inferSelect;
+export type InsertVaccineRecord = z.infer<typeof insertVaccineRecordSchema>;
 
 // Request Types
 export type CreateChildRequest = InsertChild;
