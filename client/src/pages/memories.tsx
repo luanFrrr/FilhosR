@@ -204,6 +204,12 @@ export default function Memories() {
           </TabsList>
 
           <TabsContent value="milestones">
+            <div className="bg-gradient-to-r from-primary/10 via-pink-100/50 to-purple-100/50 rounded-2xl p-4 mb-6 border border-primary/10">
+              <p className="text-center text-sm text-muted-foreground italic font-hand">
+                "Esses momentos passam rápido. Ainda bem que você guardou."
+              </p>
+            </div>
+            
             <div className="mb-6 flex justify-end">
                <Dialog open={openMilestone} onOpenChange={(open) => {
                  setOpenMilestone(open);
@@ -213,12 +219,14 @@ export default function Memories() {
                  }
                }}>
                  <DialogTrigger asChild>
-                   <Button className="rounded-full" data-testid="button-new-milestone">+ Novo Marco</Button>
+                   <Button className="rounded-full" data-testid="button-new-milestone">
+                     <Heart className="w-4 h-4 mr-2" /> Guardar lembrança
+                   </Button>
                  </DialogTrigger>
                  <DialogContent className="rounded-2xl max-w-sm mx-auto">
                    <DialogHeader>
-                     <DialogTitle>Conquista Desbloqueada!</DialogTitle>
-                     <DialogDescription>Registre um momento especial na vida do seu filho</DialogDescription>
+                     <DialogTitle>Guardar uma lembrança</DialogTitle>
+                     <DialogDescription>Esse momento merece ser eternizado com carinho</DialogDescription>
                    </DialogHeader>
                    <form onSubmit={milestoneForm.handleSubmit(onSubmitMilestone)} className="space-y-4 pt-2">
                      <div className="space-y-2">
@@ -277,7 +285,7 @@ export default function Memories() {
                      </div>
 
                      <Button type="submit" className="w-full" disabled={createMilestone.isPending} data-testid="button-save-milestone">
-                       {createMilestone.isPending ? "Salvando..." : "Salvar Conquista"}
+                       {createMilestone.isPending ? "Guardando..." : "Guardar lembrança"}
                      </Button>
                    </form>
                  </DialogContent>
