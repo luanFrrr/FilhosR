@@ -1,9 +1,9 @@
 import { useChildContext } from "@/hooks/use-child-context";
-import { useDailyPhotos, useCreateDailyPhoto, useTodayPhoto } from "@/hooks/use-daily-photos";
+import { useDailyPhotos, useCreateDailyPhoto, useTodayPhoto, useDeleteDailyPhoto } from "@/hooks/use-daily-photos";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Camera, ChevronLeft, ChevronRight, Check, ImagePlus } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, Check, ImagePlus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useCallback, useMemo } from "react";
 import { format, parseISO, differenceInDays } from "date-fns";
@@ -41,10 +41,12 @@ export default function DailyPhotos() {
   const { data: photos, isLoading } = useDailyPhotos(activeChild?.id || 0);
   const { data: todayPhoto } = useTodayPhoto(activeChild?.id || 0);
   const createPhoto = useCreateDailyPhoto();
+  const deletePhoto = useDeleteDailyPhoto();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const sortedPhotos = photos?.slice().sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -119,6 +121,31 @@ export default function DailyPhotos() {
     }
   }, [activeChild, createPhoto, toast, hadPhotoYesterday, streakDays, getEmotionalMessage]);
 
+  const handleDeleteTodayPhoto = useCallback(async () => {
+    if (!todayPhoto || !activeChild) return;
+    
+    setIsDeleting(true);
+    try {
+      await deletePhoto.mutateAsync({ id: todayPhoto.id, childId: activeChild.id });
+      toast({
+        title: "Foto removida",
+        description: "Escolha uma nova foto.",
+      });
+      // Automatically open file picker after delete
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 300);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover a foto.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [todayPhoto, activeChild, deletePhoto, toast]);
+
   const goToPrevious = () => {
     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
   };
@@ -173,17 +200,30 @@ export default function DailyPhotos() {
                 </>
               )}
             </div>
-            {!todayPhoto && (
-              <Button
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                data-testid="button-add-today-photo"
-              >
-                <ImagePlus className="w-4 h-4 mr-1" />
-                {isUploading ? "..." : "Tirar"}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {todayPhoto ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDeleteTodayPhoto}
+                  disabled={isDeleting}
+                  data-testid="button-delete-today-photo"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  {isDeleting ? "..." : "Trocar"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  data-testid="button-add-today-photo"
+                >
+                  <ImagePlus className="w-4 h-4 mr-1" />
+                  {isUploading ? "..." : "Tirar"}
+                </Button>
+              )}
+            </div>
           </div>
         </Card>
 

@@ -340,6 +340,15 @@ export const api = {
         409: z.object({ message: z.string() }), // Already exists for today
       },
     },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/daily-photos/:id',
+      responses: {
+        204: z.undefined(),
+        403: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
   },
 };
 
