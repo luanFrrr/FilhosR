@@ -61,6 +61,8 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **Archive Pattern**: Uses notes field prefix "[ARCHIVED]" to hide records without adding database fields
 - **Child-specific Gamification**: Points and levels are now tracked per child instead of per user
 - **Initial Growth Record**: When creating a new child, initial measurements (weight, height, head circumference) are automatically saved as the first growth record with the birth date
+- **PhotoView Component**: Instagram-style fullscreen photo viewer using Radix Dialog + Framer Motion with accessibility fixes (DialogTitle via VisuallyHidden)
+- **Dynamic Home Page Text**: Daily rotating emotional messages, contextual encouragement based on recent activity (growth + vaccines) and level progress, subtle micro-invites below quick actions
 
 ## External Dependencies
 
