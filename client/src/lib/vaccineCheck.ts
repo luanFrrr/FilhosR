@@ -50,18 +50,37 @@ function parseAgeToMonths(ageRange: string): number[] {
   return Array.from(new Set(months)).sort((a, b) => a - b);
 }
 
-function getDoseForAge(vaccine: SusVaccine, ageMonths: number): string | null {
+function getDoseForAge(vaccine: SusVaccine, ageMonths: number): string {
   const doses = vaccine.recommendedDoses.split(",").map(d => d.trim());
   const ages = parseAgeToMonths(vaccine.ageRange || "");
   
-  const ageIndex = ages.indexOf(ageMonths);
-  if (ageIndex >= 0 && ageIndex < doses.length) {
-    return doses[ageIndex] || doses[0];
-  }
-  
+  // If single dose, return it
   if (doses.length === 1) return doses[0];
   
-  return doses[ages.findIndex(a => a === ageMonths)] || null;
+  // Create sorted copy without mutating original
+  const sortedAges = [...ages].sort((a, b) => a - b);
+  
+  // Find the index of this age in the sorted ages list
+  const ageIndex = sortedAges.indexOf(ageMonths);
+  
+  // If we found a match and it's within bounds, use it
+  if (ageIndex >= 0 && ageIndex < doses.length) {
+    return doses[ageIndex];
+  }
+  
+  // Fallback: use the position in sorted ages as the dose index
+  const position = sortedAges.filter(a => a <= ageMonths).length;
+  if (position > 0 && position <= doses.length) {
+    return doses[position - 1];
+  }
+  
+  // If position is 0, return first dose
+  if (position === 0 && doses.length > 0) {
+    return doses[0];
+  }
+  
+  // Return last dose if age exceeds all expected ages
+  return doses[doses.length - 1] || doses[0];
 }
 
 export function getExpectedVaccinesForAge(
@@ -77,14 +96,12 @@ export function getExpectedVaccinesForAge(
     for (const expectedAge of ages) {
       if (expectedAge <= childAgeMonths) {
         const dose = getDoseForAge(vaccine, expectedAge);
-        if (dose) {
-          expected.push({
-            vaccineId: vaccine.id,
-            vaccineName: vaccine.name,
-            dose,
-            expectedMonths: expectedAge,
-          });
-        }
+        expected.push({
+          vaccineId: vaccine.id,
+          vaccineName: vaccine.name,
+          dose,
+          expectedMonths: expectedAge,
+        });
       }
     }
   }
