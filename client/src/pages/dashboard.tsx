@@ -4,12 +4,33 @@ import { useSusVaccines, useVaccineRecords } from "@/hooks/use-vaccines";
 import { useGamification } from "@/hooks/use-auth";
 import { Header } from "@/components/layout/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import { formatDistanceToNow, differenceInMonths, parseISO } from "date-fns";
+import { formatDistanceToNow, differenceInMonths, differenceInDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { getVaccineStatus } from "@/lib/vaccineCheck";
+
+// Emotional phrases for gamification levels
+const levelPhrases: Record<string, string> = {
+  "Iniciante": "Todo começo é feito de atenção",
+  "Cuidador": "Constância também é amor",
+  "Dedicado": "Seu cuidado faz diferença",
+  "Experiente": "Você conhece cada detalhe",
+  "Mestre": "Um exemplo de dedicação",
+  "Ouro": "Seu cuidado transforma vidas",
+};
+
+// Get emotional phrase for current level
+const getLevelPhrase = (level: string | null | undefined): string => {
+  if (!level) return levelPhrases["Iniciante"];
+  for (const key of Object.keys(levelPhrases)) {
+    if (level.toLowerCase().includes(key.toLowerCase())) {
+      return levelPhrases[key];
+    }
+  }
+  return levelPhrases["Iniciante"];
+};
 
 export default function Dashboard() {
   const { activeChild, isLoading } = useChildContext();
@@ -36,6 +57,17 @@ export default function Dashboard() {
   const birthDate = parseISO(activeChild.birthDate);
   const age = formatDistanceToNow(birthDate, { locale: ptBR, addSuffix: false });
   const months = differenceInMonths(new Date(), birthDate);
+  const days = differenceInDays(new Date(), birthDate) % 30;
+  
+  // Emotional age subtitle
+  const getAgeSubtitle = () => {
+    if (months < 1) return `${days} dias de puro amor`;
+    if (months === 1) return "1 mês de descobertas";
+    if (months <= 3) return `${months} meses de conexão`;
+    if (months <= 6) return `${months} meses crescendo juntos`;
+    if (months <= 12) return `${months} meses de cuidado`;
+    return `${months} meses sendo cuidado por você`;
+  };
   
   const latestWeight = growth?.filter(g => g.weight).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.weight 
     || activeChild.initialWeight 
@@ -68,7 +100,10 @@ export default function Dashboard() {
           </div>
           <div className="relative z-10">
             <h2 className="text-sm font-semibold text-primary uppercase tracking-wider mb-1">Nível {gamification?.level || "Iniciante"}</h2>
-            <p className="text-2xl font-display font-bold text-foreground mb-2">
+            <p className="text-2xl font-display font-bold text-foreground mb-1">
+              {getLevelPhrase(gamification?.level)}
+            </p>
+            <p className="text-sm text-muted-foreground mb-3">
               Você está indo muito bem!
             </p>
             <div className="w-full bg-white/50 h-2 rounded-full overflow-hidden mb-2">
@@ -86,7 +121,7 @@ export default function Dashboard() {
           <StatsCard 
             title="Idade" 
             value={age} 
-            subtitle={`${months} meses completos`}
+            subtitle={getAgeSubtitle()}
             icon={<Activity className="w-5 h-5 text-purple-500" />}
             color="bg-purple-50/50 border-purple-100"
             delay={0.1}
@@ -112,7 +147,7 @@ export default function Dashboard() {
                 value={hasPendingVaccines ? "Pendentes" : "Em dia"}
                 subtitle={hasPendingVaccines 
                   ? `${vaccineStatus.pendingCount} vacina${vaccineStatus.pendingCount > 1 ? 's' : ''} atrasada${vaccineStatus.pendingCount > 1 ? 's' : ''}`
-                  : "Tudo certo!"}
+                  : "Você está cuidando muito bem!"}
                 icon={hasPendingVaccines 
                   ? <AlertTriangle className="w-5 h-5 text-amber-500" />
                   : <Heart className="w-5 h-5 text-rose-500" />}
