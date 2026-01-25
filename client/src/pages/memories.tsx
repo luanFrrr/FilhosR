@@ -1,16 +1,16 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useMilestones, useCreateMilestone, useDiary, useCreateDiaryEntry } from "@/hooks/use-memories";
 import { Header } from "@/components/layout/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Star, Book, Image as ImageIcon, Camera } from "lucide-react";
+import { Star, Book, Image as ImageIcon, Camera, X, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,24 +23,46 @@ export default function Memories() {
   const { toast } = useToast();
   const [openMilestone, setOpenMilestone] = useState(false);
   const [openDiary, setOpenDiary] = useState(false);
+  const [milestoneImage, setMilestoneImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const milestoneForm = useForm();
   const diaryForm = useForm();
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 5MB", variant: "destructive" });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMilestoneImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const onSubmitMilestone = (data: any) => {
     if (!activeChild) return;
-    createMilestone.mutate({ childId: activeChild.id, ...data }, {
+    createMilestone.mutate({ 
+      childId: activeChild.id, 
+      ...data,
+      photoUrl: milestoneImage || null
+    }, {
       onSuccess: () => {
         setOpenMilestone(false);
         milestoneForm.reset();
-        toast({ title: "Marco registrado! 🎉" });
+        setMilestoneImage(null);
+        toast({ title: "Marco registrado!" });
       }
     });
   };
 
   const onSubmitDiary = (data: any) => {
     if (!activeChild) return;
-    createDiary.mutate({ childId: activeChild.id, ...data, photoUrls: [] }, { // Photos mocked for now
+    createDiary.mutate({ childId: activeChild.id, ...data, photoUrls: [] }, {
       onSuccess: () => {
         setOpenDiary(false);
         diaryForm.reset();
@@ -66,17 +88,80 @@ export default function Memories() {
 
           <TabsContent value="milestones">
             <div className="mb-6 flex justify-end">
-               <Dialog open={openMilestone} onOpenChange={setOpenMilestone}>
+               <Dialog open={openMilestone} onOpenChange={(open) => {
+                 setOpenMilestone(open);
+                 if (!open) {
+                   setMilestoneImage(null);
+                   milestoneForm.reset();
+                 }
+               }}>
                  <DialogTrigger asChild>
-                   <Button className="btn-primary rounded-full">+ Novo Marco</Button>
+                   <Button className="rounded-full" data-testid="button-new-milestone">+ Novo Marco</Button>
                  </DialogTrigger>
-                 <DialogContent className="rounded-2xl">
-                   <DialogHeader><DialogTitle>Conquista Desbloqueada!</DialogTitle></DialogHeader>
-                   <form onSubmit={milestoneForm.handleSubmit(onSubmitMilestone)} className="space-y-4 pt-4">
-                     <div className="space-y-2"><Label>Data</Label><Input type="date" {...milestoneForm.register("date")} className="input-field" /></div>
-                     <div className="space-y-2"><Label>Título</Label><Input placeholder="Ex: Primeiro sorriso" {...milestoneForm.register("title")} className="input-field" /></div>
-                     <div className="space-y-2"><Label>Descrição</Label><Textarea placeholder="Como foi esse momento?" {...milestoneForm.register("description")} className="input-field" /></div>
-                     <Button type="submit" className="w-full btn-primary" disabled={createMilestone.isPending}>Salvar Conquista</Button>
+                 <DialogContent className="rounded-2xl max-w-sm mx-auto">
+                   <DialogHeader>
+                     <DialogTitle>Conquista Desbloqueada!</DialogTitle>
+                     <DialogDescription>Registre um momento especial na vida do seu filho</DialogDescription>
+                   </DialogHeader>
+                   <form onSubmit={milestoneForm.handleSubmit(onSubmitMilestone)} className="space-y-4 pt-2">
+                     <div className="space-y-2">
+                       <Label>Data</Label>
+                       <Input type="date" {...milestoneForm.register("date")} data-testid="input-milestone-date" />
+                     </div>
+                     <div className="space-y-2">
+                       <Label>Título</Label>
+                       <Input placeholder="Ex: Primeiro sorriso" {...milestoneForm.register("title")} data-testid="input-milestone-title" />
+                     </div>
+                     <div className="space-y-2">
+                       <Label>Descrição</Label>
+                       <Textarea placeholder="Como foi esse momento?" {...milestoneForm.register("description")} data-testid="input-milestone-description" />
+                     </div>
+                     
+                     <div className="space-y-2">
+                       <Label>Foto do momento</Label>
+                       <input
+                         type="file"
+                         accept="image/*"
+                         ref={fileInputRef}
+                         onChange={handleImageChange}
+                         className="hidden"
+                         data-testid="input-milestone-photo"
+                       />
+                       {milestoneImage ? (
+                         <div className="relative">
+                           <img 
+                             src={milestoneImage} 
+                             alt="Preview" 
+                             className="w-full h-40 object-cover rounded-xl border border-border"
+                           />
+                           <Button
+                             type="button"
+                             size="icon"
+                             variant="destructive"
+                             className="absolute top-2 right-2 h-8 w-8 rounded-full"
+                             onClick={() => setMilestoneImage(null)}
+                             data-testid="button-remove-photo"
+                           >
+                             <X className="w-4 h-4" />
+                           </Button>
+                         </div>
+                       ) : (
+                         <Button
+                           type="button"
+                           variant="outline"
+                           className="w-full h-24 border-dashed flex flex-col gap-2"
+                           onClick={() => fileInputRef.current?.click()}
+                           data-testid="button-upload-photo"
+                         >
+                           <Camera className="w-6 h-6 text-muted-foreground" />
+                           <span className="text-sm text-muted-foreground">Adicionar foto</span>
+                         </Button>
+                       )}
+                     </div>
+
+                     <Button type="submit" className="w-full" disabled={createMilestone.isPending} data-testid="button-save-milestone">
+                       {createMilestone.isPending ? "Salvando..." : "Salvar Conquista"}
+                     </Button>
                    </form>
                  </DialogContent>
                </Dialog>
@@ -90,6 +175,13 @@ export default function Memories() {
                      {format(new Date(milestone.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
                    </span>
                    <div className="bg-white p-4 rounded-xl border border-border shadow-sm">
+                     {milestone.photoUrl && (
+                       <img 
+                         src={milestone.photoUrl} 
+                         alt={milestone.title} 
+                         className="w-full h-32 object-cover rounded-lg mb-3"
+                       />
+                     )}
                      <h3 className="font-display font-bold text-lg mb-2">{milestone.title}</h3>
                      <p className="text-muted-foreground text-sm leading-relaxed">{milestone.description}</p>
                    </div>
@@ -105,14 +197,25 @@ export default function Memories() {
              <div className="mb-6 flex justify-end">
                <Dialog open={openDiary} onOpenChange={setOpenDiary}>
                  <DialogTrigger asChild>
-                   <Button className="btn-primary rounded-full">+ Escrever</Button>
+                   <Button className="rounded-full" data-testid="button-new-diary">+ Escrever</Button>
                  </DialogTrigger>
-                 <DialogContent className="rounded-2xl">
-                   <DialogHeader><DialogTitle>Querido Diário...</DialogTitle></DialogHeader>
-                   <form onSubmit={diaryForm.handleSubmit(onSubmitDiary)} className="space-y-4 pt-4">
-                     <div className="space-y-2"><Label>Data</Label><Input type="date" {...diaryForm.register("date")} className="input-field" /></div>
-                     <div className="space-y-2"><Label>O que aconteceu hoje?</Label><Textarea {...diaryForm.register("content")} className="input-field min-h-[120px]" /></div>
-                     <Button type="submit" className="w-full btn-primary" disabled={createDiary.isPending}>Salvar no Diário</Button>
+                 <DialogContent className="rounded-2xl max-w-sm mx-auto">
+                   <DialogHeader>
+                     <DialogTitle>Querido Diário...</DialogTitle>
+                     <DialogDescription>Escreva sobre o dia de hoje</DialogDescription>
+                   </DialogHeader>
+                   <form onSubmit={diaryForm.handleSubmit(onSubmitDiary)} className="space-y-4 pt-2">
+                     <div className="space-y-2">
+                       <Label>Data</Label>
+                       <Input type="date" {...diaryForm.register("date")} data-testid="input-diary-date" />
+                     </div>
+                     <div className="space-y-2">
+                       <Label>O que aconteceu hoje?</Label>
+                       <Textarea {...diaryForm.register("content")} className="min-h-[120px]" data-testid="input-diary-content" />
+                     </div>
+                     <Button type="submit" className="w-full" disabled={createDiary.isPending} data-testid="button-save-diary">
+                       {createDiary.isPending ? "Salvando..." : "Salvar no Diário"}
+                     </Button>
                    </form>
                  </DialogContent>
                </Dialog>
