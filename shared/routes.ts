@@ -222,3 +222,5 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
   }
   return url;
 }
+
+export type InsertChild = z.infer<typeof insertChildSchema>;

@@ -57,3 +57,17 @@ export function useUpdateChild() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.children.list.path] }),
   });
 }
+
+export function useDeleteChild() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = buildUrl(api.children.delete.path, { id });
+      const res = await fetch(url, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete child");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.children.list.path] }),
+  });
+}
