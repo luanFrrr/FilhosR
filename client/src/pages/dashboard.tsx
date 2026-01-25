@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { formatDistanceToNow, differenceInMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope } from "lucide-react";
+import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy } from "lucide-react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 
