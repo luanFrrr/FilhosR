@@ -34,3 +34,37 @@ export function useCreateGrowthRecord() {
     },
   });
 }
+
+export function useUpdateGrowthRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId, ...data }: { id: number; childId: number } & Partial<Omit<InsertGrowthRecord, "childId">>) => {
+      const url = buildUrl(api.growth.update.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update growth record");
+      return api.growth.update.responses[200].parse(await res.json());
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.growth.list.path, variables.childId] });
+    },
+  });
+}
+
+export function useArchiveGrowthRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
+      const url = buildUrl(api.growth.archive.path, { id });
+      const res = await fetch(url, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to archive growth record");
+      return api.growth.archive.responses[200].parse(await res.json());
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.growth.list.path, variables.childId] });
+    },
+  });
+}

@@ -122,6 +122,23 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/growth/:id',
+      input: insertGrowthRecordSchema.omit({ childId: true }).partial(),
+      responses: {
+        200: z.custom<typeof growthRecords.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    archive: {
+      method: 'POST' as const,
+      path: '/api/growth/:id/archive',
+      responses: {
+        200: z.custom<typeof growthRecords.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 
   // Vaccines

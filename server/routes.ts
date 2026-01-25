@@ -106,6 +106,25 @@ export async function registerRoutes(
     res.status(201).json(record);
   });
 
+  app.patch(api.growth.update.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const input = api.growth.update.input.parse(req.body);
+    const record = await storage.updateGrowthRecord(id, input);
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+    res.json(record);
+  });
+
+  app.post(api.growth.archive.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const record = await storage.archiveGrowthRecord(id);
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+    res.json(record);
+  });
+
   // Vaccines
   app.get(api.vaccines.list.path, async (req, res) => {
     const records = await storage.getVaccines(Number(req.params.childId));
