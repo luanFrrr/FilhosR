@@ -1,5 +1,5 @@
 import { 
-  users, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification,
+  users, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords,
   type User, type InsertUser,
   type Child, type InsertChild,
   type GrowthRecord, type InsertGrowthRecord,
@@ -7,7 +7,9 @@ import {
   type HealthRecord, type InsertHealthRecord,
   type Milestone, type InsertMilestone,
   type DiaryEntry, type InsertDiaryEntry,
-  type Gamification
+  type Gamification,
+  type SusVaccine, type InsertSusVaccine,
+  type VaccineRecord, type InsertVaccineRecord
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -49,6 +51,16 @@ export interface IStorage {
   // Gamification
   getGamification(userId: number): Promise<Gamification | undefined>;
   addPoints(userId: number, points: number): Promise<Gamification>;
+
+  // SUS Vaccines
+  getSusVaccines(): Promise<SusVaccine[]>;
+  initializeSusVaccines(): Promise<void>;
+
+  // Vaccine Records
+  getVaccineRecords(childId: number): Promise<VaccineRecord[]>;
+  createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord>;
+  updateVaccineRecord(id: number, record: Partial<InsertVaccineRecord>): Promise<VaccineRecord>;
+  deleteVaccineRecord(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -104,6 +116,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(healthRecords).where(eq(healthRecords.childId, id));
     await db.delete(milestones).where(eq(milestones.childId, id));
     await db.delete(diaryEntries).where(eq(diaryEntries.childId, id));
+    await db.delete(vaccineRecords).where(eq(vaccineRecords.childId, id));
     await db.delete(children).where(eq(children.id, id));
   }
 
@@ -184,6 +197,54 @@ export class DatabaseStorage implements IStorage {
       .where(eq(gamification.userId, userId))
       .returning();
     return updated;
+  }
+
+  // SUS Vaccines
+  async getSusVaccines(): Promise<SusVaccine[]> {
+    return await db.select().from(susVaccines);
+  }
+
+  async initializeSusVaccines(): Promise<void> {
+    const existing = await this.getSusVaccines();
+    if (existing.length > 0) return;
+
+    // Lista de vacinas do calendário infantil do SUS (PNI)
+    const vaccineList: InsertSusVaccine[] = [
+      { name: "BCG", diseasesPrevented: "Tuberculose (formas graves)", recommendedDoses: "Dose única", ageRange: "Ao nascer" },
+      { name: "Hepatite B", diseasesPrevented: "Hepatite B", recommendedDoses: "Dose ao nascer", ageRange: "Ao nascer" },
+      { name: "Pentavalente (DTP+Hib+HepB)", diseasesPrevented: "Difteria, Tétano, Coqueluche, Haemophilus influenzae b, Hepatite B", recommendedDoses: "1ª dose, 2ª dose, 3ª dose", ageRange: "2, 4, 6 meses" },
+      { name: "Poliomielite (VIP/VOP)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "1ª dose, 2ª dose, 3ª dose, Reforços", ageRange: "2, 4, 6 meses + reforços" },
+      { name: "Rotavírus Humano", diseasesPrevented: "Diarreia por rotavírus", recommendedDoses: "1ª dose, 2ª dose", ageRange: "2, 4 meses" },
+      { name: "Pneumocócica 10-valente", diseasesPrevented: "Pneumonia, Meningite, Otite", recommendedDoses: "1ª dose, 2ª dose, Reforço", ageRange: "2, 4 meses + reforço 12m" },
+      { name: "Meningocócica C (conjugada)", diseasesPrevented: "Meningite meningocócica C", recommendedDoses: "1ª dose, 2ª dose, Reforço", ageRange: "3, 5 meses + reforço 12m" },
+      { name: "Febre Amarela", diseasesPrevented: "Febre amarela", recommendedDoses: "Dose inicial, Reforço", ageRange: "9 meses + reforço 4 anos" },
+      { name: "Tríplice Viral (SCR)", diseasesPrevented: "Sarampo, Caxumba, Rubéola", recommendedDoses: "1ª dose, 2ª dose", ageRange: "12 meses, 15 meses" },
+      { name: "Hepatite A", diseasesPrevented: "Hepatite A", recommendedDoses: "Dose única", ageRange: "15 meses" },
+      { name: "Tetra Viral (SCRV)", diseasesPrevented: "Sarampo, Caxumba, Rubéola, Varicela", recommendedDoses: "Dose única", ageRange: "15 meses" },
+      { name: "Varicela", diseasesPrevented: "Catapora (varicela)", recommendedDoses: "1ª dose, 2ª dose", ageRange: "15 meses, 4 anos" },
+      { name: "DTP (Tríplice Bacteriana)", diseasesPrevented: "Difteria, Tétano, Coqueluche", recommendedDoses: "1º reforço, 2º reforço", ageRange: "15 meses, 4 anos" },
+    ];
+
+    await db.insert(susVaccines).values(vaccineList);
+  }
+
+  // Vaccine Records
+  async getVaccineRecords(childId: number): Promise<VaccineRecord[]> {
+    return await db.select().from(vaccineRecords).where(eq(vaccineRecords.childId, childId));
+  }
+
+  async createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord> {
+    const [newRecord] = await db.insert(vaccineRecords).values(record).returning();
+    return newRecord;
+  }
+
+  async updateVaccineRecord(id: number, updates: Partial<InsertVaccineRecord>): Promise<VaccineRecord> {
+    const [updated] = await db.update(vaccineRecords).set(updates).where(eq(vaccineRecords.id, id)).returning();
+    return updated;
+  }
+
+  async deleteVaccineRecord(id: number): Promise<void> {
+    await db.delete(vaccineRecords).where(eq(vaccineRecords.id, id));
   }
 }
 

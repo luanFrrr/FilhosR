@@ -7,6 +7,7 @@ import {
   insertHealthRecordSchema, 
   insertMilestoneSchema, 
   insertDiaryEntrySchema,
+  insertVaccineRecordSchema,
   users,
   children,
   growthRecords,
@@ -14,7 +15,9 @@ import {
   healthRecords,
   milestones,
   diaryEntries,
-  gamification
+  gamification,
+  susVaccines,
+  vaccineRecords
 } from './schema';
 
 // ============================================
@@ -209,6 +212,54 @@ export const api = {
       },
     },
   },
+
+  // SUS Vaccines Catalog
+  susVaccines: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/sus-vaccines',
+      responses: {
+        200: z.array(z.custom<typeof susVaccines.$inferSelect>()),
+      },
+    },
+  },
+
+  // Vaccine Records (Carteira Vacinal)
+  vaccineRecords: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/children/:childId/vaccine-records',
+      responses: {
+        200: z.array(z.custom<typeof vaccineRecords.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/children/:childId/vaccine-records',
+      input: insertVaccineRecordSchema.omit({ childId: true }),
+      responses: {
+        201: z.custom<typeof vaccineRecords.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/vaccine-records/:id',
+      input: insertVaccineRecordSchema.partial(),
+      responses: {
+        200: z.custom<typeof vaccineRecords.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/vaccine-records/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
@@ -224,3 +275,4 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
 }
 
 export type InsertChild = z.infer<typeof insertChildSchema>;
+export type InsertVaccineRecord = z.infer<typeof insertVaccineRecordSchema>;

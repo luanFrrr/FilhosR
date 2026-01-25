@@ -174,5 +174,43 @@ export async function registerRoutes(
     res.status(201).json(record);
   });
 
+  // SUS Vaccines Catalog
+  app.get(api.susVaccines.list.path, async (req, res) => {
+    // Initialize vaccines if not present
+    await storage.initializeSusVaccines();
+    const vaccines = await storage.getSusVaccines();
+    res.json(vaccines);
+  });
+
+  // Vaccine Records (Carteira Vacinal)
+  app.get(api.vaccineRecords.list.path, async (req, res) => {
+    const records = await storage.getVaccineRecords(Number(req.params.childId));
+    res.json(records);
+  });
+
+  app.post(api.vaccineRecords.create.path, async (req, res) => {
+    const childId = Number(req.params.childId);
+    const input = api.vaccineRecords.create.input.parse(req.body);
+    const record = await storage.createVaccineRecord({ ...input, childId });
+    
+    // Gamification: evento vacina_registrada
+    // @ts-ignore
+    await storage.addPoints(req.user.id, 15);
+    res.status(201).json(record);
+  });
+
+  app.patch(api.vaccineRecords.update.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const input = api.vaccineRecords.update.input.parse(req.body);
+    const record = await storage.updateVaccineRecord(id, input);
+    res.json(record);
+  });
+
+  app.delete(api.vaccineRecords.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    await storage.deleteVaccineRecord(id);
+    res.status(204).end();
+  });
+
   return httpServer;
 }
