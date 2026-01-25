@@ -105,6 +105,15 @@ export const susVaccines = pgTable("sus_vaccines", {
   ageRange: text("age_range"), // Ex: "Ao nascer", "2 meses", "4 meses"
 });
 
+// Foto do dia - one photo per day per child
+export const dailyPhotos = pgTable("daily_photos", {
+  id: serial("id").primaryKey(),
+  childId: integer("child_id").notNull(),
+  date: date("date").notNull(),
+  photoUrl: text("photo_url").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Registros vacinais individuais
 export const vaccineRecords = pgTable("vaccine_records", {
   id: serial("id").primaryKey(),
@@ -132,7 +141,15 @@ export const childrenRelations = relations(children, ({ many, one }) => ({
   milestones: many(milestones),
   diaryEntries: many(diaryEntries),
   vaccineRecords: many(vaccineRecords),
+  dailyPhotos: many(dailyPhotos),
   gamification: one(gamification),
+}));
+
+export const dailyPhotosRelations = relations(dailyPhotos, ({ one }) => ({
+  child: one(children, {
+    fields: [dailyPhotos.childId],
+    references: [children.id],
+  }),
 }));
 
 export const caregiversRelations = relations(caregivers, ({ one }) => ({
@@ -215,6 +232,7 @@ export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: t
 export const insertDiaryEntrySchema = createInsertSchema(diaryEntries).omit({ id: true, createdAt: true });
 export const insertSusVaccineSchema = createInsertSchema(susVaccines).omit({ id: true });
 export const insertVaccineRecordSchema = createInsertSchema(vaccineRecords).omit({ id: true, createdAt: true });
+export const insertDailyPhotoSchema = createInsertSchema(dailyPhotos).omit({ id: true, createdAt: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
 
@@ -249,6 +267,9 @@ export type InsertSusVaccine = z.infer<typeof insertSusVaccineSchema>;
 
 export type VaccineRecord = typeof vaccineRecords.$inferSelect;
 export type InsertVaccineRecord = z.infer<typeof insertVaccineRecordSchema>;
+
+export type DailyPhoto = typeof dailyPhotos.$inferSelect;
+export type InsertDailyPhoto = z.infer<typeof insertDailyPhotoSchema>;
 
 // Request Types
 export type CreateChildRequest = InsertChild;

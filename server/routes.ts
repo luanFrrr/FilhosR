@@ -295,5 +295,36 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  // Daily Photos (Foto do dia)
+  app.get(api.dailyPhotos.list.path, async (req, res) => {
+    const childId = Number(req.params.childId);
+    const photos = await storage.getDailyPhotos(childId);
+    res.json(photos);
+  });
+
+  app.get(api.dailyPhotos.today.path, async (req, res) => {
+    const childId = Number(req.params.childId);
+    const today = new Date().toISOString().split('T')[0];
+    const photo = await storage.getDailyPhotoByDate(childId, today);
+    res.json(photo || null);
+  });
+
+  app.post(api.dailyPhotos.create.path, async (req, res) => {
+    const childId = Number(req.params.childId);
+    const input = api.dailyPhotos.create.input.parse(req.body);
+    
+    // Check if photo already exists for today
+    const existing = await storage.getDailyPhotoByDate(childId, input.date);
+    if (existing) {
+      return res.status(409).json({ message: "Já existe uma foto para hoje" });
+    }
+    
+    const photo = await storage.createDailyPhoto({ ...input, childId });
+    
+    // Gamification: evento foto_do_dia_registrada
+    await storage.addPoints(childId, 5);
+    res.status(201).json(photo);
+  });
+
   return httpServer;
 }

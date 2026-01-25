@@ -1,5 +1,5 @@
 import { 
-  users, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords,
+  users, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords, dailyPhotos,
   type User, type InsertUser,
   type Child, type InsertChild,
   type GrowthRecord, type InsertGrowthRecord,
@@ -9,7 +9,8 @@ import {
   type DiaryEntry, type InsertDiaryEntry,
   type Gamification,
   type SusVaccine, type InsertSusVaccine,
-  type VaccineRecord, type InsertVaccineRecord
+  type VaccineRecord, type InsertVaccineRecord,
+  type DailyPhoto, type InsertDailyPhoto
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -68,6 +69,11 @@ export interface IStorage {
   createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord>;
   updateVaccineRecord(id: number, record: Partial<InsertVaccineRecord>): Promise<VaccineRecord>;
   deleteVaccineRecord(id: number): Promise<void>;
+
+  // Daily Photos
+  getDailyPhotos(childId: number): Promise<DailyPhoto[]>;
+  getDailyPhotoByDate(childId: number, date: string): Promise<DailyPhoto | undefined>;
+  createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -122,6 +128,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(milestones).where(eq(milestones.childId, id));
     await db.delete(diaryEntries).where(eq(diaryEntries.childId, id));
     await db.delete(vaccineRecords).where(eq(vaccineRecords.childId, id));
+    await db.delete(dailyPhotos).where(eq(dailyPhotos.childId, id));
     await db.delete(gamification).where(eq(gamification.childId, id));
     await db.delete(children).where(eq(children.id, id));
   }
@@ -341,6 +348,22 @@ export class DatabaseStorage implements IStorage {
 
   async deleteVaccineRecord(id: number): Promise<void> {
     await db.delete(vaccineRecords).where(eq(vaccineRecords.id, id));
+  }
+
+  // Daily Photos
+  async getDailyPhotos(childId: number): Promise<DailyPhoto[]> {
+    return await db.select().from(dailyPhotos).where(eq(dailyPhotos.childId, childId));
+  }
+
+  async getDailyPhotoByDate(childId: number, date: string): Promise<DailyPhoto | undefined> {
+    const [photo] = await db.select().from(dailyPhotos)
+      .where(and(eq(dailyPhotos.childId, childId), eq(dailyPhotos.date, date)));
+    return photo;
+  }
+
+  async createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto> {
+    const [newPhoto] = await db.insert(dailyPhotos).values(photo).returning();
+    return newPhoto;
   }
 }
 

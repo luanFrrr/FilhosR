@@ -8,6 +8,7 @@ import {
   insertMilestoneSchema, 
   insertDiaryEntrySchema,
   insertVaccineRecordSchema,
+  insertDailyPhotoSchema,
   users,
   children,
   growthRecords,
@@ -17,7 +18,8 @@ import {
   diaryEntries,
   gamification,
   susVaccines,
-  vaccineRecords
+  vaccineRecords,
+  dailyPhotos
 } from './schema';
 
 // ============================================
@@ -308,6 +310,34 @@ export const api = {
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // Daily Photos (Foto do dia)
+  dailyPhotos: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/children/:childId/daily-photos',
+      responses: {
+        200: z.array(z.custom<typeof dailyPhotos.$inferSelect>()),
+      },
+    },
+    today: {
+      method: 'GET' as const,
+      path: '/api/children/:childId/daily-photos/today',
+      responses: {
+        200: z.custom<typeof dailyPhotos.$inferSelect>().nullable(),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/children/:childId/daily-photos',
+      input: insertDailyPhotoSchema.omit({ childId: true }),
+      responses: {
+        201: z.custom<typeof dailyPhotos.$inferSelect>(),
+        400: errorSchemas.validation,
+        409: z.object({ message: z.string() }), // Already exists for today
       },
     },
   },
