@@ -156,9 +156,7 @@ export default function Settings() {
            )}
            <div>
              <h2 className="font-display font-bold text-lg" data-testid="text-user-name">
-               {user?.firstName && user?.lastName 
-                 ? `${user.firstName} ${user.lastName}` 
-                 : user?.firstName || 'Responsável'}
+               {user?.firstName || 'Responsável'}
              </h2>
              <p className="text-sm text-muted-foreground" data-testid="text-user-email">{user?.email || ''}</p>
            </div>
