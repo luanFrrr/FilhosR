@@ -65,6 +65,11 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **User Claims**: sub (unique ID), email, firstName, lastName, profileImageUrl
 - **Protected Routes**: All `/api/*` routes except `/api/sus-vaccines` require authentication
 - **Frontend**: Landing page for unauthenticated users, useAuth hook for auth state
+- **Authorization Pattern**: 
+  - All child-scoped list/create routes verify `hasChildAccess(userId, childId)` via caregivers table
+  - Update/delete routes that receive record IDs fetch record first, then verify child ownership
+  - Helper methods: `getGrowthRecordById`, `getVaccineById`, `getHealthRecordById`, `getMilestoneById`, `getVaccineRecordById`
+- **Cookie Security**: `secure` flag is conditional on `NODE_ENV === 'production'` for dev compatibility
 
 ### Recent Changes (Jan 2026)
 - **Replit Auth Integration**: Added real user authentication via Replit OIDC. Users table now uses varchar ID (OIDC sub claim), caregivers table updated to reference string user IDs. Landing page shows when not logged in.
