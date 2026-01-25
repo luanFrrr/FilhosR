@@ -12,6 +12,33 @@ import { parseLocalDate } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { getVaccineStatus } from "@/lib/vaccineCheck";
 
+// Daily messages that rotate based on day of year - emotional, caring tone
+const dailyMessages = [
+  "Cada dia ao seu lado é uma nova história sendo escrita",
+  "O amor que você dedica se reflete em cada olhar",
+  "Cuidar é a forma mais silenciosa de amar",
+  "Você está fazendo um trabalho lindo",
+  "Pequenos gestos constroem grandes lembranças",
+  "A presença é o maior presente que você pode dar",
+  "Seu cuidado é a base de tudo que virá",
+  "Cada momento junto vale ser guardado",
+  "O carinho que você dá hoje ecoa para sempre",
+  "Sua dedicação faz toda a diferença",
+  "O tempo passa, mas o amor que você planta fica",
+  "Estar presente é o maior ato de cuidado",
+  "Você está construindo memórias que durarão a vida toda",
+  "A constância do seu amor é a maior segurança",
+];
+
+// Get daily message based on day of year (changes once per day)
+const getDailyMessage = (): string => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const diff = now.getTime() - start.getTime();
+  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+  return dailyMessages[dayOfYear % dailyMessages.length];
+};
+
 // Emotional phrases for gamification levels
 const levelPhrases: Record<string, string> = {
   "Iniciante": "Todo começo é feito de atenção",
@@ -20,6 +47,54 @@ const levelPhrases: Record<string, string> = {
   "Experiente": "Você conhece cada detalhe",
   "Mestre": "Um exemplo de dedicação",
   "Ouro": "Seu cuidado transforma vidas",
+};
+
+// Dynamic subtitle based on user state
+const getEncouragementMessage = (
+  hasRecentActivity: boolean,
+  isCloseToLevelUp: boolean
+): string => {
+  // Close to level up
+  if (isCloseToLevelUp) {
+    return "Você está quase alcançando um novo nível!";
+  }
+  
+  // Has recent activity - validation message
+  if (hasRecentActivity) {
+    const validationMessages = [
+      "Seu carinho está sendo registrado",
+      "Cada registro é um ato de cuidado",
+      "Você está acompanhando de perto",
+      "Continue assim, você está indo bem",
+    ];
+    return validationMessages[Math.floor(Date.now() / 86400000) % validationMessages.length];
+  }
+  
+  // No recent activity - calm, presence-focused message
+  const calmMessages = [
+    "Tudo bem ir no seu ritmo",
+    "Sua presença já é cuidado",
+    "Não há pressa, apenas presença",
+    "Você está aqui, e isso importa",
+  ];
+  return calmMessages[Math.floor(Date.now() / 86400000) % calmMessages.length];
+};
+
+// Micro invite phrases - gentle, no pressure
+const getMicroInvite = (hasRecentActivity: boolean, months: number): string => {
+  const invites = [
+    "Que tal registrar como está o crescimento?",
+    "As memórias de hoje serão tesouros amanhã",
+    "Um registro rápido pode fazer a diferença",
+    "Quando quiser, estamos aqui para ajudar",
+  ];
+  
+  // Contextual invites based on state
+  if (!hasRecentActivity && months <= 12) {
+    return "Os primeiros meses passam rápido... que tal registrar?";
+  }
+  
+  return invites[Math.floor(Date.now() / 86400000) % invites.length];
 };
 
 // Get emotional phrase for current level
@@ -31,6 +106,36 @@ const getLevelPhrase = (level: string | null | undefined): string => {
     }
   }
   return levelPhrases["Iniciante"];
+};
+
+// Check if any records exist within the last 7 days
+// Uses createdAt or applicationDate/date fields to determine recency
+const checkRecentActivity = (
+  growth: any[] | undefined, 
+  vaccineRecords: any[] | undefined
+): boolean => {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  // Check growth records
+  const hasRecentGrowth = growth?.some(record => {
+    const recordDate = record.createdAt ? new Date(record.createdAt) : new Date(record.date);
+    return recordDate >= sevenDaysAgo;
+  }) || false;
+  
+  // Check vaccine records
+  const hasRecentVaccine = vaccineRecords?.some(record => {
+    const recordDate = record.createdAt ? new Date(record.createdAt) : new Date(record.applicationDate);
+    return recordDate >= sevenDaysAgo;
+  }) || false;
+  
+  return hasRecentGrowth || hasRecentVaccine;
+};
+
+// Check if close to next level (within 15 points of next threshold)
+const isCloseToNextLevel = (points: number): boolean => {
+  const pointsInCurrentLevel = points % 100;
+  return pointsInCurrentLevel >= 85;
 };
 
 export default function Dashboard() {
@@ -74,11 +179,15 @@ export default function Dashboard() {
     return `${months} meses sendo cuidado por você`;
   };
   
-  const latestWeight = growth?.filter(g => g.weight).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.weight 
+  // Get latest measurements with proper sorting
+  const sortedByDate = (records: any[] | undefined) => 
+    records?.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
+  
+  const latestWeight = sortedByDate(growth?.filter(g => g.weight))[0]?.weight 
     || activeChild.initialWeight 
     || "--";
   
-  const latestHeight = growth?.filter(g => g.height).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.height 
+  const latestHeight = sortedByDate(growth?.filter(g => g.height))[0]?.height 
     || activeChild.initialHeight 
     || "--";
 
@@ -88,13 +197,27 @@ export default function Dashboard() {
   
   const hasPendingVaccines = vaccineStatus.status === "pending";
 
+  // Dynamic state calculations - now checks multiple record types
+  const points = gamification?.points || 0;
+  const recentActivity = checkRecentActivity(growth, vaccineRecords);
+  const closeToLevelUp = isCloseToNextLevel(points);
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header />
 
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
         
-        {/* Welcome Section */}
+        {/* Daily Message - Changes once per day */}
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center text-sm text-muted-foreground italic px-4"
+        >
+          "{getDailyMessage()}"
+        </motion.p>
+
+        {/* Welcome Section - Dynamic Level Card */}
         <motion.div 
           initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }}
@@ -109,15 +232,15 @@ export default function Dashboard() {
               {getLevelPhrase(gamification?.level)}
             </p>
             <p className="text-sm text-muted-foreground mb-3">
-              Você está indo muito bem!
+              {getEncouragementMessage(recentActivity, closeToLevelUp)}
             </p>
             <div className="w-full bg-white/50 h-2 rounded-full overflow-hidden mb-2">
               <div 
                 className="bg-primary h-full rounded-full transition-all duration-1000" 
-                style={{ width: `${Math.min((gamification?.points || 0) % 100, 100)}%` }} 
+                style={{ width: `${Math.min(points % 100, 100)}%` }} 
               />
             </div>
-            <p className="text-xs text-muted-foreground">{gamification?.points || 0} pontos acumulados</p>
+            <p className="text-xs text-muted-foreground">{points} pontos acumulados</p>
           </div>
         </motion.div>
 
@@ -201,6 +324,11 @@ export default function Dashboard() {
               </div>
             </Link>
           </div>
+          
+          {/* Micro Invite - Gentle nudge */}
+          <p className="text-center text-xs text-muted-foreground mt-4 italic">
+            {getMicroInvite(recentActivity, months)}
+          </p>
         </motion.div>
       </main>
     </div>
