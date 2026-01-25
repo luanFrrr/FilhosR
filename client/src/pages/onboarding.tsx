@@ -25,6 +25,7 @@ export default function Onboarding() {
       theme: 'neutral',
       initialWeight: '',
       initialHeight: '',
+      initialHeadCircumference: '',
     }
   });
 
@@ -51,8 +52,9 @@ export default function Onboarding() {
     createChild.mutate({
       ...data,
       gender: data.gender || 'unspecified',
-      initialWeight: data.initialWeight?.toString(),
-      initialHeight: data.initialHeight?.toString(),
+      initialWeight: data.initialWeight?.toString() || null,
+      initialHeight: data.initialHeight?.toString() || null,
+      initialHeadCircumference: data.initialHeadCircumference?.toString() || null,
       photoUrl: photo,
     }, {
       onSuccess: (child) => {
@@ -149,15 +151,22 @@ export default function Onboarding() {
               </RadioGroup>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label>Peso ao nascer (kg)</Label>
-                 <Input type="number" step="0.01" {...register("initialWeight")} className="input-field" placeholder="0.00" />
-               </div>
-               <div className="space-y-2">
-                 <Label>Altura ao nascer (cm)</Label>
-                 <Input type="number" step="0.1" {...register("initialHeight")} className="input-field" placeholder="00.0" />
-               </div>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground font-medium">Medidas ao nascer</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">Peso (kg)</Label>
+                  <Input type="number" step="0.01" {...register("initialWeight")} className="input-field" placeholder="3.50" data-testid="input-initial-weight" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Altura (cm)</Label>
+                  <Input type="number" step="0.1" {...register("initialHeight")} className="input-field" placeholder="50.0" data-testid="input-initial-height" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">P. Cefálico (cm)</Label>
+                  <Input type="number" step="0.1" {...register("initialHeadCircumference")} className="input-field" placeholder="35.0" data-testid="input-initial-head" />
+                </div>
+              </div>
             </div>
 
             <Button type="submit" className="w-full btn-primary h-12 text-lg mt-4" disabled={createChild.isPending}>

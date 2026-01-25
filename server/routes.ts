@@ -77,6 +77,25 @@ export async function registerRoutes(
         role: 'owner'
       });
 
+      // Create initial growth record if measurements provided
+      const hasWeight = input.initialWeight && parseFloat(String(input.initialWeight)) > 0;
+      const hasHeight = input.initialHeight && parseFloat(String(input.initialHeight)) > 0;
+      const hasHead = input.initialHeadCircumference && parseFloat(String(input.initialHeadCircumference)) > 0;
+      
+      if (hasWeight || hasHeight || hasHead) {
+        const growthData: any = {
+          childId: child.id,
+          date: child.birthDate, // Use birth date as the date for initial measurements
+          notes: "Medidas ao nascer"
+        };
+        
+        if (hasWeight) growthData.weight = String(input.initialWeight);
+        if (hasHeight) growthData.height = String(input.initialHeight);
+        if (hasHead) growthData.headCircumference = String(input.initialHeadCircumference);
+        
+        await storage.createGrowthRecord(growthData);
+      }
+
       // Gamification points - initialize for new child
       await storage.addPoints(child.id, 50);
 
