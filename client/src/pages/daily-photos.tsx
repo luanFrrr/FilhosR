@@ -10,30 +10,35 @@ import { format, parseISO, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoView } from "@/components/ui/photo-view";
+import { X } from "lucide-react";
 
 const MENSAGENS_MOMENTO = [
-  "Momento guardado com carinho",
-  "Esse registro vai valer muito no futuro",
-  "Um pedacinho do crescimento ficou salvo hoje",
-  "Mais um dia especial registrado",
-  "Que bom ter você presente nesse momento",
-  "Essa memória agora é para sempre",
-  "O tempo passa, mas esse momento fica",
-  "Cada foto conta uma história de amor",
+  "Esse momento não volta. Ainda bem que você guardou.",
+  "Hoje ficou registrado para sempre.",
+  "Um dia simples que virou memória.",
+  "O crescimento acontece assim, um dia de cada vez.",
+  "Mais um tijolinho na construção da história de vocês.",
+  "O detalhe de hoje é o tesouro de amanhã.",
+  "Capturar o agora é o melhor presente para o futuro.",
 ];
 
 const MENSAGENS_SEQUENCIA = [
-  "Você está construindo uma linda linha do tempo",
-  "A constância transforma dias em memórias",
-  "Cada dia seguido é uma prova de presença",
-  "Sua dedicação está criando algo especial",
+  "A constância do seu cuidado cria uma história linda.",
+  "Um dia após o outro, construindo memórias eternas.",
+  "Cada registro seguido é um ato de amor e presença.",
+  "Você está documentando uma jornada incrível.",
+];
+
+const MENSAGENS_PRIMEIRA = [
+  "O início de uma jornada linda de registros.",
+  "A primeira de muitas memórias que virão.",
+  "Começando hoje a guardar cada pedacinho do crescimento.",
 ];
 
 const MENSAGENS_RETORNO = [
-  "Que bom ter você de volta",
-  "Nunca é tarde para registrar um momento",
-  "O importante é estar presente agora",
-  "Cada dia é uma nova oportunidade",
+  "Que bom ter você de volta guardando esses momentos.",
+  "O registro de hoje é um novo recomeço para as memórias.",
+  "Cada dia é uma nova chance de eternizar o agora.",
 ];
 
 export default function DailyPhotos() {
@@ -47,6 +52,7 @@ export default function DailyPhotos() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showFeedback, setShowFeedback] = useState<{ url: string; message: string } | null>(null);
 
   const sortedPhotos = photos?.slice().sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -57,6 +63,10 @@ export default function DailyPhotos() {
 
   const getEmotionalMessage = useCallback((currentStreak: number, hadRecentPhotos: boolean) => {
     const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+    
+    if (totalPhotos === 0) {
+      return pickRandom(MENSAGENS_PRIMEIRA);
+    }
     
     if (currentStreak >= 2) {
       return pickRandom(MENSAGENS_SEQUENCIA);
@@ -98,12 +108,9 @@ export default function DailyPhotos() {
         const newStreak = hadPhotoYesterday ? streakDays + 1 : 1;
         const mensagem = getEmotionalMessage(newStreak, hadPhotoYesterday);
         
-        toast({
-          title: mensagem,
-          description: newStreak >= 2 
-            ? `${newStreak} dias seguidos registrando momentos` 
-            : undefined,
-        });
+        setShowFeedback({ url: photoUrl, message: mensagem });
+        setTimeout(() => setShowFeedback(null), 5000);
+        
         setCurrentIndex(0);
       };
       reader.readAsDataURL(file);
@@ -129,12 +136,8 @@ export default function DailyPhotos() {
       await deletePhoto.mutateAsync({ id: todayPhoto.id, childId: activeChild.id });
       toast({
         title: "Foto removida",
-        description: "Escolha uma nova foto.",
+        description: "A foto de hoje foi excluída.",
       });
-      // Automatically open file picker after delete
-      setTimeout(() => {
-        fileInputRef.current?.click();
-      }, 300);
     } catch (error) {
       toast({
         title: "Erro",
@@ -349,6 +352,48 @@ export default function DailyPhotos() {
           data-testid="input-photo-file"
         />
       </main>
+
+      <AnimatePresence>
+        {showFeedback && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-6 text-center"
+          >
+            <button
+              onClick={() => setShowFeedback(null)}
+              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
+            >
+              <X className="w-6 h-6 text-white" />
+            </button>
+
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-sm aspect-square rounded-3xl overflow-hidden shadow-2xl mb-8"
+            >
+              <img
+                src={showFeedback.url}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="space-y-4 max-w-xs"
+            >
+              <p className="text-xl md:text-2xl font-display font-bold text-white leading-relaxed">
+                {showFeedback.message}
+              </p>
+              <div className="w-12 h-1 bg-primary mx-auto rounded-full" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
