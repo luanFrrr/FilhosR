@@ -168,12 +168,9 @@ export class DatabaseStorage implements IStorage {
     if (newPoints > 1000) level = 'Mãe/Pai Coruja';
     if (newPoints > 2000) level = 'Guardião da Infância';
 
-    const [updated] = await db.insert(gamification)
-      .values({ userId, points: newPoints, level })
-      .onConflictDoUpdate({ 
-        target: gamification.userId, 
-        set: { points: newPoints, level, updatedAt: new Date() } 
-      })
+    const [updated] = await db.update(gamification)
+      .set({ points: newPoints, level, updatedAt: new Date() })
+      .where(eq(gamification.userId, userId))
       .returning();
     return updated;
   }
