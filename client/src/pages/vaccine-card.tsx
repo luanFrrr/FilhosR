@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useSusVaccines, useVaccineRecords, useCreateVaccineRecord, useUpdateVaccineRecord, useDeleteVaccineRecord } from "@/hooks/use-vaccines";
 import { Header } from "@/components/layout/header";
@@ -9,14 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format } from "date-fns";
+import { format, differenceInMonths, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image, Heart, Star, Sparkles } from "lucide-react";
+import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image, Heart, Star, Sparkles, AlertTriangle } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { compressImage } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { getPendingVaccines, getPendingDosesByVaccine } from "@/lib/vaccineCheck";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
 
 const encouragingMessages = [
@@ -230,6 +231,22 @@ export default function VaccineCard() {
   }
 
   const isPending = createRecord.isPending || updateRecord.isPending;
+  
+  // Calculate child age in months and pending vaccines
+  const childAgeMonths = activeChild?.birthDate 
+    ? differenceInMonths(new Date(), parseISO(activeChild.birthDate)) 
+    : 0;
+  
+  const pendingByVaccine = useMemo((): Map<number, { vaccineId: number; vaccineName: string; dose: string; expectedMonths: number }[]> => {
+    if (!susVaccines || !vaccineRecords || !activeChild?.birthDate) return new Map();
+    return getPendingDosesByVaccine(susVaccines, vaccineRecords, childAgeMonths);
+  }, [susVaccines, vaccineRecords, childAgeMonths, activeChild?.birthDate]);
+  
+  const pendingCount = useMemo(() => {
+    let count = 0;
+    pendingByVaccine.forEach(doses => count += doses.length);
+    return count;
+  }, [pendingByVaccine]);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -249,10 +266,27 @@ export default function VaccineCard() {
             </div>
           </div>
           
-          <Button size="icon" className="rounded-full" onClick={openCreateForm} data-testid="button-add-vaccine">
+          <Button size="icon" onClick={openCreateForm} data-testid="button-add-vaccine">
             <Plus className="w-5 h-5" />
           </Button>
         </div>
+        
+        {/* Pending vaccines alert */}
+        {pendingCount > 0 && (
+          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-amber-800">
+                  {pendingCount} vacina{pendingCount > 1 ? 's' : ''} pendente{pendingCount > 1 ? 's' : ''}
+                </h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  Confira abaixo as vacinas destacadas em amarelo que já deveriam ter sido aplicadas para a idade de {childAgeMonths} {childAgeMonths === 1 ? 'mês' : 'meses'}.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {loadingVaccines ? (
           <div className="text-center py-12 text-muted-foreground">Carregando vacinas...</div>
@@ -261,24 +295,43 @@ export default function VaccineCard() {
             {susVaccines?.map(vaccine => {
               const records = getRecordsForVaccine(vaccine.id);
               const hasRecords = records.length > 0;
+              const pendingDoses = pendingByVaccine.get(vaccine.id) || [];
+              const hasPendingDoses = pendingDoses.length > 0;
               
               return (
                 <div 
                   key={vaccine.id}
                   className={cn(
                     "bg-white rounded-xl border p-4 transition-all",
-                    hasRecords ? "border-green-200 bg-green-50/30" : "border-border"
+                    hasRecords && !hasPendingDoses
+                      ? "border-green-200 bg-green-50/30" 
+                      : hasPendingDoses 
+                        ? "border-amber-300 bg-amber-50/50 shadow-sm" 
+                        : "border-border"
                   )}
+                  data-testid={`vaccine-card-${vaccine.id}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {hasRecords && (
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        {hasRecords && !hasPendingDoses ? (
                           <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
                             <Check className="w-3 h-3 text-white" />
                           </div>
+                        ) : hasPendingDoses ? (
+                          <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                            <AlertTriangle className="w-3 h-3 text-white" />
+                          </div>
+                        ) : null}
+                        <h3 className={cn(
+                          "font-bold",
+                          hasPendingDoses ? "text-amber-800" : "text-foreground"
+                        )}>{vaccine.name}</h3>
+                        {hasPendingDoses && (
+                          <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-semibold">
+                            {pendingDoses.length} pendente{pendingDoses.length > 1 ? 's' : ''}
+                          </span>
                         )}
-                        <h3 className="font-bold text-foreground">{vaccine.name}</h3>
                       </div>
                       <p className="text-xs text-muted-foreground mb-1">
                         {vaccine.diseasesPrevented}
@@ -286,6 +339,18 @@ export default function VaccineCard() {
                       <p className="text-xs text-muted-foreground">
                         <span className="font-medium">Idade:</span> {vaccine.ageRange}
                       </p>
+                      
+                      {/* Show pending doses */}
+                      {hasPendingDoses && (
+                        <div className="mt-2 p-2 bg-amber-100/50 rounded-lg">
+                          <p className="text-xs font-semibold text-amber-800 mb-1">Doses pendentes:</p>
+                          {pendingDoses.map((dose, idx) => (
+                            <p key={idx} className="text-xs text-amber-700">
+                              {dose.dose} (prevista aos {dose.expectedMonths} {dose.expectedMonths === 1 ? 'mês' : 'meses'})
+                            </p>
+                          ))}
+                        </div>
+                      )}
                       
                       {hasRecords && (
                         <div className="mt-3 space-y-2">
