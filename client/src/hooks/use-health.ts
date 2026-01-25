@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertVaccine, type InsertHealthRecord } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import type { InsertVaccine, InsertHealthRecord } from "@shared/schema";
 
 // --- VACCINES ---
 
@@ -84,6 +85,7 @@ export function useCreateHealthRecord() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.health.list.path, variables.childId] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
 }

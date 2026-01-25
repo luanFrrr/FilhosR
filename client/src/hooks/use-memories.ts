@@ -32,6 +32,7 @@ export function useCreateMilestone() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.milestones.list.path, variables.childId] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
 }
@@ -99,6 +100,7 @@ export function useCreateDiaryEntry() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.diary.list.path, variables.childId] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
 }

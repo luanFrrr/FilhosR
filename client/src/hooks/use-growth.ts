@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertGrowthRecord } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import type { InsertGrowthRecord } from "@shared/schema";
 
 export function useGrowthRecords(childId: number) {
   return useQuery({
@@ -28,9 +29,8 @@ export function useCreateGrowthRecord() {
       return api.growth.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ 
-        queryKey: [api.growth.list.path, variables.childId] 
-      });
+      queryClient.invalidateQueries({ queryKey: [api.growth.list.path, variables.childId] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
 }
