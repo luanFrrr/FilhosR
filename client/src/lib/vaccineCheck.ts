@@ -124,7 +124,23 @@ export function getPendingVaccines(
       // Normalize dose strings for comparison
       const recDose = rec.dose.toLowerCase().trim();
       const expDose = exp.dose.toLowerCase().trim();
-      return recDose === expDose || recDose.includes(expDose) || expDose.includes(recDose);
+      
+      // Direct match
+      if (recDose === expDose || recDose.includes(expDose) || expDose.includes(recDose)) {
+        return true;
+      }
+      
+      // Special handling for birth doses - "Dose ao nascer" should match "1ª dose" for vaccines expected at age 0
+      if (exp.expectedMonths === 0) {
+        const birthDosePatterns = ["dose ao nascer", "ao nascer", "dose única", "1ª dose", "1a dose", "primeira dose"];
+        const recMatchesBirth = birthDosePatterns.some(p => recDose.includes(p) || p.includes(recDose));
+        const expMatchesBirth = birthDosePatterns.some(p => expDose.includes(p) || p.includes(expDose));
+        if (recMatchesBirth && expMatchesBirth) {
+          return true;
+        }
+      }
+      
+      return false;
     });
     return !hasMatchingDoseRecord;
   });
