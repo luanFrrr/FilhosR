@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useChildren, useUpdateChild, useDeleteChild } from "@/hooks/use-children";
+import { useGrowthRecords, useUpdateGrowthRecord } from "@/hooks/use-growth";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/layout/header";
 import type { Child } from "@shared/schema";
@@ -49,6 +50,7 @@ export default function Settings() {
   const { data: children } = useChildren();
   const updateChild = useUpdateChild();
   const deleteChild = useDeleteChild();
+  const updateGrowth = useUpdateGrowthRecord();
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -116,6 +118,28 @@ export default function Settings() {
         initialHeadCircumference: head !== null ? head.toString() : null,
         photoUrl: editPhoto,
       });
+      
+      // Also update the birth growth record if it exists
+      // This keeps the dashboard in sync with settings
+      try {
+        const growthRes = await fetch(`/api/children/${editingChild.id}/growth`);
+        if (growthRes.ok) {
+          const growthRecords = await growthRes.json();
+          const birthRecord = growthRecords.find((g: any) => g.date === editForm.birthDate);
+          if (birthRecord) {
+            await updateGrowth.mutateAsync({
+              id: birthRecord.id,
+              childId: editingChild.id,
+              weight: weight !== null ? weight.toString() : birthRecord.weight,
+              height: height !== null ? height.toString() : birthRecord.height,
+              headCircumference: head !== null ? head.toString() : birthRecord.headCircumference,
+            });
+          }
+        }
+      } catch {
+        // Silent fail for growth update - child data was already saved
+      }
+      
       toast({ title: "Dados atualizados!", description: `${editForm.name} foi atualizado com sucesso.` });
       setEditingChild(null);
       setEditPhoto(null);
