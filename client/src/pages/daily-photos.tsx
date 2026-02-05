@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Camera, ChevronLeft, ChevronRight, Check, ImagePlus, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -49,17 +49,26 @@ export default function DailyPhotos() {
   const deletePhoto = useDeleteDailyPhoto();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(-1); // -1 means uninitialized
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showFeedback, setShowFeedback] = useState<{ url: string; message: string } | null>(null);
 
+  // Cronological order: oldest first, newest last (timeline style)
   const sortedPhotos = photos?.slice().sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+    new Date(a.date).getTime() - new Date(b.date).getTime()
   ) || [];
 
   const totalPhotos = sortedPhotos.length;
   const streakDays = calculateStreak(sortedPhotos.map(p => p.date));
+  const newestIndex = totalPhotos - 1; // Last item is the newest (chronological order)
+
+  // Initialize to newest photo when photos load
+  useEffect(() => {
+    if (totalPhotos > 0 && currentIndex === -1) {
+      setCurrentIndex(newestIndex);
+    }
+  }, [totalPhotos, currentIndex, newestIndex]);
 
   const getEmotionalMessage = useCallback((currentStreak: number, hadRecentPhotos: boolean) => {
     const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
@@ -111,7 +120,8 @@ export default function DailyPhotos() {
         setShowFeedback({ url: photoUrl, message: mensagem });
         setTimeout(() => setShowFeedback(null), 5000);
         
-        setCurrentIndex(0);
+        // Go to the newest photo (will be the last one after refetch)
+        setCurrentIndex(-1); // Reset to trigger useEffect to go to newest
       };
       reader.readAsDataURL(file);
     } catch (error: any) {
@@ -247,7 +257,7 @@ export default function DailyPhotos() {
           <div className="flex items-center justify-center py-12">
             <p className="text-muted-foreground">Carregando...</p>
           </div>
-        ) : totalPhotos === 0 ? (
+        ) : totalPhotos === 0 || currentIndex < 0 ? (
           <Card className="p-8 text-center">
             <Camera className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
@@ -316,27 +326,45 @@ export default function DailyPhotos() {
               </p>
             </div>
 
-            {/* Thumbnail Strip */}
+            {/* Thumbnail Strip - Timeline style */}
             {totalPhotos > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {sortedPhotos.map((photo, index) => (
-                  <button
-                    key={photo.id}
-                    onClick={() => setCurrentIndex(index)}
-                    className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all ${
-                      index === currentIndex 
-                        ? "ring-2 ring-primary ring-offset-2" 
-                        : "opacity-60 hover:opacity-100"
-                    }`}
-                    data-testid={`button-thumbnail-${index}`}
-                  >
-                    <img
-                      src={photo.photoUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
+              <div className="relative">
+                <p className="text-xs text-muted-foreground text-center mb-2">
+                  ← mais antigo · mais recente →
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  {sortedPhotos.map((photo, index) => {
+                    const isNewest = index === newestIndex;
+                    const isSelected = index === currentIndex;
+                    return (
+                      <button
+                        key={photo.id}
+                        onClick={() => setCurrentIndex(index)}
+                        className={`relative flex-shrink-0 rounded-lg overflow-visible transition-all ${
+                          isNewest 
+                            ? "w-16 h-16 ring-2 ring-amber-500 ring-offset-2 shadow-lg" 
+                            : "w-14 h-14"
+                        } ${
+                          isSelected && !isNewest
+                            ? "ring-2 ring-primary ring-offset-2" 
+                            : !isNewest ? "opacity-60 hover:opacity-100" : ""
+                        }`}
+                        data-testid={`button-thumbnail-${index}`}
+                      >
+                        <img
+                          src={photo.photoUrl}
+                          alt=""
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                        {isNewest && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold shadow">
+                            ★
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
