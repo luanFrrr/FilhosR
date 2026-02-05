@@ -28,20 +28,24 @@ export function formatDecimalBR(value: string | number | null | undefined, decim
   });
 }
 
-export function maskDecimalBR(value: string): string {
-  // Remove tudo exceto números e vírgula
-  let cleaned = value.replace(/[^\d,]/g, '');
+export function maskDecimalBR(value: string, decimalPlaces: number = 2): string {
+  // Remove tudo exceto números
+  const digits = value.replace(/\D/g, '');
   
-  // Garante apenas uma vírgula
-  const parts = cleaned.split(',');
-  if (parts.length > 2) {
-    cleaned = parts[0] + ',' + parts.slice(1).join('');
-  }
+  if (digits === '') return '';
   
-  // Limita casas decimais a 2
-  if (parts.length === 2 && parts[1].length > 2) {
-    cleaned = parts[0] + ',' + parts[1].slice(0, 2);
-  }
+  // Remove zeros à esquerda, mas mantém pelo menos um dígito
+  const trimmed = digits.replace(/^0+/, '') || '0';
   
-  return cleaned;
+  // Garante que temos dígitos suficientes para as casas decimais
+  const padded = trimmed.padStart(decimalPlaces + 1, '0');
+  
+  // Separa parte inteira e decimal
+  const integerPart = padded.slice(0, -decimalPlaces) || '0';
+  const decimalPart = padded.slice(-decimalPlaces);
+  
+  // Remove zeros à esquerda da parte inteira (mas mantém pelo menos um)
+  const cleanInteger = integerPart.replace(/^0+/, '') || '0';
+  
+  return `${cleanInteger},${decimalPart}`;
 }

@@ -241,9 +241,10 @@ export default function Growth() {
                          control={form.control}
                          render={({ field }) => (
                            <DecimalInput
-                             placeholder="Ex: 85"
+                             placeholder="Ex: 85,0"
                              value={field.value || ""}
                              onChange={field.onChange}
+                             decimalPlaces={1}
                              className="input-field"
                              data-testid="input-height"
                            />
@@ -261,6 +262,7 @@ export default function Growth() {
                            placeholder="Ex: 35,5"
                            value={field.value || ""}
                            onChange={field.onChange}
+                           decimalPlaces={1}
                            className="input-field"
                            data-testid="input-head"
                          />
@@ -354,9 +356,10 @@ export default function Growth() {
                   control={editForm.control}
                   render={({ field }) => (
                     <DecimalInput
-                      placeholder="Ex: 85"
+                      placeholder="Ex: 85,0"
                       value={field.value || ""}
                       onChange={field.onChange}
+                      decimalPlaces={1}
                       className="input-field"
                       data-testid="edit-input-height"
                     />
@@ -374,6 +377,7 @@ export default function Growth() {
                     placeholder="Ex: 35,5"
                     value={field.value || ""}
                     onChange={field.onChange}
+                    decimalPlaces={1}
                     className="input-field"
                     data-testid="edit-input-head"
                   />
