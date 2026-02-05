@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { 
   User, Bell, Shield, LogOut, Baby, Pencil, Trash2, Plus, X, Check, Camera 
 } from "lucide-react";
@@ -416,37 +417,31 @@ export default function Settings() {
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="edit-weight" className="text-xs">Peso (kg)</Label>
-                <Input 
+                <DecimalInput 
                   id="edit-weight"
-                  type="text"
-                  inputMode="decimal"
                   placeholder="3,50"
                   value={editForm.initialWeight}
-                  onChange={(e) => setEditForm(f => ({ ...f, initialWeight: e.target.value }))}
+                  onChange={(value) => setEditForm(f => ({ ...f, initialWeight: value }))}
                   data-testid="input-edit-weight"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-height" className="text-xs">Altura (cm)</Label>
-                <Input 
+                <DecimalInput 
                   id="edit-height"
-                  type="text"
-                  inputMode="decimal"
                   placeholder="50,0"
                   value={editForm.initialHeight}
-                  onChange={(e) => setEditForm(f => ({ ...f, initialHeight: e.target.value }))}
+                  onChange={(value) => setEditForm(f => ({ ...f, initialHeight: value }))}
                   data-testid="input-edit-height"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-head" className="text-xs">P. Cefálico (cm)</Label>
-                <Input 
+                <DecimalInput 
                   id="edit-head"
-                  type="text"
-                  inputMode="decimal"
                   placeholder="35,0"
                   value={editForm.initialHeadCircumference}
-                  onChange={(e) => setEditForm(f => ({ ...f, initialHeadCircumference: e.target.value }))}
+                  onChange={(value) => setEditForm(f => ({ ...f, initialHeadCircumference: value }))}
                   data-testid="input-edit-head"
                 />
               </div>

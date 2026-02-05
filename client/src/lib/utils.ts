@@ -27,3 +27,21 @@ export function formatDecimalBR(value: string | number | null | undefined, decim
     maximumFractionDigits: decimals 
   });
 }
+
+export function maskDecimalBR(value: string): string {
+  // Remove tudo exceto números e vírgula
+  let cleaned = value.replace(/[^\d,]/g, '');
+  
+  // Garante apenas uma vírgula
+  const parts = cleaned.split(',');
+  if (parts.length > 2) {
+    cleaned = parts[0] + ',' + parts.slice(1).join('');
+  }
+  
+  // Limita casas decimais a 2
+  if (parts.length === 2 && parts[1].length > 2) {
+    cleaned = parts[0] + ',' + parts[1].slice(0, 2);
+  }
+  
+  return cleaned;
+}

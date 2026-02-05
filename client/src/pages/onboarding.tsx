@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useForm } from "react-hook-form";
+import { DecimalInput } from "@/components/ui/decimal-input";
+import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { Baby, ArrowRight, Heart, Camera } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
@@ -19,7 +20,7 @@ export default function Onboarding() {
   const { toast } = useToast();
   const [photo, setPhoto] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const { register, handleSubmit, watch, setValue } = useForm({
+  const { register, handleSubmit, watch, setValue, control } = useForm({
     defaultValues: {
       name: '',
       birthDate: '',
@@ -161,15 +162,51 @@ export default function Onboarding() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs">Peso (kg)</Label>
-                  <Input type="text" inputMode="decimal" {...register("initialWeight")} className="input-field" placeholder="3,50" data-testid="input-initial-weight" />
+                  <Controller
+                    name="initialWeight"
+                    control={control}
+                    render={({ field }) => (
+                      <DecimalInput
+                        placeholder="3,50"
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        className="input-field"
+                        data-testid="input-initial-weight"
+                      />
+                    )}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Altura (cm)</Label>
-                  <Input type="text" inputMode="decimal" {...register("initialHeight")} className="input-field" placeholder="50,0" data-testid="input-initial-height" />
+                  <Controller
+                    name="initialHeight"
+                    control={control}
+                    render={({ field }) => (
+                      <DecimalInput
+                        placeholder="50,0"
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        className="input-field"
+                        data-testid="input-initial-height"
+                      />
+                    )}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">P. Cefálico (cm)</Label>
-                  <Input type="text" inputMode="decimal" {...register("initialHeadCircumference")} className="input-field" placeholder="35,0" data-testid="input-initial-head" />
+                  <Controller
+                    name="initialHeadCircumference"
+                    control={control}
+                    render={({ field }) => (
+                      <DecimalInput
+                        placeholder="35,0"
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        className="input-field"
+                        data-testid="input-initial-head"
+                      />
+                    )}
+                  />
                 </div>
               </div>
             </div>
