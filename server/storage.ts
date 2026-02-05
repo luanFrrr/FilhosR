@@ -1,5 +1,5 @@
 import { 
-  users, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords, dailyPhotos,
+  users, sessions, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords, dailyPhotos,
   type User,
   type Child, type InsertChild,
   type GrowthRecord, type InsertGrowthRecord,
@@ -19,6 +19,7 @@ export interface IStorage {
   // Users (OIDC users have string IDs)
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  deleteUserAccount(userId: string): Promise<void>;
 
   // Children
   getChild(id: number): Promise<Child | undefined>;
@@ -93,6 +94,22 @@ export class DatabaseStorage implements IStorage {
     if (!email) return undefined;
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
+  }
+
+  async deleteUserAccount(userId: string): Promise<void> {
+    // Get all children owned by this user
+    const userChildren = await this.getChildrenByUserId(userId);
+    
+    // Delete all children and their related data
+    for (const child of userChildren) {
+      await this.deleteChild(child.id);
+    }
+    
+    // Delete user sessions
+    await db.delete(sessions).where(eq(sessions.userId, userId));
+    
+    // Delete user record
+    await db.delete(users).where(eq(users.id, userId));
   }
 
   // Children
