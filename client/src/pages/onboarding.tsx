@@ -186,6 +186,7 @@ export default function Onboarding() {
                         placeholder="50,0"
                         value={field.value || ""}
                         onChange={field.onChange}
+                        decimalPlaces={1}
                         className="input-field"
                         data-testid="input-initial-height"
                       />
@@ -202,6 +203,7 @@ export default function Onboarding() {
                         placeholder="35,0"
                         value={field.value || ""}
                         onChange={field.onChange}
+                        decimalPlaces={1}
                         className="input-field"
                         data-testid="input-initial-head"
                       />

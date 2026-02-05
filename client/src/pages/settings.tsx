@@ -432,6 +432,7 @@ export default function Settings() {
                   placeholder="50,0"
                   value={editForm.initialHeight}
                   onChange={(value) => setEditForm(f => ({ ...f, initialHeight: value }))}
+                  decimalPlaces={1}
                   data-testid="input-edit-height"
                 />
               </div>
@@ -442,6 +443,7 @@ export default function Settings() {
                   placeholder="35,0"
                   value={editForm.initialHeadCircumference}
                   onChange={(value) => setEditForm(f => ({ ...f, initialHeadCircumference: value }))}
+                  decimalPlaces={1}
                   data-testid="input-edit-head"
                 />
               </div>
