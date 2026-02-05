@@ -19,6 +19,7 @@ import VaccineCard from "@/pages/vaccine-card";
 import DailyPhotos from "@/pages/daily-photos";
 import Landing from "@/pages/landing";
 import Privacy from "@/pages/privacy";
+import DeleteAccount from "@/pages/delete-account";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRouter() {
@@ -50,6 +51,9 @@ function AppContent() {
   // Páginas públicas que não precisam de autenticação
   if (location === "/privacy") {
     return <Privacy />;
+  }
+  if (location === "/delete-account") {
+    return <DeleteAccount />;
   }
 
   if (isLoading) {

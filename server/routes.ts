@@ -478,6 +478,26 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  // Delete Account
+  app.delete("/api/account", isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    
+    try {
+      await storage.deleteUserAccount(userId);
+      
+      // Clear session
+      req.logout?.((err: any) => {
+        if (err) console.error("Logout error:", err);
+      });
+      
+      res.status(200).json({ message: "Conta excluída com sucesso" });
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      res.status(500).json({ message: "Erro ao excluir conta" });
+    }
+  });
+
   // Daily Photos (Foto do dia)
   app.get(api.dailyPhotos.list.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);

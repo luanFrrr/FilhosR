@@ -278,6 +278,12 @@ export default function Settings() {
              <LogOut className="w-4 h-4 mr-2" /> Sair da Conta
           </Button>
         </a>
+
+        <Link href="/delete-account">
+          <Button variant="ghost" className="w-full text-muted-foreground hover:text-red-500 mt-2 text-sm" data-testid="button-delete-account-link">
+             <Trash2 className="w-4 h-4 mr-2" /> Excluir minha conta
+          </Button>
+        </Link>
       </main>
 
       <Dialog open={!!editingChild} onOpenChange={(open) => !open && setEditingChild(null)}>
