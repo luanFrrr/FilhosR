@@ -9,7 +9,7 @@ import { formatDistanceToNow, differenceInMonths, differenceInDays } from "date-
 import { ptBR } from "date-fns/locale";
 import { Scale, Ruler, Heart, Star, ArrowRight, Activity, Stethoscope, Trophy, AlertTriangle, Camera, Check } from "lucide-react";
 import { Link } from "wouter";
-import { parseLocalDate } from "@/lib/utils";
+import { parseLocalDate, formatDecimalBR } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { getVaccineStatus } from "@/lib/vaccineCheck";
 
@@ -186,13 +186,13 @@ export default function Dashboard() {
   const sortedByDate = (records: any[] | undefined) => 
     records?.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
   
-  const latestWeight = sortedByDate(growth?.filter(g => g.weight))[0]?.weight 
-    || activeChild.initialWeight 
-    || "--";
+  const latestWeightRaw = sortedByDate(growth?.filter(g => g.weight))[0]?.weight 
+    || activeChild.initialWeight;
+  const latestWeight = latestWeightRaw ? formatDecimalBR(latestWeightRaw) : "--";
   
-  const latestHeight = sortedByDate(growth?.filter(g => g.height))[0]?.height 
-    || activeChild.initialHeight 
-    || "--";
+  const latestHeightRaw = sortedByDate(growth?.filter(g => g.height))[0]?.height 
+    || activeChild.initialHeight;
+  const latestHeight = latestHeightRaw ? formatDecimalBR(latestHeightRaw, 1) : "--";
 
   const vaccineStatus = susVaccines && vaccineRecords 
     ? getVaccineStatus(susVaccines, vaccineRecords, months)

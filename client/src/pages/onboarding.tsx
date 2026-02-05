@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { Baby, ArrowRight, Heart, Camera } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
+import { parseDecimalBR } from "@/lib/utils";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
@@ -49,12 +50,16 @@ export default function Onboarding() {
   };
 
   const onSubmit = (data: any) => {
+    const weight = parseDecimalBR(data.initialWeight);
+    const height = parseDecimalBR(data.initialHeight);
+    const head = parseDecimalBR(data.initialHeadCircumference);
+    
     createChild.mutate({
       ...data,
       gender: data.gender || 'unspecified',
-      initialWeight: data.initialWeight?.toString() || null,
-      initialHeight: data.initialHeight?.toString() || null,
-      initialHeadCircumference: data.initialHeadCircumference?.toString() || null,
+      initialWeight: weight !== null ? weight.toString() : null,
+      initialHeight: height !== null ? height.toString() : null,
+      initialHeadCircumference: head !== null ? head.toString() : null,
       photoUrl: photo,
     }, {
       onSuccess: (child) => {
@@ -156,15 +161,15 @@ export default function Onboarding() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs">Peso (kg)</Label>
-                  <Input type="number" step="0.01" {...register("initialWeight")} className="input-field" placeholder="3.50" data-testid="input-initial-weight" />
+                  <Input type="text" inputMode="decimal" {...register("initialWeight")} className="input-field" placeholder="3,50" data-testid="input-initial-weight" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Altura (cm)</Label>
-                  <Input type="number" step="0.1" {...register("initialHeight")} className="input-field" placeholder="50.0" data-testid="input-initial-height" />
+                  <Input type="text" inputMode="decimal" {...register("initialHeight")} className="input-field" placeholder="50,0" data-testid="input-initial-height" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">P. Cefálico (cm)</Label>
-                  <Input type="number" step="0.1" {...register("initialHeadCircumference")} className="input-field" placeholder="35.0" data-testid="input-initial-head" />
+                  <Input type="text" inputMode="decimal" {...register("initialHeadCircumference")} className="input-field" placeholder="35,0" data-testid="input-initial-head" />
                 </div>
               </div>
             </div>

@@ -15,14 +15,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { cn, parseLocalDate } from "@/lib/utils";
+import { cn, parseLocalDate, parseDecimalBR, formatDecimalBR } from "@/lib/utils";
 import type { GrowthRecord } from "@shared/schema";
 
 const recordSchema = z.object({
   date: z.string().min(1, "Data é obrigatória"),
-  weight: z.coerce.number().min(0.1, "Peso inválido").optional(),
-  height: z.coerce.number().min(1, "Altura inválida").optional(),
-  headCircumference: z.coerce.number().optional(),
+  weight: z.string().optional(),
+  height: z.string().optional(),
+  headCircumference: z.string().optional(),
 });
 
 type RecordForm = z.infer<typeof recordSchema>;
@@ -63,13 +63,16 @@ export default function Growth() {
     // Fix date offset issue
     const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
     
+    const weight = parseDecimalBR(data.weight);
+    const height = parseDecimalBR(data.height);
+    const head = parseDecimalBR(data.headCircumference);
+    
     createRecord.mutate({
       childId: activeChild.id,
-      ...data,
       date, 
-      weight: data.weight?.toString(),
-      height: data.height?.toString(),
-      headCircumference: data.headCircumference?.toString(),
+      weight: weight !== null ? weight.toString() : undefined,
+      height: height !== null ? height.toString() : undefined,
+      headCircumference: head !== null ? head.toString() : undefined,
     }, {
       onSuccess: () => {
         setOpen(false);
@@ -86,9 +89,9 @@ export default function Growth() {
     setSelectedRecord(record);
     editForm.reset({
       date: record.date,
-      weight: record.weight ? Number(record.weight) : undefined,
-      height: record.height ? Number(record.height) : undefined,
-      headCircumference: record.headCircumference ? Number(record.headCircumference) : undefined,
+      weight: record.weight ? formatDecimalBR(record.weight) : undefined,
+      height: record.height ? formatDecimalBR(record.height, 1) : undefined,
+      headCircumference: record.headCircumference ? formatDecimalBR(record.headCircumference, 1) : undefined,
     });
     setEditOpen(true);
   };
@@ -99,13 +102,17 @@ export default function Growth() {
     // Fix date offset issue
     const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
     
+    const weight = parseDecimalBR(data.weight);
+    const height = parseDecimalBR(data.height);
+    const head = parseDecimalBR(data.headCircumference);
+    
     updateRecord.mutate({
       id: selectedRecord.id,
       childId: activeChild.id,
       date,
-      weight: data.weight?.toString(),
-      height: data.height?.toString(),
-      headCircumference: data.headCircumference?.toString(),
+      weight: weight !== null ? weight.toString() : undefined,
+      height: height !== null ? height.toString() : undefined,
+      headCircumference: head !== null ? head.toString() : undefined,
     }, {
       onSuccess: () => {
         setEditOpen(false);
@@ -212,16 +219,16 @@ export default function Growth() {
                    <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-2">
                        <Label>Peso (kg)</Label>
-                       <Input type="number" step="0.01" placeholder="Ex: 12.5" {...form.register("weight")} className="input-field" data-testid="input-weight" />
+                       <Input type="text" inputMode="decimal" placeholder="Ex: 12,5" {...form.register("weight")} className="input-field" data-testid="input-weight" />
                      </div>
                      <div className="space-y-2">
                        <Label>Altura (cm)</Label>
-                       <Input type="number" step="0.1" placeholder="Ex: 85" {...form.register("height")} className="input-field" data-testid="input-height" />
+                       <Input type="text" inputMode="decimal" placeholder="Ex: 85" {...form.register("height")} className="input-field" data-testid="input-height" />
                      </div>
                    </div>
                    <div className="space-y-2">
                      <Label>Perímetro Cefálico (cm) <span className="text-muted-foreground text-xs">(Opcional)</span></Label>
-                     <Input type="number" step="0.1" {...form.register("headCircumference")} className="input-field" data-testid="input-head" />
+                     <Input type="text" inputMode="decimal" placeholder="Ex: 35,5" {...form.register("headCircumference")} className="input-field" data-testid="input-head" />
                    </div>
                    <Button type="submit" data-testid="button-save-record" className="w-full btn-primary" disabled={createRecord.isPending}>
                      {createRecord.isPending ? "Salvando..." : "Salvar Registro"}
@@ -242,8 +249,8 @@ export default function Growth() {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                     {record.weight && <div className="text-sm"><span className="font-bold text-blue-600">{record.weight}kg</span></div>}
-                     {record.height && <div className="text-sm"><span className="font-bold text-emerald-600">{record.height}cm</span></div>}
+                     {record.weight && <div className="text-sm"><span className="font-bold text-blue-600">{formatDecimalBR(record.weight)}kg</span></div>}
+                     {record.height && <div className="text-sm"><span className="font-bold text-emerald-600">{formatDecimalBR(record.height, 1)}cm</span></div>}
                   </div>
                   <div className="flex gap-1">
                     <Button 
@@ -289,16 +296,16 @@ export default function Growth() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Peso (kg)</Label>
-                <Input type="number" step="0.01" placeholder="Ex: 12.5" {...editForm.register("weight")} className="input-field" data-testid="edit-input-weight" />
+                <Input type="text" inputMode="decimal" placeholder="Ex: 12,5" {...editForm.register("weight")} className="input-field" data-testid="edit-input-weight" />
               </div>
               <div className="space-y-2">
                 <Label>Altura (cm)</Label>
-                <Input type="number" step="0.1" placeholder="Ex: 85" {...editForm.register("height")} className="input-field" data-testid="edit-input-height" />
+                <Input type="text" inputMode="decimal" placeholder="Ex: 85" {...editForm.register("height")} className="input-field" data-testid="edit-input-height" />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Perímetro Cefálico (cm) <span className="text-muted-foreground text-xs">(Opcional)</span></Label>
-              <Input type="number" step="0.1" {...editForm.register("headCircumference")} className="input-field" data-testid="edit-input-head" />
+              <Input type="text" inputMode="decimal" placeholder="Ex: 35,5" {...editForm.register("headCircumference")} className="input-field" data-testid="edit-input-head" />
             </div>
             <Button type="submit" data-testid="button-update-record" className="w-full btn-primary" disabled={updateRecord.isPending}>
               {updateRecord.isPending ? "Salvando..." : "Atualizar Registro"}
