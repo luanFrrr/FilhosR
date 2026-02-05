@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Plus, Scale, Ruler, Pencil, Archive } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
@@ -219,16 +220,52 @@ export default function Growth() {
                    <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-2">
                        <Label>Peso (kg)</Label>
-                       <Input type="text" inputMode="decimal" placeholder="Ex: 12,5" {...form.register("weight")} className="input-field" data-testid="input-weight" />
+                       <Controller
+                         name="weight"
+                         control={form.control}
+                         render={({ field }) => (
+                           <DecimalInput
+                             placeholder="Ex: 12,5"
+                             value={field.value || ""}
+                             onChange={field.onChange}
+                             className="input-field"
+                             data-testid="input-weight"
+                           />
+                         )}
+                       />
                      </div>
                      <div className="space-y-2">
                        <Label>Altura (cm)</Label>
-                       <Input type="text" inputMode="decimal" placeholder="Ex: 85" {...form.register("height")} className="input-field" data-testid="input-height" />
+                       <Controller
+                         name="height"
+                         control={form.control}
+                         render={({ field }) => (
+                           <DecimalInput
+                             placeholder="Ex: 85"
+                             value={field.value || ""}
+                             onChange={field.onChange}
+                             className="input-field"
+                             data-testid="input-height"
+                           />
+                         )}
+                       />
                      </div>
                    </div>
                    <div className="space-y-2">
                      <Label>Perímetro Cefálico (cm) <span className="text-muted-foreground text-xs">(Opcional)</span></Label>
-                     <Input type="text" inputMode="decimal" placeholder="Ex: 35,5" {...form.register("headCircumference")} className="input-field" data-testid="input-head" />
+                     <Controller
+                       name="headCircumference"
+                       control={form.control}
+                       render={({ field }) => (
+                         <DecimalInput
+                           placeholder="Ex: 35,5"
+                           value={field.value || ""}
+                           onChange={field.onChange}
+                           className="input-field"
+                           data-testid="input-head"
+                         />
+                       )}
+                     />
                    </div>
                    <Button type="submit" data-testid="button-save-record" className="w-full btn-primary" disabled={createRecord.isPending}>
                      {createRecord.isPending ? "Salvando..." : "Salvar Registro"}
@@ -296,16 +333,52 @@ export default function Growth() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Peso (kg)</Label>
-                <Input type="text" inputMode="decimal" placeholder="Ex: 12,5" {...editForm.register("weight")} className="input-field" data-testid="edit-input-weight" />
+                <Controller
+                  name="weight"
+                  control={editForm.control}
+                  render={({ field }) => (
+                    <DecimalInput
+                      placeholder="Ex: 12,5"
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      className="input-field"
+                      data-testid="edit-input-weight"
+                    />
+                  )}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Altura (cm)</Label>
-                <Input type="text" inputMode="decimal" placeholder="Ex: 85" {...editForm.register("height")} className="input-field" data-testid="edit-input-height" />
+                <Controller
+                  name="height"
+                  control={editForm.control}
+                  render={({ field }) => (
+                    <DecimalInput
+                      placeholder="Ex: 85"
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      className="input-field"
+                      data-testid="edit-input-height"
+                    />
+                  )}
+                />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Perímetro Cefálico (cm) <span className="text-muted-foreground text-xs">(Opcional)</span></Label>
-              <Input type="text" inputMode="decimal" placeholder="Ex: 35,5" {...editForm.register("headCircumference")} className="input-field" data-testid="edit-input-head" />
+              <Controller
+                name="headCircumference"
+                control={editForm.control}
+                render={({ field }) => (
+                  <DecimalInput
+                    placeholder="Ex: 35,5"
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                    className="input-field"
+                    data-testid="edit-input-head"
+                  />
+                )}
+              />
             </div>
             <Button type="submit" data-testid="button-update-record" className="w-full btn-primary" disabled={updateRecord.isPending}>
               {updateRecord.isPending ? "Salvando..." : "Atualizar Registro"}
