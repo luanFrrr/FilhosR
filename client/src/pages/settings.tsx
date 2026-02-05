@@ -16,7 +16,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getZodiacSign } from "@/lib/zodiac";
 import { format } from "date-fns";
-import { parseLocalDate } from "@/lib/utils";
+import { parseLocalDate, parseDecimalBR, formatDecimalBR } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -75,9 +75,9 @@ export default function Settings() {
       birthDate: child.birthDate,
       gender: child.gender,
       theme: child.theme || "neutral",
-      initialWeight: child.initialWeight || "",
-      initialHeight: child.initialHeight || "",
-      initialHeadCircumference: child.initialHeadCircumference || "",
+      initialWeight: child.initialWeight ? formatDecimalBR(child.initialWeight) : "",
+      initialHeight: child.initialHeight ? formatDecimalBR(child.initialHeight, 1) : "",
+      initialHeadCircumference: child.initialHeadCircumference ? formatDecimalBR(child.initialHeadCircumference, 1) : "",
     });
   };
 
@@ -99,6 +99,11 @@ export default function Settings() {
 
   const handleUpdate = async () => {
     if (!editingChild) return;
+    
+    const weight = parseDecimalBR(editForm.initialWeight);
+    const height = parseDecimalBR(editForm.initialHeight);
+    const head = parseDecimalBR(editForm.initialHeadCircumference);
+    
     try {
       await updateChild.mutateAsync({
         id: editingChild.id,
@@ -106,9 +111,9 @@ export default function Settings() {
         birthDate: editForm.birthDate,
         gender: editForm.gender,
         theme: editForm.theme,
-        initialWeight: editForm.initialWeight || null,
-        initialHeight: editForm.initialHeight || null,
-        initialHeadCircumference: editForm.initialHeadCircumference || null,
+        initialWeight: weight !== null ? weight.toString() : null,
+        initialHeight: height !== null ? height.toString() : null,
+        initialHeadCircumference: head !== null ? head.toString() : null,
         photoUrl: editPhoto,
       });
       toast({ title: "Dados atualizados!", description: `${editForm.name} foi atualizado com sucesso.` });
@@ -389,8 +394,9 @@ export default function Settings() {
                 <Label htmlFor="edit-weight" className="text-xs">Peso (kg)</Label>
                 <Input 
                   id="edit-weight"
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="3,50"
                   value={editForm.initialWeight}
                   onChange={(e) => setEditForm(f => ({ ...f, initialWeight: e.target.value }))}
                   data-testid="input-edit-weight"
@@ -400,8 +406,9 @@ export default function Settings() {
                 <Label htmlFor="edit-height" className="text-xs">Altura (cm)</Label>
                 <Input 
                   id="edit-height"
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="50,0"
                   value={editForm.initialHeight}
                   onChange={(e) => setEditForm(f => ({ ...f, initialHeight: e.target.value }))}
                   data-testid="input-edit-height"
@@ -411,8 +418,9 @@ export default function Settings() {
                 <Label htmlFor="edit-head" className="text-xs">P. Cefálico (cm)</Label>
                 <Input 
                   id="edit-head"
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="35,0"
                   value={editForm.initialHeadCircumference}
                   onChange={(e) => setEditForm(f => ({ ...f, initialHeadCircumference: e.target.value }))}
                   data-testid="input-edit-head"
