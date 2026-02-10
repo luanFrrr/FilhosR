@@ -596,5 +596,76 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  app.get("/delete-account", (req, res, next) => {
+    const userAgent = req.headers['user-agent'] || '';
+    const isBot = /bot|crawl|spider|google|facebook|whatsapp|telegram|preview/i.test(userAgent);
+    
+    if (!isBot) {
+      return next();
+    }
+
+    res.status(200).set({ "Content-Type": "text/html" }).send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excluir Conta - Filhos</title>
+  <meta name="description" content="Solicite a exclusão da sua conta e de todos os seus dados pessoais do aplicativo Filhos.">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5faf8; color: #2d3e50; padding: 24px; min-height: 100vh; }
+    .container { max-width: 480px; margin: 0 auto; }
+    .warning-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+    .warning-title { font-size: 20px; font-weight: 700; color: #b91c1c; margin-bottom: 4px; }
+    .warning-subtitle { font-size: 14px; color: #dc2626; }
+    .content-box { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+    h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+    ul { list-style: none; }
+    li { font-size: 14px; color: #6b7280; padding: 6px 0; padding-left: 24px; position: relative; }
+    li::before { content: "\\2022"; color: #ef4444; position: absolute; left: 8px; }
+    .info { font-size: 13px; color: #6b7280; text-align: center; margin-top: 16px; line-height: 1.5; }
+    .steps { margin-top: 24px; }
+    .steps h2 { margin-bottom: 12px; }
+    .steps ol { padding-left: 20px; }
+    .steps li { list-style: decimal; padding-left: 4px; }
+    .steps li::before { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="warning-box">
+      <h1 class="warning-title">Excluir Conta</h1>
+      <p class="warning-subtitle">Esta ação é irreversível</p>
+    </div>
+    <div class="content-box">
+      <h2>O que será excluído:</h2>
+      <ul>
+        <li>Todos os perfis de crianças cadastradas</li>
+        <li>Registros de crescimento e medidas</li>
+        <li>Carteira de vacinação completa</li>
+        <li>Registros de saúde e consultas</li>
+        <li>Marcos e memórias</li>
+        <li>Fotos do dia</li>
+        <li>Sua conta e todos os dados pessoais</li>
+      </ul>
+    </div>
+    <div class="content-box steps">
+      <h2>Como excluir sua conta:</h2>
+      <ol>
+        <li>Faça login no aplicativo Filhos</li>
+        <li>Acesse esta página pelo menu de configurações ou diretamente pelo link</li>
+        <li>Digite a palavra EXCLUIR no campo de confirmação</li>
+        <li>Clique em "Excluir minha conta permanentemente"</li>
+      </ol>
+    </div>
+    <p class="info">
+      Após a exclusão, você será desconectado automaticamente e não poderá recuperar seus dados.
+      A exclusão é processada imediatamente após a confirmação.
+    </p>
+  </div>
+</body>
+</html>`);
+  });
+
   return httpServer;
 }
