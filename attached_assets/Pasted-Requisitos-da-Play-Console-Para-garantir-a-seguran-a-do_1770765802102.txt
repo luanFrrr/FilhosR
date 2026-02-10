@@ -1,0 +1,29 @@
+Requisitos da Play Console
+Para garantir a segurança do nosso ecossistema de apps dinâmico, o Google Play exige que todos os programadores cumpram os requisitos da Play Console, incluindo quaisquer perfis associados à sua conta de programador da Play Console. As informações validadas vão ser apresentadas no Google Play para ajudar os utilizadores a criar confiança junto dos programadores. Saiba mais sobre as informações apresentadas no Google Play.
+
+O Google Play oferece dois tipos de contas de programador: pessoal e de organização. Selecionar o tipo de conta de programador correto e concluir as validações necessárias é fundamental para uma experiência de integração sem problemas. Saiba como escolher um tipo de conta de programador.
+
+Quando criar a sua conta da Play Console, os programadores que fornecem os seguintes serviços têm de se registar como uma organização:
+
+Produtos e serviços financeiros, incluindo, entre outros, serviços bancários, empréstimos, negociação de ações, fundos de investimento, software de carteira para criptomoedas e câmbios de criptomoedas. Saiba mais sobre a Política de Serviços Financeiros.
+Apps de saúde, como apps médicas e apps de investigação em seres humanos. Saiba mais sobre as categorias de apps de saúde.
+Apps com aprovação para usar a classe VpnService. Saiba mais sobre a Política do Serviço VPN.
+Apps governamentais, incluindo apps desenvolvidas por ou em nome de um organismo governamental.
+Depois de selecionar um tipo de conta, é necessário:
+
+Fornecer de forma precisa as informações da sua conta de programador, incluindo os seguintes detalhes:
+Nome legal e morada
+Número DUNS, caso se registe como organização
+Endereço de email e número de telefone de contacto
+Endereço de email e número de telefone do programador apresentados no Google Play, quando aplicável
+Métodos de pagamento, quando aplicável
+Perfil de pagamentos Google associado à sua conta de programador
+Se se registar como organização, certifique-se de que as informações da sua conta de programador estão atualizadas e são coerentes com os detalhes armazenados no seu perfil da Dun & Bradstreet
+Antes de enviar a sua app, tem de:
+
+Fornecer de forma precisa todas as informações e os metadados da app
+Carregar a Política de Privacidade da app e preencher os requisitos da Secção segurança dos dados
+Fornecer uma conta de demonstração ativa, as informações de início de sessão e todos os outros recursos necessários para o Google Play rever a sua app (especificamente, credenciais de início de sessão, código QR, etc.)
+Como sempre, deve certificar-se de que a sua app oferece uma experiência do utilizador estável, apelativa e adaptável; confirmar se todos os elementos da app, incluindo as redes de publicidade, os serviços de estatísticas e os SDKs de terceiros, estão em conformidade com as Políticas do Programa para Programadores do Google Play; e, se o público-alvo da app incluir crianças, certificar-se de que está em conformidade com a nossa Política para Famílias.
+
+É importante não esquecer que lhe cabe a responsabilidade de analisar o Contrato de Distribuição para Programadores e todas as Políticas do Programa para Programadores para garantir que a sua app está em plena conformidade.
