@@ -717,7 +717,8 @@ export async function registerRoutes(
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const webpush = await import("web-push");
+    const webpushModule = await import("web-push");
+    const webpush = webpushModule.default || webpushModule;
     const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
     const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
 
