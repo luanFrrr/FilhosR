@@ -144,10 +144,9 @@ export default function DailyPhotos() {
     setIsDeleting(true);
     try {
       await deletePhoto.mutateAsync({ id: todayPhoto.id, childId: activeChild.id });
-      toast({
-        title: "Foto removida",
-        description: "A foto de hoje foi excluída.",
-      });
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 300);
     } catch (error) {
       toast({
         title: "Erro",
