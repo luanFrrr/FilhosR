@@ -82,6 +82,11 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **Dynamic Home Page Text**: Daily rotating emotional messages, contextual encouragement based on recent activity (growth + vaccines) and level progress, subtle micro-invites below quick actions
 - **Foto do Dia Feature**: Daily photo habit feature allowing one photo per day per child. Includes Home card with status indicator, chronological gallery with swipe navigation, streak counter, and gamification integration (5 points per photo). Database enforces one-photo-per-day constraint with unique index.
 
+### Recent Changes (Feb 2026)
+- **Push Notifications for Vaccines**: Web Push API integration for vaccine reminders. Uses VAPID keys (env vars), `push_subscriptions` table, service worker push handler, and a server-side scheduler that checks daily at 9 AM BRT. Sends reminders for due, upcoming (within 1 month), and overdue (up to 2 months) vaccines. Frontend toggle in Settings with test notification button. Hook: `use-push-notifications.ts`. Backend: `server/vaccineNotifications.ts`.
+- **TWA Asset Links**: Added `.well-known/assetlinks.json` for Google Play TWA verification.
+- **Data Deletion Page**: Server-rendered HTML for Google Play bot crawlers at `/delete-account`.
+
 ## External Dependencies
 
 ### Database
@@ -100,6 +105,7 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **framer-motion**: Animation library
 - **zod**: Schema validation for API contracts
 - **drizzle-zod**: Automatic Zod schema generation from Drizzle tables
+- **web-push**: Web Push API server-side library for sending push notifications via VAPID
 
 ### Development Tools
 - **Vite**: Frontend build tool with React plugin

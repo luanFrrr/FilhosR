@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useChildren, useUpdateChild, useDeleteChild } from "@/hooks/use-children";
 import { useGrowthRecords, useUpdateGrowthRecord } from "@/hooks/use-growth";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { 
-  User, Bell, Shield, LogOut, Baby, Pencil, Trash2, Plus, X, Check, Camera 
+  User, Bell, Shield, LogOut, Baby, Pencil, Trash2, Plus, X, Check, Camera, BellRing, Loader2
 } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
 import { Link } from "wouter";
@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getZodiacSign } from "@/lib/zodiac";
 import { format } from "date-fns";
 import { parseLocalDate, parseDecimalBR, formatDecimalBR } from "@/lib/utils";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,7 @@ export default function Settings() {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  const { isSubscribed, isLoading: pushLoading, subscribe, unsubscribe, sendTest, isSupported } = usePushNotifications();
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [deletingChild, setDeletingChild] = useState<Child | null>(null);
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
@@ -287,10 +289,43 @@ export default function Settings() {
                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
                      <Bell className="w-4 h-4" />
                    </div>
-                   <Label>Notificações de Vacinas</Label>
+                   <div>
+                     <Label>Notificações de Vacinas</Label>
+                     {!isSupported && (
+                       <p className="text-xs text-muted-foreground">Não suportado neste navegador</p>
+                     )}
+                   </div>
                 </div>
-                <Switch defaultChecked data-testid="switch-notifications" />
+                {pushLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Switch 
+                    checked={isSubscribed} 
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        subscribe();
+                      } else {
+                        unsubscribe();
+                      }
+                    }}
+                    disabled={!isSupported || pushLoading}
+                    data-testid="switch-notifications" 
+                  />
+                )}
              </div>
+             {isSubscribed && (
+               <div className="px-4 py-3 border-b border-border/50">
+                 <Button 
+                   variant="outline" 
+                   size="sm" 
+                   className="w-full text-sm gap-2"
+                   onClick={sendTest}
+                   data-testid="button-test-notification"
+                 >
+                   <BellRing className="w-4 h-4" /> Enviar notificação de teste
+                 </Button>
+               </div>
+             )}
              <div className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                    <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">

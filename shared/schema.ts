@@ -114,6 +114,17 @@ export const dailyPhotos = pgTable("daily_photos", {
   uniqueChildDate: uniqueIndex("daily_photos_child_date_unique").on(table.childId, table.date),
 }));
 
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  uniqueEndpoint: uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
+}));
+
 // Registros vacinais individuais
 export const vaccineRecords = pgTable("vaccine_records", {
   id: serial("id").primaryKey(),
@@ -232,6 +243,7 @@ export const insertDiaryEntrySchema = createInsertSchema(diaryEntries).omit({ id
 export const insertSusVaccineSchema = createInsertSchema(susVaccines).omit({ id: true });
 export const insertVaccineRecordSchema = createInsertSchema(vaccineRecords).omit({ id: true, createdAt: true });
 export const insertDailyPhotoSchema = createInsertSchema(dailyPhotos).omit({ id: true, createdAt: true });
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
 // Note: User and UpsertUser types are re-exported from ./models/auth
@@ -267,6 +279,9 @@ export type InsertVaccineRecord = z.infer<typeof insertVaccineRecordSchema>;
 
 export type DailyPhoto = typeof dailyPhotos.$inferSelect;
 export type InsertDailyPhoto = z.infer<typeof insertDailyPhotoSchema>;
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
 
 // Request Types
 export type CreateChildRequest = InsertChild;

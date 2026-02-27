@@ -1,5 +1,5 @@
 import { 
-  users, sessions, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords, dailyPhotos,
+  users, sessions, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords, dailyPhotos, pushSubscriptions,
   type User,
   type Child, type InsertChild,
   type GrowthRecord, type InsertGrowthRecord,
@@ -10,7 +10,8 @@ import {
   type Gamification,
   type SusVaccine, type InsertSusVaccine,
   type VaccineRecord, type InsertVaccineRecord,
-  type DailyPhoto, type InsertDailyPhoto
+  type DailyPhoto, type InsertDailyPhoto,
+  type PushSubscription, type InsertPushSubscription
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -81,6 +82,13 @@ export interface IStorage {
   getDailyPhotoById(id: number): Promise<DailyPhoto | undefined>;
   createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto>;
   deleteDailyPhoto(id: number): Promise<void>;
+
+  // Push Subscriptions
+  getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]>;
+  getAllPushSubscriptions(): Promise<PushSubscription[]>;
+  createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription>;
+  deletePushSubscription(endpoint: string): Promise<void>;
+  deletePushSubscriptionByUser(userId: string, endpoint: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -104,6 +112,9 @@ export class DatabaseStorage implements IStorage {
     for (const child of userChildren) {
       await this.deleteChild(child.id);
     }
+    
+    // Delete push subscriptions
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
     
     // Delete user sessions
     await db.delete(sessions).where(eq(sessions.userId, userId));
@@ -417,6 +428,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDailyPhoto(id: number): Promise<void> {
     await db.delete(dailyPhotos).where(eq(dailyPhotos.id, id));
+  }
+
+  async getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]> {
+    return await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+  }
+
+  async getAllPushSubscriptions(): Promise<PushSubscription[]> {
+    return await db.select().from(pushSubscriptions);
+  }
+
+  async createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription> {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
+    const [created] = await db.insert(pushSubscriptions).values(sub).returning();
+    return created;
+  }
+
+  async deletePushSubscription(endpoint: string): Promise<void> {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+  }
+
+  async deletePushSubscriptionByUser(userId: string, endpoint: string): Promise<void> {
+    await db.delete(pushSubscriptions).where(
+      and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint))
+    );
   }
 }
 
