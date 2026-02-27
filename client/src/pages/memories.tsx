@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
-import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useDiary, useCreateDiaryEntry } from "@/hooks/use-memories";
+import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useDiary, useCreateDiaryEntry, useUpdateDiaryEntry, useDeleteDiaryEntry } from "@/hooks/use-memories";
 import { Header } from "@/components/layout/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,8 @@ import { compressImage } from "@/lib/imageUtils";
 import { parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhotoPicker } from "@/components/ui/photo-picker";
-import type { Milestone } from "@shared/schema";
+import type { Milestone, DiaryEntry } from "@shared/schema";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const celebrationMessages = [
   { title: "Que momento especial!", subtitle: "Cada conquista é um tesouro para guardar no coração" },
@@ -40,6 +41,8 @@ export default function Memories() {
   const updateMilestone = useUpdateMilestone();
   const deleteMilestone = useDeleteMilestone();
   const createDiary = useCreateDiaryEntry();
+  const updateDiary = useUpdateDiaryEntry();
+  const deleteDiary = useDeleteDiaryEntry();
   const { toast } = useToast();
   const [openMilestone, setOpenMilestone] = useState(false);
   const [openDiary, setOpenDiary] = useState(false);
@@ -47,12 +50,15 @@ export default function Memories() {
   const [viewMilestone, setViewMilestone] = useState<Milestone | null>(null);
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Milestone | null>(null);
+  const [editingDiary, setEditingDiary] = useState<DiaryEntry | null>(null);
+  const [deleteDiaryConfirm, setDeleteDiaryConfirm] = useState<DiaryEntry | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMsg, setCelebrationMsg] = useState({ title: "", subtitle: "" });
 
   const milestoneForm = useForm();
   const editForm = useForm();
   const diaryForm = useForm();
+  const editDiaryForm = useForm();
 
   useEffect(() => {
     if (editingMilestone) {
@@ -147,6 +153,15 @@ export default function Memories() {
     });
   };
 
+  useEffect(() => {
+    if (editingDiary) {
+      editDiaryForm.reset({
+        date: editingDiary.date,
+        content: editingDiary.content || "",
+      });
+    }
+  }, [editingDiary, editDiaryForm]);
+
   const onSubmitDiary = (data: any) => {
     if (!activeChild) return;
     createDiary.mutate({ childId: activeChild.id, ...data, photoUrls: [] }, {
@@ -154,6 +169,33 @@ export default function Memories() {
         setOpenDiary(false);
         diaryForm.reset();
         toast({ title: "Diário atualizado!" });
+      }
+    });
+  };
+
+  const onSubmitEditDiary = (data: any) => {
+    if (!activeChild || !editingDiary) return;
+    updateDiary.mutate({
+      childId: activeChild.id,
+      entryId: editingDiary.id,
+      ...data,
+    }, {
+      onSuccess: () => {
+        setEditingDiary(null);
+        toast({ title: "Registro atualizado!" });
+      }
+    });
+  };
+
+  const handleDeleteDiary = () => {
+    if (!activeChild || !deleteDiaryConfirm) return;
+    deleteDiary.mutate({
+      childId: activeChild.id,
+      entryId: deleteDiaryConfirm.id,
+    }, {
+      onSuccess: () => {
+        setDeleteDiaryConfirm(null);
+        toast({ title: "Registro excluído" });
       }
     });
   };
@@ -357,12 +399,32 @@ export default function Memories() {
 
             <div className="grid grid-cols-1 gap-4">
               {diary?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(entry => (
-                <div key={entry.id} className="bg-white p-5 rounded-2xl border border-border shadow-sm">
+                <div key={entry.id} className="bg-white p-5 rounded-2xl border border-border shadow-sm" data-testid={`card-diary-${entry.id}`}>
                   <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
                     <span className="font-hand text-lg font-bold text-primary">
                        {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
                     </span>
-                    {entry.photoUrls && entry.photoUrls.length > 0 && <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                    <div className="flex items-center gap-1">
+                      {entry.photoUrls && entry.photoUrls.length > 0 && <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setEditingDiary(entry)}
+                        data-testid={`button-edit-diary-${entry.id}`}
+                      >
+                        <Edit2 className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setDeleteDiaryConfirm(entry)}
+                        data-testid={`button-delete-diary-${entry.id}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-foreground leading-relaxed font-hand text-lg">{entry.content}</p>
                 </div>
@@ -513,6 +575,49 @@ export default function Memories() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editingDiary} onOpenChange={(open) => !open && setEditingDiary(null)}>
+        <DialogContent className="rounded-2xl max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Registro</DialogTitle>
+            <DialogDescription>Altere o conteúdo do diário</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={editDiaryForm.handleSubmit(onSubmitEditDiary)} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Data</Label>
+              <Input type="date" {...editDiaryForm.register("date")} data-testid="input-edit-diary-date" />
+            </div>
+            <div className="space-y-2">
+              <Label>O que aconteceu?</Label>
+              <Textarea {...editDiaryForm.register("content")} className="min-h-[120px]" data-testid="input-edit-diary-content" />
+            </div>
+            <Button type="submit" className="w-full" disabled={updateDiary.isPending} data-testid="button-save-edit-diary">
+              {updateDiary.isPending ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteDiaryConfirm} onOpenChange={(open) => !open && setDeleteDiaryConfirm(null)}>
+        <AlertDialogContent className="rounded-2xl max-w-sm mx-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir registro do diário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDiary}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-diary"
+            >
+              {deleteDiary.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -405,6 +405,39 @@ export async function registerRoutes(
     res.status(201).json(record);
   });
 
+  app.patch(api.diary.update.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const entryId = Number(req.params.entryId);
+    const entry = await storage.getDiaryEntryById(entryId);
+    if (!entry) return res.status(404).json({ message: "Registro não encontrado" });
+
+    if (!await hasChildAccess(userId, entry.childId)) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const input = api.diary.update.input.parse(req.body);
+    const updated = await storage.updateDiaryEntry(entryId, input);
+    res.json(updated);
+  });
+
+  app.delete(api.diary.delete.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const entryId = Number(req.params.entryId);
+    const entry = await storage.getDiaryEntryById(entryId);
+    if (!entry) return res.status(404).json({ message: "Registro não encontrado" });
+
+    if (!await hasChildAccess(userId, entry.childId)) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    await storage.deleteDiaryEntry(entryId);
+    res.status(204).send();
+  });
+
   // SUS Vaccines Catalog (public)
   app.get(api.susVaccines.list.path, async (req, res) => {
     // Initialize vaccines if not present
