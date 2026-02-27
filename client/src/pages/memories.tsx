@@ -121,7 +121,7 @@ export default function Memories() {
     // Fix date offset issue
     const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
     
-    updateRecord.mutate({
+    updateMilestone.mutate({
       childId: activeChild.id,
       milestoneId: editingMilestone.id,
       ...data,
