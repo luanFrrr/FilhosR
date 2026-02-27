@@ -630,6 +630,21 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  app.get("/.well-known/assetlinks.json", (_req, res) => {
+    res.json([
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: {
+          namespace: "android_app",
+          package_name: "app.replit.baby_growth_tracker.twa",
+          sha256_cert_fingerprints: [
+            "64:93:38:65:F1:4C:8E:C6:69:96:C5:23:27:92:1E:ED:2A:7F:82:1F:14:E2:EC:69:88:A6:B0:61:75:6C:D2:7E"
+          ]
+        }
+      }
+    ]);
+  });
+
   app.get("/delete-account", (req, res, next) => {
     const userAgent = req.headers['user-agent'] || '';
     const isBot = /bot|crawl|spider|google|facebook|whatsapp|telegram|preview/i.test(userAgent);
