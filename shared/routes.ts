@@ -263,6 +263,23 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/children/:childId/diary/:entryId',
+      input: insertDiaryEntrySchema.omit({ childId: true }).partial(),
+      responses: {
+        200: z.custom<typeof diaryEntries.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/children/:childId/diary/:entryId',
+      responses: {
+        204: z.object({}),
+        404: errorSchemas.notFound,
+      },
+    },
   },
 
   // SUS Vaccines Catalog

@@ -52,7 +52,7 @@ All API routes are prefixed with `/api/` and organized by resource:
 - `/api/children/:childId/vaccines` - Vaccine records
 - `/api/children/:childId/health` - Health records
 - `/api/children/:childId/milestones` - Milestone tracking (full CRUD)
-- `/api/children/:childId/diary` - Diary entries
+- `/api/children/:childId/diary` - Diary entries (full CRUD: list, create, update, delete)
 - `/api/sus-vaccines` - Brazilian SUS vaccine reference data
 
 ### Authentication

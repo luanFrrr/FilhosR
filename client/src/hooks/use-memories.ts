@@ -104,3 +104,36 @@ export function useCreateDiaryEntry() {
     },
   });
 }
+
+export function useUpdateDiaryEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ childId, entryId, ...data }: { childId: number; entryId: number } & Partial<Omit<InsertDiaryEntry, "childId">>) => {
+      const url = buildUrl(api.diary.update.path, { childId, entryId });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update diary entry");
+      return api.diary.update.responses[200].parse(await res.json());
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.diary.list.path, variables.childId] });
+    },
+  });
+}
+
+export function useDeleteDiaryEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ childId, entryId }: { childId: number; entryId: number }) => {
+      const url = buildUrl(api.diary.delete.path, { childId, entryId });
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete diary entry");
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.diary.list.path, variables.childId] });
+    },
+  });
+}

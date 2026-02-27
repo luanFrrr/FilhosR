@@ -58,7 +58,10 @@ export interface IStorage {
 
   // Diary
   getDiaryEntries(childId: number): Promise<DiaryEntry[]>;
+  getDiaryEntryById(id: number): Promise<DiaryEntry | undefined>;
   createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
+  updateDiaryEntry(id: number, data: Partial<InsertDiaryEntry>): Promise<DiaryEntry | undefined>;
+  deleteDiaryEntry(id: number): Promise<boolean>;
 
   // Gamification
   getGamification(childId: number): Promise<Gamification | undefined>;
@@ -270,9 +273,24 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(diaryEntries).where(eq(diaryEntries.childId, childId));
   }
 
+  async getDiaryEntryById(id: number): Promise<DiaryEntry | undefined> {
+    const [record] = await db.select().from(diaryEntries).where(eq(diaryEntries.id, id));
+    return record;
+  }
+
   async createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry> {
     const [newEntry] = await db.insert(diaryEntries).values(entry).returning();
     return newEntry;
+  }
+
+  async updateDiaryEntry(id: number, data: Partial<InsertDiaryEntry>): Promise<DiaryEntry | undefined> {
+    const [updated] = await db.update(diaryEntries).set(data).where(eq(diaryEntries.id, id)).returning();
+    return updated;
+  }
+
+  async deleteDiaryEntry(id: number): Promise<boolean> {
+    const result = await db.delete(diaryEntries).where(eq(diaryEntries.id, id)).returning();
+    return result.length > 0;
   }
 
   // Gamification
