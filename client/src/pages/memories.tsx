@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useDiary, useCreateDiaryEntry } from "@/hooks/use-memories";
 import { Header } from "@/components/layout/header";
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { compressImage } from "@/lib/imageUtils";
 import { parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { PhotoPicker } from "@/components/ui/photo-picker";
 import type { Milestone } from "@shared/schema";
 
 const celebrationMessages = [
@@ -43,8 +44,6 @@ export default function Memories() {
   const [openMilestone, setOpenMilestone] = useState(false);
   const [openDiary, setOpenDiary] = useState(false);
   const [milestoneImage, setMilestoneImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
   const [viewMilestone, setViewMilestone] = useState<Milestone | null>(null);
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Milestone | null>(null);
@@ -66,24 +65,21 @@ export default function Memories() {
     }
   }, [editingMilestone, editForm]);
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 15 * 1024 * 1024) {
-        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
+  const handleImageFile = async (file: File) => {
+    if (file.size > 15 * 1024 * 1024) {
+      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
+      return;
+    }
+    try {
+      const compressedImage = await compressImage(file, 1200, 0.8);
+      const sizeInKB = Math.round(compressedImage.length * 0.75 / 1024);
+      if (sizeInKB > 8000) {
+        toast({ title: "Imagem ainda muito grande", description: "Tente uma foto com menor resolução", variant: "destructive" });
         return;
       }
-      try {
-        const compressedImage = await compressImage(file, 1200, 0.8);
-        const sizeInKB = Math.round(compressedImage.length * 0.75 / 1024);
-        if (sizeInKB > 8000) {
-          toast({ title: "Imagem ainda muito grande", description: "Tente uma foto com menor resolução", variant: "destructive" });
-          return;
-        }
-        setMilestoneImage(compressedImage);
-      } catch {
-        toast({ title: "Erro ao processar imagem", variant: "destructive" });
-      }
+      setMilestoneImage(compressedImage);
+    } catch {
+      toast({ title: "Erro ao processar imagem", variant: "destructive" });
     }
   };
 
@@ -255,14 +251,6 @@ export default function Memories() {
                      
                      <div className="space-y-2">
                        <Label>Foto do momento</Label>
-                       <input
-                         type="file"
-                         accept="image/*"
-                         ref={fileInputRef}
-                         onChange={handleImageChange}
-                         className="hidden"
-                         data-testid="input-milestone-photo"
-                       />
                        {milestoneImage ? (
                          <div className="relative">
                            <img 
@@ -282,16 +270,20 @@ export default function Memories() {
                            </Button>
                          </div>
                        ) : (
-                         <Button
-                           type="button"
-                           variant="outline"
-                           className="w-full h-24 border-dashed flex flex-col gap-2"
-                           onClick={() => fileInputRef.current?.click()}
-                           data-testid="button-upload-photo"
-                         >
-                           <Camera className="w-6 h-6 text-muted-foreground" />
-                           <span className="text-sm text-muted-foreground">Adicionar foto</span>
-                         </Button>
+                         <PhotoPicker onPhotoSelected={handleImageFile}>
+                           {(openPicker) => (
+                             <Button
+                               type="button"
+                               variant="outline"
+                               className="w-full h-24 border-dashed flex flex-col gap-2"
+                               onClick={openPicker}
+                               data-testid="button-upload-photo"
+                             >
+                               <Camera className="w-6 h-6 text-muted-foreground" />
+                               <span className="text-sm text-muted-foreground">Adicionar foto</span>
+                             </Button>
+                           )}
+                         </PhotoPicker>
                        )}
                      </div>
 
@@ -459,13 +451,6 @@ export default function Memories() {
             
             <div className="space-y-2">
               <Label>Foto do momento</Label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-                id="edit-photo-input"
-              />
               {milestoneImage ? (
                 <div className="relative">
                   <img 
@@ -484,15 +469,19 @@ export default function Memories() {
                   </Button>
                 </div>
               ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-24 border-dashed flex flex-col gap-2"
-                  onClick={() => document.getElementById("edit-photo-input")?.click()}
-                >
-                  <Camera className="w-6 h-6 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Adicionar foto</span>
-                </Button>
+                <PhotoPicker onPhotoSelected={handleImageFile}>
+                  {(openPicker) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-24 border-dashed flex flex-col gap-2"
+                      onClick={openPicker}
+                    >
+                      <Camera className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Adicionar foto</span>
+                    </Button>
+                  )}
+                </PhotoPicker>
               )}
             </div>
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useSusVaccines, useVaccineRecords, useCreateVaccineRecord, useUpdateVaccineRecord, useDeleteVaccineRecord } from "@/hooks/use-vaccines";
 import { Header } from "@/components/layout/header";
@@ -16,6 +16,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { compressImage } from "@/lib/imageUtils";
 import { cn, parseLocalDate } from "@/lib/utils";
+import { PhotoPicker } from "@/components/ui/photo-picker";
 import { motion, AnimatePresence } from "framer-motion";
 import { getPendingVaccines, getPendingDosesByVaccine } from "@/lib/vaccineCheck";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
@@ -62,7 +63,6 @@ export default function VaccineCard() {
   const [selectedVaccine, setSelectedVaccine] = useState<SusVaccine | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationVaccine, setCelebrationVaccine] = useState<string>("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm({
     defaultValues: {
@@ -89,19 +89,16 @@ export default function VaccineCard() {
     }
   }, [editingRecord, formMode, susVaccines, form]);
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 15 * 1024 * 1024) {
-        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
-        return;
-      }
-      try {
-        const compressedImage = await compressImage(file, 1200, 0.8);
-        setPhotoUrls(prev => [...prev, compressedImage]);
-      } catch {
-        toast({ title: "Erro ao processar imagem", variant: "destructive" });
-      }
+  const handleImageFile = async (file: File) => {
+    if (file.size > 15 * 1024 * 1024) {
+      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
+      return;
+    }
+    try {
+      const compressedImage = await compressImage(file, 1200, 0.8);
+      setPhotoUrls(prev => [...prev, compressedImage]);
+    } catch {
+      toast({ title: "Erro ao processar imagem", variant: "destructive" });
     }
   };
 
@@ -508,14 +505,6 @@ export default function VaccineCard() {
 
             <div className="space-y-2">
               <Label>Fotos do comprovante (opcional)</Label>
-              <input
-                type="file"
-                accept="image/*"
-                ref={fileInputRef}
-                onChange={handleImageChange}
-                className="hidden"
-                data-testid="input-vaccine-photo"
-              />
               
               {photoUrls.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
@@ -540,16 +529,20 @@ export default function VaccineCard() {
                 </div>
               )}
               
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => fileInputRef.current?.click()}
-                data-testid="button-add-photo"
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Adicionar foto
-              </Button>
+              <PhotoPicker onPhotoSelected={handleImageFile}>
+                {(openPicker) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={openPicker}
+                    data-testid="button-add-photo"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Adicionar foto
+                  </Button>
+                )}
+              </PhotoPicker>
             </div>
 
             <Button 
