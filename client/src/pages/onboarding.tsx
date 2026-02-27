@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCreateChild } from "@/hooks/use-children";
 import { useChildContext } from "@/hooks/use-child-context";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Baby, ArrowRight, Heart, Camera } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
 import { parseDecimalBR } from "@/lib/utils";
+import { PhotoPicker } from "@/components/ui/photo-picker";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
@@ -19,7 +20,6 @@ export default function Onboarding() {
   const { setActiveChildId } = useChildContext();
   const { toast } = useToast();
   const [photo, setPhoto] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
   const { register, handleSubmit, watch, setValue, control } = useForm({
     defaultValues: {
       name: '',
@@ -34,19 +34,16 @@ export default function Onboarding() {
   const selectedTheme = watch("theme");
   const watchName = watch("name");
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 10MB", variant: "destructive" });
-        return;
-      }
-      try {
-        const compressed = await compressImage(file, 400, 0.8);
-        setPhoto(compressed);
-      } catch {
-        toast({ title: "Erro ao processar imagem", variant: "destructive" });
-      }
+  const handlePhotoFile = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 10MB", variant: "destructive" });
+      return;
+    }
+    try {
+      const compressed = await compressImage(file, 400, 0.8);
+      setPhoto(compressed);
+    } catch {
+      toast({ title: "Erro ao processar imagem", variant: "destructive" });
     }
   };
 
@@ -87,43 +84,39 @@ export default function Onboarding() {
 
         <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-border/50">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="flex flex-col items-center gap-3 pb-2">
-              <input
-                type="file"
-                accept="image/*"
-                ref={photoInputRef}
-                onChange={handlePhotoChange}
-                className="hidden"
-                data-testid="input-child-photo"
-              />
-              <div className="relative">
-                {photo ? (
-                  <img 
-                    src={photo} 
-                    alt="Foto"
-                    className="w-24 h-24 rounded-full object-cover border-4 border-primary/20 shadow-lg"
-                  />
-                ) : (
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-lg ${
-                    selectedTheme === 'blue' ? 'bg-blue-400' : 
-                    selectedTheme === 'pink' ? 'bg-pink-400' : 'bg-slate-300'
-                  }`}>
-                    {watchName?.charAt(0)?.toUpperCase() || <Camera className="w-8 h-8 text-white/70" />}
+            <PhotoPicker onPhotoSelected={handlePhotoFile}>
+              {(openPicker) => (
+                <div className="flex flex-col items-center gap-3 pb-2">
+                  <div className="relative">
+                    {photo ? (
+                      <img 
+                        src={photo} 
+                        alt="Foto"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-primary/20 shadow-lg"
+                      />
+                    ) : (
+                      <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-lg ${
+                        selectedTheme === 'blue' ? 'bg-blue-400' : 
+                        selectedTheme === 'pink' ? 'bg-pink-400' : 'bg-slate-300'
+                      }`}>
+                        {watchName?.charAt(0)?.toUpperCase() || <Camera className="w-8 h-8 text-white/70" />}
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white shadow-md border-primary/30"
+                      onClick={openPicker}
+                      data-testid="button-upload-child-photo"
+                    >
+                      <Camera className="w-4 h-4 text-primary" />
+                    </Button>
                   </div>
-                )}
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white shadow-md border-primary/30"
-                  onClick={() => photoInputRef.current?.click()}
-                  data-testid="button-upload-child-photo"
-                >
-                  <Camera className="w-4 h-4 text-primary" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Adicionar foto (opcional)</p>
-            </div>
+                  <p className="text-xs text-muted-foreground">Adicionar foto (opcional)</p>
+                </div>
+              )}
+            </PhotoPicker>
 
             <div className="space-y-2">
               <Label htmlFor="name">Nome da Criança</Label>

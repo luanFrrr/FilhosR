@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useChildren, useUpdateChild, useDeleteChild } from "@/hooks/use-children";
 import { useGrowthRecords, useUpdateGrowthRecord } from "@/hooks/use-growth";
@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PhotoView } from "@/components/ui/photo-view";
+import { PhotoPicker } from "@/components/ui/photo-picker";
 
 export default function Settings() {
   const { activeChild, setActiveChildId } = useChildContext();
@@ -60,7 +61,6 @@ export default function Settings() {
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [deletingChild, setDeletingChild] = useState<Child | null>(null);
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -86,19 +86,16 @@ export default function Settings() {
     });
   };
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 10MB", variant: "destructive" });
-        return;
-      }
-      try {
-        const compressed = await compressImage(file, 400, 0.8);
-        setEditPhoto(compressed);
-      } catch {
-        toast({ title: "Erro ao processar imagem", variant: "destructive" });
-      }
+  const handlePhotoFile = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 10MB", variant: "destructive" });
+      return;
+    }
+    try {
+      const compressed = await compressImage(file, 400, 0.8);
+      setEditPhoto(compressed);
+    } catch {
+      toast({ title: "Erro ao processar imagem", variant: "destructive" });
     }
   };
 
@@ -358,43 +355,39 @@ export default function Settings() {
             <DialogDescription>Atualize os dados de {editingChild?.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="flex flex-col items-center gap-3">
-              <input
-                type="file"
-                accept="image/*"
-                ref={photoInputRef}
-                onChange={handlePhotoChange}
-                className="hidden"
-                data-testid="input-edit-photo"
-              />
-              <div className="relative">
-                {editPhoto ? (
-                  <img 
-                    src={editPhoto} 
-                    alt="Foto"
-                    className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-md"
-                  />
-                ) : (
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
-                    editForm.theme === 'blue' ? 'bg-blue-400' : 
-                    editForm.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
-                  }`}>
-                    {editForm.name?.charAt(0)?.toUpperCase() || '?'}
+            <PhotoPicker onPhotoSelected={handlePhotoFile}>
+              {(openPicker) => (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative">
+                    {editPhoto ? (
+                      <img 
+                        src={editPhoto} 
+                        alt="Foto"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-md"
+                      />
+                    ) : (
+                      <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
+                        editForm.theme === 'blue' ? 'bg-blue-400' : 
+                        editForm.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
+                      }`}>
+                        {editForm.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white shadow-sm"
+                      onClick={openPicker}
+                      data-testid="button-upload-child-photo"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </Button>
                   </div>
-                )}
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white shadow-sm"
-                  onClick={() => photoInputRef.current?.click()}
-                  data-testid="button-upload-child-photo"
-                >
-                  <Camera className="w-4 h-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Toque para adicionar foto</p>
-            </div>
+                  <p className="text-xs text-muted-foreground">Toque para adicionar foto</p>
+                </div>
+              )}
+            </PhotoPicker>
 
             <div className="space-y-2">
               <Label htmlFor="edit-name">Nome</Label>
