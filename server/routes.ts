@@ -6,6 +6,7 @@ import { z } from "zod";
 import { caregivers } from "@shared/schema";
 import { db } from "./db";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { startVaccineNotificationScheduler, sendVaccineNotifications } from "./vaccineNotifications";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -666,6 +667,101 @@ export async function registerRoutes(
 </body>
 </html>`);
   });
+
+  // Push Notifications
+  app.get("/api/push/vapid-key", (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || "" });
+  });
+
+  app.post("/api/push/subscribe", isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const { endpoint, keys } = req.body;
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      return res.status(400).json({ message: "Dados de assinatura inválidos" });
+    }
+
+    const sub = await storage.createPushSubscription({
+      userId,
+      endpoint,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+    });
+
+    res.status(201).json({ message: "Notificações ativadas!" });
+  });
+
+  app.post("/api/push/unsubscribe", isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const { endpoint } = req.body;
+    if (!endpoint) {
+      return res.status(400).json({ message: "Endpoint obrigatório" });
+    }
+
+    await storage.deletePushSubscriptionByUser(userId, endpoint);
+    res.json({ message: "Notificações desativadas" });
+  });
+
+  app.get("/api/push/status", isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const subs = await storage.getPushSubscriptionsByUserId(userId);
+    res.json({ subscribed: subs.length > 0, count: subs.length });
+  });
+
+  app.post("/api/push/test", isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const webpush = await import("web-push");
+    const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
+    const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      return res.status(500).json({ message: "Push notifications não configuradas" });
+    }
+
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || "mailto:filhos@replit.app",
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    );
+
+    const subs = await storage.getPushSubscriptionsByUserId(userId);
+    if (subs.length === 0) {
+      return res.status(400).json({ message: "Nenhuma assinatura encontrada" });
+    }
+
+    let sent = 0;
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          JSON.stringify({
+            title: "💉 Teste de Notificação",
+            body: "As notificações de vacinas estão funcionando!",
+            icon: "/icons/icon-192x192.png",
+            badge: "/icons/icon-72x72.png",
+            tag: "test",
+            data: { url: "/" },
+          })
+        );
+        sent++;
+      } catch (error: any) {
+        if (error.statusCode === 404 || error.statusCode === 410) {
+          await storage.deletePushSubscription(sub.endpoint);
+        }
+      }
+    }
+
+    res.json({ message: `Notificação de teste enviada!`, sent });
+  });
+
+  startVaccineNotificationScheduler();
 
   return httpServer;
 }
