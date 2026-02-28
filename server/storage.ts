@@ -1,20 +1,46 @@
-import { 
-  users, sessions, children, caregivers, growthRecords, vaccines, healthRecords, milestones, diaryEntries, gamification, susVaccines, vaccineRecords, dailyPhotos, pushSubscriptions,
+import {
+  users,
+  sessions,
+  children,
+  caregivers,
+  growthRecords,
+  vaccines,
+  healthRecords,
+  milestones,
+  diaryEntries,
+  gamification,
+  susVaccines,
+  vaccineRecords,
+  dailyPhotos,
+  pushSubscriptions,
+  inviteCodes,
   type User,
-  type Child, type InsertChild,
-  type GrowthRecord, type InsertGrowthRecord,
-  type Vaccine, type InsertVaccine,
-  type HealthRecord, type InsertHealthRecord,
-  type Milestone, type InsertMilestone,
-  type DiaryEntry, type InsertDiaryEntry,
+  type Child,
+  type InsertChild,
+  type GrowthRecord,
+  type InsertGrowthRecord,
+  type Vaccine,
+  type InsertVaccine,
+  type HealthRecord,
+  type InsertHealthRecord,
+  type Milestone,
+  type InsertMilestone,
+  type DiaryEntry,
+  type InsertDiaryEntry,
   type Gamification,
-  type SusVaccine, type InsertSusVaccine,
-  type VaccineRecord, type InsertVaccineRecord,
-  type DailyPhoto, type InsertDailyPhoto,
-  type PushSubscription, type InsertPushSubscription
+  type SusVaccine,
+  type InsertSusVaccine,
+  type VaccineRecord,
+  type InsertVaccineRecord,
+  type DailyPhoto,
+  type InsertDailyPhoto,
+  type PushSubscription,
+  type InsertPushSubscription,
+  type InviteCode,
+  type InsertInviteCode,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
 
 export interface IStorage {
   // Users (OIDC users have string IDs)
@@ -33,7 +59,10 @@ export interface IStorage {
   getGrowthRecords(childId: number): Promise<GrowthRecord[]>;
   getGrowthRecordById(id: number): Promise<GrowthRecord | undefined>;
   createGrowthRecord(record: InsertGrowthRecord): Promise<GrowthRecord>;
-  updateGrowthRecord(id: number, record: Partial<InsertGrowthRecord>): Promise<GrowthRecord>;
+  updateGrowthRecord(
+    id: number,
+    record: Partial<InsertGrowthRecord>,
+  ): Promise<GrowthRecord>;
   archiveGrowthRecord(id: number): Promise<GrowthRecord>;
 
   // Vaccines
@@ -46,21 +75,30 @@ export interface IStorage {
   getHealthRecords(childId: number): Promise<HealthRecord[]>;
   getHealthRecordById(id: number): Promise<HealthRecord | undefined>;
   createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord>;
-  updateHealthRecord(id: number, data: Partial<InsertHealthRecord>): Promise<HealthRecord | undefined>;
+  updateHealthRecord(
+    id: number,
+    data: Partial<InsertHealthRecord>,
+  ): Promise<HealthRecord | undefined>;
   archiveHealthRecord(id: number): Promise<HealthRecord | undefined>;
 
   // Milestones
   getMilestones(childId: number): Promise<Milestone[]>;
   getMilestoneById(id: number): Promise<Milestone | undefined>;
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
-  updateMilestone(id: number, data: Partial<InsertMilestone>): Promise<Milestone | undefined>;
+  updateMilestone(
+    id: number,
+    data: Partial<InsertMilestone>,
+  ): Promise<Milestone | undefined>;
   deleteMilestone(id: number): Promise<boolean>;
 
   // Diary
   getDiaryEntries(childId: number): Promise<DiaryEntry[]>;
   getDiaryEntryById(id: number): Promise<DiaryEntry | undefined>;
   createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
-  updateDiaryEntry(id: number, data: Partial<InsertDiaryEntry>): Promise<DiaryEntry | undefined>;
+  updateDiaryEntry(
+    id: number,
+    data: Partial<InsertDiaryEntry>,
+  ): Promise<DiaryEntry | undefined>;
   deleteDiaryEntry(id: number): Promise<boolean>;
 
   // Gamification
@@ -76,12 +114,18 @@ export interface IStorage {
   getVaccineRecords(childId: number): Promise<VaccineRecord[]>;
   getVaccineRecordById(id: number): Promise<VaccineRecord | undefined>;
   createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord>;
-  updateVaccineRecord(id: number, record: Partial<InsertVaccineRecord>): Promise<VaccineRecord>;
+  updateVaccineRecord(
+    id: number,
+    record: Partial<InsertVaccineRecord>,
+  ): Promise<VaccineRecord>;
   deleteVaccineRecord(id: number): Promise<void>;
 
   // Daily Photos
   getDailyPhotos(childId: number): Promise<DailyPhoto[]>;
-  getDailyPhotoByDate(childId: number, date: string): Promise<DailyPhoto | undefined>;
+  getDailyPhotoByDate(
+    childId: number,
+    date: string,
+  ): Promise<DailyPhoto | undefined>;
   getDailyPhotoById(id: number): Promise<DailyPhoto | undefined>;
   createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto>;
   deleteDailyPhoto(id: number): Promise<void>;
@@ -89,9 +133,30 @@ export interface IStorage {
   // Push Subscriptions
   getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]>;
   getAllPushSubscriptions(): Promise<PushSubscription[]>;
-  createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription>;
+  createPushSubscription(
+    sub: InsertPushSubscription,
+  ): Promise<PushSubscription>;
   deletePushSubscription(endpoint: string): Promise<void>;
   deletePushSubscriptionByUser(userId: string, endpoint: string): Promise<void>;
+
+  // Invite Codes
+  createInviteCode(data: InsertInviteCode): Promise<InviteCode>;
+  getInviteCodeByCode(code: string): Promise<InviteCode | undefined>;
+  markInviteCodeUsed(id: number, usedBy: string): Promise<InviteCode>;
+  getInviteCodesByChildId(childId: number): Promise<InviteCode[]>;
+  getCaregiversByChildId(
+    childId: number,
+  ): Promise<
+    Array<{
+      id: number;
+      userId: string;
+      relationship: string;
+      role: string;
+      userName: string | null;
+      userEmail: string | null;
+    }>
+  >;
+  removeCaregiverFromChild(childId: number, caregiverId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -110,18 +175,20 @@ export class DatabaseStorage implements IStorage {
   async deleteUserAccount(userId: string): Promise<void> {
     // Get all children owned by this user
     const userChildren = await this.getChildrenByUserId(userId);
-    
+
     // Delete all children and their related data
     for (const child of userChildren) {
       await this.deleteChild(child.id);
     }
-    
+
     // Delete push subscriptions
-    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
-    
+    await db
+      .delete(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, userId));
+
     // Delete user sessions
     await db.delete(sessions).where(eq(sessions.userId, userId));
-    
+
     // Delete user record
     await db.delete(users).where(eq(users.id, userId));
   }
@@ -139,8 +206,8 @@ export class DatabaseStorage implements IStorage {
       .from(caregivers)
       .innerJoin(children, eq(caregivers.childId, children.id))
       .where(eq(caregivers.userId, userId));
-    
-    return results.map(r => r.child);
+
+    return results.map((r) => r.child);
   }
 
   async createChild(child: InsertChild): Promise<Child> {
@@ -149,7 +216,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateChild(id: number, updates: Partial<InsertChild>): Promise<Child> {
-    const [updated] = await db.update(children).set(updates).where(eq(children.id, id)).returning();
+    const [updated] = await db
+      .update(children)
+      .set(updates)
+      .where(eq(children.id, id))
+      .returning();
     return updated;
   }
 
@@ -168,39 +239,68 @@ export class DatabaseStorage implements IStorage {
 
   // Growth
   async getGrowthRecords(childId: number): Promise<GrowthRecord[]> {
-    const records = await db.select().from(growthRecords).where(eq(growthRecords.childId, childId));
-    return records.filter(r => !r.notes?.startsWith("[ARCHIVED]"));
+    const records = await db
+      .select()
+      .from(growthRecords)
+      .where(eq(growthRecords.childId, childId));
+    return records.filter((r) => !r.notes?.startsWith("[ARCHIVED]"));
   }
 
   async getGrowthRecordById(id: number): Promise<GrowthRecord | undefined> {
-    const [record] = await db.select().from(growthRecords).where(eq(growthRecords.id, id));
+    const [record] = await db
+      .select()
+      .from(growthRecords)
+      .where(eq(growthRecords.id, id));
     return record;
   }
 
   async createGrowthRecord(record: InsertGrowthRecord): Promise<GrowthRecord> {
-    const [newRecord] = await db.insert(growthRecords).values(record).returning();
+    const [newRecord] = await db
+      .insert(growthRecords)
+      .values(record)
+      .returning();
     return newRecord;
   }
 
-  async updateGrowthRecord(id: number, updates: Partial<InsertGrowthRecord>): Promise<GrowthRecord> {
-    const [updated] = await db.update(growthRecords).set(updates).where(eq(growthRecords.id, id)).returning();
+  async updateGrowthRecord(
+    id: number,
+    updates: Partial<InsertGrowthRecord>,
+  ): Promise<GrowthRecord> {
+    const [updated] = await db
+      .update(growthRecords)
+      .set(updates)
+      .where(eq(growthRecords.id, id))
+      .returning();
     return updated;
   }
 
   async archiveGrowthRecord(id: number): Promise<GrowthRecord> {
-    const [record] = await db.select().from(growthRecords).where(eq(growthRecords.id, id));
+    const [record] = await db
+      .select()
+      .from(growthRecords)
+      .where(eq(growthRecords.id, id));
     const newNotes = "[ARCHIVED]" + (record?.notes || "");
-    const [archived] = await db.update(growthRecords).set({ notes: newNotes }).where(eq(growthRecords.id, id)).returning();
+    const [archived] = await db
+      .update(growthRecords)
+      .set({ notes: newNotes })
+      .where(eq(growthRecords.id, id))
+      .returning();
     return archived;
   }
 
   // Vaccines
   async getVaccines(childId: number): Promise<Vaccine[]> {
-    return await db.select().from(vaccines).where(eq(vaccines.childId, childId));
+    return await db
+      .select()
+      .from(vaccines)
+      .where(eq(vaccines.childId, childId));
   }
 
   async getVaccineById(id: number): Promise<Vaccine | undefined> {
-    const [record] = await db.select().from(vaccines).where(eq(vaccines.id, id));
+    const [record] = await db
+      .select()
+      .from(vaccines)
+      .where(eq(vaccines.id, id));
     return record;
   }
 
@@ -209,72 +309,129 @@ export class DatabaseStorage implements IStorage {
     return newVaccine;
   }
 
-  async updateVaccine(id: number, updates: Partial<InsertVaccine>): Promise<Vaccine> {
-    const [updated] = await db.update(vaccines).set(updates).where(eq(vaccines.id, id)).returning();
+  async updateVaccine(
+    id: number,
+    updates: Partial<InsertVaccine>,
+  ): Promise<Vaccine> {
+    const [updated] = await db
+      .update(vaccines)
+      .set(updates)
+      .where(eq(vaccines.id, id))
+      .returning();
     return updated;
   }
 
   // Health
   async getHealthRecords(childId: number): Promise<HealthRecord[]> {
-    return await db.select().from(healthRecords).where(eq(healthRecords.childId, childId));
+    return await db
+      .select()
+      .from(healthRecords)
+      .where(eq(healthRecords.childId, childId));
   }
 
   async getHealthRecordById(id: number): Promise<HealthRecord | undefined> {
-    const [record] = await db.select().from(healthRecords).where(eq(healthRecords.id, id));
+    const [record] = await db
+      .select()
+      .from(healthRecords)
+      .where(eq(healthRecords.id, id));
     return record;
   }
 
   async createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord> {
-    const [newRecord] = await db.insert(healthRecords).values(record).returning();
+    const [newRecord] = await db
+      .insert(healthRecords)
+      .values(record)
+      .returning();
     return newRecord;
   }
 
-  async updateHealthRecord(id: number, data: Partial<InsertHealthRecord>): Promise<HealthRecord | undefined> {
-    const [updated] = await db.update(healthRecords).set(data).where(eq(healthRecords.id, id)).returning();
+  async updateHealthRecord(
+    id: number,
+    data: Partial<InsertHealthRecord>,
+  ): Promise<HealthRecord | undefined> {
+    const [updated] = await db
+      .update(healthRecords)
+      .set(data)
+      .where(eq(healthRecords.id, id))
+      .returning();
     return updated;
   }
 
   async archiveHealthRecord(id: number): Promise<HealthRecord | undefined> {
-    const existing = await db.select().from(healthRecords).where(eq(healthRecords.id, id));
+    const existing = await db
+      .select()
+      .from(healthRecords)
+      .where(eq(healthRecords.id, id));
     if (!existing.length) return undefined;
     const record = existing[0];
-    const archivedNotes = record.notes?.startsWith('[ARQUIVADO]') ? record.notes : `[ARQUIVADO] ${record.notes || ''}`;
-    const [updated] = await db.update(healthRecords).set({ notes: archivedNotes }).where(eq(healthRecords.id, id)).returning();
+    const archivedNotes = record.notes?.startsWith("[ARQUIVADO]")
+      ? record.notes
+      : `[ARQUIVADO] ${record.notes || ""}`;
+    const [updated] = await db
+      .update(healthRecords)
+      .set({ notes: archivedNotes })
+      .where(eq(healthRecords.id, id))
+      .returning();
     return updated;
   }
 
   // Milestones
   async getMilestones(childId: number): Promise<Milestone[]> {
-    return await db.select().from(milestones).where(eq(milestones.childId, childId));
+    return await db
+      .select()
+      .from(milestones)
+      .where(eq(milestones.childId, childId));
   }
 
   async getMilestoneById(id: number): Promise<Milestone | undefined> {
-    const [record] = await db.select().from(milestones).where(eq(milestones.id, id));
+    const [record] = await db
+      .select()
+      .from(milestones)
+      .where(eq(milestones.id, id));
     return record;
   }
 
   async createMilestone(milestone: InsertMilestone): Promise<Milestone> {
-    const [newMilestone] = await db.insert(milestones).values(milestone).returning();
+    const [newMilestone] = await db
+      .insert(milestones)
+      .values(milestone)
+      .returning();
     return newMilestone;
   }
 
-  async updateMilestone(id: number, data: Partial<InsertMilestone>): Promise<Milestone | undefined> {
-    const [updated] = await db.update(milestones).set(data).where(eq(milestones.id, id)).returning();
+  async updateMilestone(
+    id: number,
+    data: Partial<InsertMilestone>,
+  ): Promise<Milestone | undefined> {
+    const [updated] = await db
+      .update(milestones)
+      .set(data)
+      .where(eq(milestones.id, id))
+      .returning();
     return updated;
   }
 
   async deleteMilestone(id: number): Promise<boolean> {
-    const result = await db.delete(milestones).where(eq(milestones.id, id)).returning();
+    const result = await db
+      .delete(milestones)
+      .where(eq(milestones.id, id))
+      .returning();
     return result.length > 0;
   }
 
   // Diary
   async getDiaryEntries(childId: number): Promise<DiaryEntry[]> {
-    return await db.select().from(diaryEntries).where(eq(diaryEntries.childId, childId));
+    return await db
+      .select()
+      .from(diaryEntries)
+      .where(eq(diaryEntries.childId, childId));
   }
 
   async getDiaryEntryById(id: number): Promise<DiaryEntry | undefined> {
-    const [record] = await db.select().from(diaryEntries).where(eq(diaryEntries.id, id));
+    const [record] = await db
+      .select()
+      .from(diaryEntries)
+      .where(eq(diaryEntries.id, id));
     return record;
   }
 
@@ -283,49 +440,66 @@ export class DatabaseStorage implements IStorage {
     return newEntry;
   }
 
-  async updateDiaryEntry(id: number, data: Partial<InsertDiaryEntry>): Promise<DiaryEntry | undefined> {
-    const [updated] = await db.update(diaryEntries).set(data).where(eq(diaryEntries.id, id)).returning();
+  async updateDiaryEntry(
+    id: number,
+    data: Partial<InsertDiaryEntry>,
+  ): Promise<DiaryEntry | undefined> {
+    const [updated] = await db
+      .update(diaryEntries)
+      .set(data)
+      .where(eq(diaryEntries.id, id))
+      .returning();
     return updated;
   }
 
   async deleteDiaryEntry(id: number): Promise<boolean> {
-    const result = await db.delete(diaryEntries).where(eq(diaryEntries.id, id)).returning();
+    const result = await db
+      .delete(diaryEntries)
+      .where(eq(diaryEntries.id, id))
+      .returning();
     return result.length > 0;
   }
 
   // Gamification
   async getGamification(childId: number): Promise<Gamification | undefined> {
-    const [g] = await db.select().from(gamification).where(eq(gamification.childId, childId));
+    const [g] = await db
+      .select()
+      .from(gamification)
+      .where(eq(gamification.childId, childId));
     return g;
   }
 
   async initializeGamification(childId: number): Promise<Gamification> {
     const existing = await this.getGamification(childId);
     if (existing) return existing;
-    
-    const [created] = await db.insert(gamification).values({ 
-      childId, 
-      points: 0, 
-      level: 'Iniciante' 
-    }).returning();
+
+    const [created] = await db
+      .insert(gamification)
+      .values({
+        childId,
+        points: 0,
+        level: "Iniciante",
+      })
+      .returning();
     return created;
   }
 
   async addPoints(childId: number, points: number): Promise<Gamification> {
     // Ensure gamification exists for this child
     await this.initializeGamification(childId);
-    
+
     const current = await this.getGamification(childId);
     const newPoints = (current?.points || 0) + points;
-    
-    // Simple level logic
-    let level = 'Iniciante';
-    if (newPoints > 100) level = 'Cuidador Atento';
-    if (newPoints > 500) level = 'Mãe/Pai Dedicado';
-    if (newPoints > 1000) level = 'Mãe/Pai Coruja';
-    if (newPoints > 2000) level = 'Guardião da Infância';
 
-    const [updated] = await db.update(gamification)
+    // Simple level logic
+    let level = "Iniciante";
+    if (newPoints > 100) level = "Cuidador Atento";
+    if (newPoints > 500) level = "Mãe/Pai Dedicado";
+    if (newPoints > 1000) level = "Mãe/Pai Coruja";
+    if (newPoints > 2000) level = "Guardião da Infância";
+
+    const [updated] = await db
+      .update(gamification)
       .set({ points: newPoints, level, updatedAt: new Date() })
       .where(eq(gamification.childId, childId))
       .returning();
@@ -339,10 +513,10 @@ export class DatabaseStorage implements IStorage {
 
   async initializeSusVaccines(): Promise<void> {
     const existing = await this.getSusVaccines();
-    
+
     // Versão do calendário - incrementar quando atualizar a lista
     const CALENDAR_VERSION = 2; // PNI 2025 atualizado
-    
+
     // Verifica se precisa atualizar (20 vacinas na versão 2)
     if (existing.length === 20) return;
 
@@ -354,46 +528,149 @@ export class DatabaseStorage implements IStorage {
     // Calendário Nacional de Vacinação da Criança 2025 (PNI/SUS) - Atualizado
     const vaccineList: InsertSusVaccine[] = [
       // Ao nascer
-      { name: "BCG", diseasesPrevented: "Tuberculose (formas graves)", recommendedDoses: "Dose única", ageRange: "Ao nascer" },
-      { name: "Hepatite B", diseasesPrevented: "Hepatite B", recommendedDoses: "1ª dose", ageRange: "Ao nascer (primeiras 24h)" },
-      
+      {
+        name: "BCG",
+        diseasesPrevented: "Tuberculose (formas graves)",
+        recommendedDoses: "Dose única",
+        ageRange: "Ao nascer",
+      },
+      {
+        name: "Hepatite B",
+        diseasesPrevented: "Hepatite B",
+        recommendedDoses: "1ª dose",
+        ageRange: "Ao nascer (primeiras 24h)",
+      },
+
       // 2 meses
-      { name: "Pentavalente (DTP+Hib+HB)", diseasesPrevented: "Difteria, Tétano, Coqueluche, Haemophilus influenzae b, Hepatite B", recommendedDoses: "1ª, 2ª, 3ª dose", ageRange: "2, 4, 6 meses" },
-      { name: "VIP (Pólio Inativada)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "1ª, 2ª, 3ª dose", ageRange: "2, 4, 6 meses" },
-      { name: "Pneumocócica 10-valente", diseasesPrevented: "Pneumonia, Meningite, Otite (doenças pneumocócicas)", recommendedDoses: "1ª, 2ª dose + Reforço", ageRange: "2, 4 meses + reforço 12 meses" },
-      { name: "Rotavírus Humano", diseasesPrevented: "Diarreia grave por rotavírus", recommendedDoses: "1ª, 2ª dose", ageRange: "2, 4 meses" },
-      
+      {
+        name: "Pentavalente (DTP+Hib+HB)",
+        diseasesPrevented:
+          "Difteria, Tétano, Coqueluche, Haemophilus influenzae b, Hepatite B",
+        recommendedDoses: "1ª, 2ª, 3ª dose",
+        ageRange: "2, 4, 6 meses",
+      },
+      {
+        name: "VIP (Pólio Inativada)",
+        diseasesPrevented: "Poliomielite (paralisia infantil)",
+        recommendedDoses: "1ª, 2ª, 3ª dose",
+        ageRange: "2, 4, 6 meses",
+      },
+      {
+        name: "Pneumocócica 10-valente",
+        diseasesPrevented:
+          "Pneumonia, Meningite, Otite (doenças pneumocócicas)",
+        recommendedDoses: "1ª, 2ª dose + Reforço",
+        ageRange: "2, 4 meses + reforço 12 meses",
+      },
+      {
+        name: "Rotavírus Humano",
+        diseasesPrevented: "Diarreia grave por rotavírus",
+        recommendedDoses: "1ª, 2ª dose",
+        ageRange: "2, 4 meses",
+      },
+
       // 3 e 5 meses
-      { name: "Meningocócica C (conjugada)", diseasesPrevented: "Meningite e infecção generalizada por meningococo C", recommendedDoses: "1ª, 2ª dose + Reforço", ageRange: "3, 5 meses + reforço 12 meses" },
-      
+      {
+        name: "Meningocócica C (conjugada)",
+        diseasesPrevented:
+          "Meningite e infecção generalizada por meningococo C",
+        recommendedDoses: "1ª, 2ª dose + Reforço",
+        ageRange: "3, 5 meses + reforço 12 meses",
+      },
+
       // 6 meses em diante
-      { name: "Influenza (Gripe)", diseasesPrevented: "Gripe e suas complicações", recommendedDoses: "Dose anual (campanhas)", ageRange: "A partir de 6 meses (campanhas anuais)" },
-      
+      {
+        name: "Influenza (Gripe)",
+        diseasesPrevented: "Gripe e suas complicações",
+        recommendedDoses: "Dose anual (campanhas)",
+        ageRange: "A partir de 6 meses (campanhas anuais)",
+      },
+
       // 9 meses
-      { name: "Febre Amarela", diseasesPrevented: "Febre amarela", recommendedDoses: "1ª dose + Reforço", ageRange: "9 meses + reforço 4 anos" },
-      
+      {
+        name: "Febre Amarela",
+        diseasesPrevented: "Febre amarela",
+        recommendedDoses: "1ª dose + Reforço",
+        ageRange: "9 meses + reforço 4 anos",
+      },
+
       // 12 meses
-      { name: "Tríplice Viral (SCR)", diseasesPrevented: "Sarampo, Caxumba, Rubéola", recommendedDoses: "1ª dose", ageRange: "12 meses" },
-      
+      {
+        name: "Tríplice Viral (SCR)",
+        diseasesPrevented: "Sarampo, Caxumba, Rubéola",
+        recommendedDoses: "1ª dose",
+        ageRange: "12 meses",
+      },
+
       // 15 meses
-      { name: "Tetra Viral (SCRV)", diseasesPrevented: "Sarampo, Caxumba, Rubéola, Varicela", recommendedDoses: "Dose única (2ª SCR + 1ª Varicela)", ageRange: "15 meses" },
-      { name: "DTP (Tríplice Bacteriana)", diseasesPrevented: "Difteria, Tétano, Coqueluche", recommendedDoses: "1º reforço", ageRange: "15 meses" },
-      { name: "Hepatite A", diseasesPrevented: "Hepatite A", recommendedDoses: "Dose única", ageRange: "15 meses" },
-      
+      {
+        name: "Tetra Viral (SCRV)",
+        diseasesPrevented: "Sarampo, Caxumba, Rubéola, Varicela",
+        recommendedDoses: "Dose única (2ª SCR + 1ª Varicela)",
+        ageRange: "15 meses",
+      },
+      {
+        name: "DTP (Tríplice Bacteriana)",
+        diseasesPrevented: "Difteria, Tétano, Coqueluche",
+        recommendedDoses: "1º reforço",
+        ageRange: "15 meses",
+      },
+      {
+        name: "Hepatite A",
+        diseasesPrevented: "Hepatite A",
+        recommendedDoses: "Dose única",
+        ageRange: "15 meses",
+      },
+
       // 18 meses (reforço pólio)
-      { name: "Reforço Pólio (VIP/VOP)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "1º reforço", ageRange: "18 meses" },
-      
+      {
+        name: "Reforço Pólio (VIP/VOP)",
+        diseasesPrevented: "Poliomielite (paralisia infantil)",
+        recommendedDoses: "1º reforço",
+        ageRange: "18 meses",
+      },
+
       // 4 anos
-      { name: "DTP 2º Reforço", diseasesPrevented: "Difteria, Tétano, Coqueluche", recommendedDoses: "2º reforço", ageRange: "4 anos" },
-      { name: "Reforço Pólio 4 anos", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "2º reforço", ageRange: "4 anos" },
-      { name: "Varicela (2ª dose)", diseasesPrevented: "Catapora (varicela)", recommendedDoses: "2ª dose", ageRange: "4 anos" },
-      
+      {
+        name: "DTP 2º Reforço",
+        diseasesPrevented: "Difteria, Tétano, Coqueluche",
+        recommendedDoses: "2º reforço",
+        ageRange: "4 anos",
+      },
+      {
+        name: "Reforço Pólio 4 anos",
+        diseasesPrevented: "Poliomielite (paralisia infantil)",
+        recommendedDoses: "2º reforço",
+        ageRange: "4 anos",
+      },
+      {
+        name: "Varicela (2ª dose)",
+        diseasesPrevented: "Catapora (varicela)",
+        recommendedDoses: "2ª dose",
+        ageRange: "4 anos",
+      },
+
       // COVID-19 (6 meses a 4 anos)
-      { name: "COVID-19 Infantil", diseasesPrevented: "COVID-19", recommendedDoses: "Esquema conforme vacina pediátrica", ageRange: "6 meses a 4 anos" },
-      
+      {
+        name: "COVID-19 Infantil",
+        diseasesPrevented: "COVID-19",
+        recommendedDoses: "Esquema conforme vacina pediátrica",
+        ageRange: "6 meses a 4 anos",
+      },
+
       // 9-14 anos (Pré-adolescentes)
-      { name: "HPV Quadrivalente", diseasesPrevented: "HPV (Papilomavírus Humano) - prevenção de cânceres", recommendedDoses: "2 doses (intervalo 6 meses)", ageRange: "9-14 anos (meninas) / 11-14 anos (meninos)" },
-      { name: "Meningocócica ACWY", diseasesPrevented: "Meningite meningocócica A, C, W, Y", recommendedDoses: "Reforço", ageRange: "11-14 anos" },
+      {
+        name: "HPV Quadrivalente",
+        diseasesPrevented: "HPV (Papilomavírus Humano) - prevenção de cânceres",
+        recommendedDoses: "2 doses (intervalo 6 meses)",
+        ageRange: "9-14 anos (meninas) / 11-14 anos (meninos)",
+      },
+      {
+        name: "Meningocócica ACWY",
+        diseasesPrevented: "Meningite meningocócica A, C, W, Y",
+        recommendedDoses: "Reforço",
+        ageRange: "11-14 anos",
+      },
     ];
 
     await db.insert(susVaccines).values(vaccineList);
@@ -401,21 +678,39 @@ export class DatabaseStorage implements IStorage {
 
   // Vaccine Records
   async getVaccineRecords(childId: number): Promise<VaccineRecord[]> {
-    return await db.select().from(vaccineRecords).where(eq(vaccineRecords.childId, childId));
+    return await db
+      .select()
+      .from(vaccineRecords)
+      .where(eq(vaccineRecords.childId, childId));
   }
 
   async getVaccineRecordById(id: number): Promise<VaccineRecord | undefined> {
-    const [record] = await db.select().from(vaccineRecords).where(eq(vaccineRecords.id, id));
+    const [record] = await db
+      .select()
+      .from(vaccineRecords)
+      .where(eq(vaccineRecords.id, id));
     return record;
   }
 
-  async createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord> {
-    const [newRecord] = await db.insert(vaccineRecords).values(record).returning();
+  async createVaccineRecord(
+    record: InsertVaccineRecord,
+  ): Promise<VaccineRecord> {
+    const [newRecord] = await db
+      .insert(vaccineRecords)
+      .values(record)
+      .returning();
     return newRecord;
   }
 
-  async updateVaccineRecord(id: number, updates: Partial<InsertVaccineRecord>): Promise<VaccineRecord> {
-    const [updated] = await db.update(vaccineRecords).set(updates).where(eq(vaccineRecords.id, id)).returning();
+  async updateVaccineRecord(
+    id: number,
+    updates: Partial<InsertVaccineRecord>,
+  ): Promise<VaccineRecord> {
+    const [updated] = await db
+      .update(vaccineRecords)
+      .set(updates)
+      .where(eq(vaccineRecords.id, id))
+      .returning();
     return updated;
   }
 
@@ -425,17 +720,28 @@ export class DatabaseStorage implements IStorage {
 
   // Daily Photos
   async getDailyPhotos(childId: number): Promise<DailyPhoto[]> {
-    return await db.select().from(dailyPhotos).where(eq(dailyPhotos.childId, childId));
+    return await db
+      .select()
+      .from(dailyPhotos)
+      .where(eq(dailyPhotos.childId, childId));
   }
 
-  async getDailyPhotoByDate(childId: number, date: string): Promise<DailyPhoto | undefined> {
-    const [photo] = await db.select().from(dailyPhotos)
+  async getDailyPhotoByDate(
+    childId: number,
+    date: string,
+  ): Promise<DailyPhoto | undefined> {
+    const [photo] = await db
+      .select()
+      .from(dailyPhotos)
       .where(and(eq(dailyPhotos.childId, childId), eq(dailyPhotos.date, date)));
     return photo;
   }
 
   async getDailyPhotoById(id: number): Promise<DailyPhoto | undefined> {
-    const [photo] = await db.select().from(dailyPhotos).where(eq(dailyPhotos.id, id));
+    const [photo] = await db
+      .select()
+      .from(dailyPhotos)
+      .where(eq(dailyPhotos.id, id));
     return photo;
   }
 
@@ -448,28 +754,118 @@ export class DatabaseStorage implements IStorage {
     await db.delete(dailyPhotos).where(eq(dailyPhotos.id, id));
   }
 
-  async getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]> {
-    return await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+  async getPushSubscriptionsByUserId(
+    userId: string,
+  ): Promise<PushSubscription[]> {
+    return await db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, userId));
   }
 
   async getAllPushSubscriptions(): Promise<PushSubscription[]> {
     return await db.select().from(pushSubscriptions);
   }
 
-  async createPushSubscription(sub: InsertPushSubscription): Promise<PushSubscription> {
-    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
-    const [created] = await db.insert(pushSubscriptions).values(sub).returning();
+  async createPushSubscription(
+    sub: InsertPushSubscription,
+  ): Promise<PushSubscription> {
+    await db
+      .delete(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, sub.endpoint));
+    const [created] = await db
+      .insert(pushSubscriptions)
+      .values(sub)
+      .returning();
     return created;
   }
 
   async deletePushSubscription(endpoint: string): Promise<void> {
-    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+    await db
+      .delete(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint));
   }
 
-  async deletePushSubscriptionByUser(userId: string, endpoint: string): Promise<void> {
-    await db.delete(pushSubscriptions).where(
-      and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint))
-    );
+  async deletePushSubscriptionByUser(
+    userId: string,
+    endpoint: string,
+  ): Promise<void> {
+    await db
+      .delete(pushSubscriptions)
+      .where(
+        and(
+          eq(pushSubscriptions.userId, userId),
+          eq(pushSubscriptions.endpoint, endpoint),
+        ),
+      );
+  }
+
+  // Invite Codes
+  async createInviteCode(data: InsertInviteCode): Promise<InviteCode> {
+    const [created] = await db.insert(inviteCodes).values(data).returning();
+    return created;
+  }
+
+  async getInviteCodeByCode(code: string): Promise<InviteCode | undefined> {
+    const [invite] = await db
+      .select()
+      .from(inviteCodes)
+      .where(eq(inviteCodes.code, code));
+    return invite;
+  }
+
+  async markInviteCodeUsed(id: number, usedBy: string): Promise<InviteCode> {
+    const [updated] = await db
+      .update(inviteCodes)
+      .set({ usedBy, usedAt: new Date() })
+      .where(eq(inviteCodes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getInviteCodesByChildId(childId: number): Promise<InviteCode[]> {
+    return await db
+      .select()
+      .from(inviteCodes)
+      .where(eq(inviteCodes.childId, childId));
+  }
+
+  async getCaregiversByChildId(
+    childId: number,
+  ): Promise<
+    Array<{
+      id: number;
+      userId: string;
+      relationship: string;
+      role: string;
+      userName: string | null;
+      userEmail: string | null;
+    }>
+  > {
+    const results = await db
+      .select({
+        id: caregivers.id,
+        userId: caregivers.userId,
+        relationship: caregivers.relationship,
+        role: caregivers.role,
+        userName: users.firstName,
+        userEmail: users.email,
+      })
+      .from(caregivers)
+      .leftJoin(users, eq(caregivers.userId, users.id))
+      .where(eq(caregivers.childId, childId));
+    return results;
+  }
+
+  async removeCaregiverFromChild(
+    childId: number,
+    caregiverId: number,
+  ): Promise<void> {
+    await db
+      .delete(caregivers)
+      .where(
+        and(eq(caregivers.id, caregiverId), eq(caregivers.childId, childId)),
+      );
   }
 }
 
