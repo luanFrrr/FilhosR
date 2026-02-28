@@ -108,7 +108,8 @@ export function useCaregivers(childId: number) {
         userId: string;
         relationship: string;
         role: string;
-        userName: string | null;
+        userFirstName: string | null;
+        userLastName: string | null;
         userEmail: string | null;
       }>>;
     },

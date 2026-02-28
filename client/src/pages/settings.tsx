@@ -100,7 +100,7 @@ function CaregiversList({ childId, isOwner, onRemove }: {
               <User className="w-3.5 h-3.5 text-primary" />
             </div>
             <span className="text-sm truncate" data-testid={`text-caregiver-name-${c.id}`}>
-              {c.userName || c.userEmail || "Cuidador"}
+              {[c.userFirstName, c.userLastName].filter(Boolean).join(" ") || c.userEmail || "Cuidador"}
             </span>
           </div>
           {isOwner && (
@@ -108,7 +108,7 @@ function CaregiversList({ childId, isOwner, onRemove }: {
               size="icon"
               variant="ghost"
               className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => onRemove(c.id, c.userName || c.userEmail || "Cuidador")}
+              onClick={() => onRemove(c.id, [c.userFirstName, c.userLastName].filter(Boolean).join(" ") || c.userEmail || "Cuidador")}
               data-testid={`button-remove-caregiver-${c.id}`}
             >
               <UserMinus className="w-3.5 h-3.5" />
@@ -418,12 +418,12 @@ export default function Settings() {
                       <CaregiversList
                         childId={child.id}
                         isOwner={true}
-                        onRemove={(caregiverId, name) => {
-                          if (confirm(`Remover ${name} como cuidador(a)?`)) {
+                        onRemove={(caregiverId, displayName) => {
+                          if (confirm(`Remover ${displayName} como cuidador(a)?`)) {
                             removeCaregiver.mutate(
                               { childId: child.id, caregiverId },
                               {
-                                onSuccess: () => toast({ title: `${name} removido(a)` }),
+                                onSuccess: () => toast({ title: `${displayName} removido(a)` }),
                                 onError: (e) => toast({ title: e.message, variant: "destructive" }),
                               }
                             );

@@ -154,7 +154,8 @@ export interface IStorage {
       userId: string;
       relationship: string;
       role: string;
-      userName: string | null;
+      userFirstName: string | null;
+      userLastName: string | null;
       userEmail: string | null;
     }>
   >;
@@ -867,7 +868,8 @@ export class DatabaseStorage implements IStorage {
       userId: string;
       relationship: string;
       role: string;
-      userName: string | null;
+      userFirstName: string | null;
+      userLastName: string | null;
       userEmail: string | null;
     }>
   > {
@@ -877,7 +879,8 @@ export class DatabaseStorage implements IStorage {
         userId: caregivers.userId,
         relationship: caregivers.relationship,
         role: caregivers.role,
-        userName: users.firstName,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
         userEmail: users.email,
       })
       .from(caregivers)
