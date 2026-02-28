@@ -50,10 +50,35 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
-async function upsertUser(claims: any) {
-  const firstName = claims["first_name"] || claims["given_name"] || claims["name"] || null;
-  const lastName = claims["last_name"] || claims["family_name"] || null;
-  const profileImageUrl = claims["profile_image_url"] || claims["picture"] || null;
+async function upsertUser(claims: any, req?: any) {
+  let firstName = claims["first_name"] || claims["given_name"] || claims["name"] || null;
+  let lastName = claims["last_name"] || claims["family_name"] || null;
+  let profileImageUrl = claims["profile_image_url"] || claims["picture"] || null;
+
+  // Fallback to Replit proxy headers if available and profile data is missing
+  if (req && req.headers) {
+    const rName = req.headers["x-replit-user-name"];
+    if (rName && !firstName) firstName = rName;
+    
+    const rPic = req.headers["x-replit-user-profile-image"];
+    if (rPic && !profileImageUrl) profileImageUrl = rPic;
+  }
+
+  // Prevent email from being used as the first name (which happens if identity provider defaults name to email)
+  if (firstName && claims["email"] && firstName === claims["email"]) {
+    firstName = null;
+  }
+  if (lastName && claims["email"] && lastName === claims["email"]) {
+    lastName = null;
+  }
+
+  // If first name has a space, attempt to split into first and last name if last name is missing
+  if (firstName && typeof firstName === "string" && firstName.includes(" ") && !lastName) {
+    const parts = firstName.split(" ");
+    firstName = parts[0];
+    lastName = parts.slice(1).join(" ");
+  }
+
   await authStorage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
@@ -71,14 +96,23 @@ export async function setupAuth(app: Express) {
 
   const config = await getOidcConfig();
 
-  const verify: VerifyFunction = async (
+  const verify: any = async (
+    req: any,
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
-    const user = {};
-    updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
-    verified(null, user);
+    try {
+      const user = {};
+      updateUserSession(user, tokens);
+      
+      // The ID token claims might not include profile data.
+      let claims = tokens.claims();
+      
+      await upsertUser(claims, req);
+      verified(null, user);
+    } catch (err) {
+      verified(err as Error);
+    }
   };
 
   // Keep track of registered strategies
@@ -94,6 +128,7 @@ export async function setupAuth(app: Express) {
           config,
           scope: "openid email profile offline_access",
           callbackURL: `https://${domain}/api/callback`,
+          passReqToCallback: true,
         },
         verify
       );
