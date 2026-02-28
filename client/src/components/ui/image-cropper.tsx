@@ -152,7 +152,7 @@ export function ImageCropper({
       }
       onOpenChange(o);
     }}>
-      <DialogContent className="max-w-sm p-4 rounded-2xl">
+      <DialogContent className="max-w-sm p-4 rounded-2xl border-gray-200 bg-white">
         <DialogTitle className="text-center text-sm font-semibold">
           Ajustar foto
         </DialogTitle>

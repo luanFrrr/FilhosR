@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useCreateChild } from "@/hooks/use-children";
+import { useChildren, useCreateChild } from "@/hooks/use-children";
 import { useChildContext } from "@/hooks/use-child-context";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,11 +24,13 @@ import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
+  const { data: existingChildren } = useChildren();
   const createChild = useCreateChild();
   const { setActiveChildId } = useChildContext();
   const { toast } = useToast();
   const [photo, setPhoto] = useState<string | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
+  const isAddingAnother = existingChildren && existingChildren.length > 0;
   const { register, handleSubmit, watch, setValue, control } = useForm({
     defaultValues: {
       name: "",
@@ -79,10 +81,10 @@ export default function Onboarding() {
         onSuccess: (child) => {
           setActiveChildId(child.id);
           toast({
-            title: "Bem-vindo(a)!",
+            title: isAddingAnother ? "Perfil criado!" : "Bem-vindo(a)!",
             description: "Perfil criado com sucesso.",
           });
-          setLocation("/");
+          setLocation(isAddingAnother ? "/settings" : "/");
         },
         onError: () => {
           toast({ title: "Erro ao criar perfil", variant: "destructive" });
