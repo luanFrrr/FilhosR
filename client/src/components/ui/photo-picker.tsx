@@ -7,14 +7,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
+import { ImageCropper } from "@/components/ui/image-cropper";
 
 interface PhotoPickerProps {
   onPhotoSelected: (file: File) => void;
   children: (openPicker: () => void) => React.ReactNode;
+  enableCrop?: boolean;
 }
 
-export function PhotoPicker({ onPhotoSelected, children }: PhotoPickerProps) {
+export function PhotoPicker({ onPhotoSelected, children, enableCrop = true }: PhotoPickerProps) {
   const [open, setOpen] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -26,10 +30,27 @@ export function PhotoPicker({ onPhotoSelected, children }: PhotoPickerProps) {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-        onPhotoSelected(file);
+        if (enableCrop) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            setCropSrc(reader.result as string);
+            setCropOpen(true);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          onPhotoSelected(file);
+        }
       }
       e.target.value = "";
       setOpen(false);
+    },
+    [onPhotoSelected, enableCrop]
+  );
+
+  const handleCropComplete = useCallback(
+    (croppedFile: File) => {
+      onPhotoSelected(croppedFile);
+      setCropSrc(null);
     },
     [onPhotoSelected]
   );
@@ -104,6 +125,16 @@ export function PhotoPicker({ onPhotoSelected, children }: PhotoPickerProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImageCropper
+        imageSrc={cropSrc}
+        open={cropOpen}
+        onOpenChange={(o) => {
+          setCropOpen(o);
+          if (!o) setCropSrc(null);
+        }}
+        onCropComplete={handleCropComplete}
+      />
     </>
   );
 }

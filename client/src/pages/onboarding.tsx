@@ -9,6 +9,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Baby, ArrowRight, Heart, Camera, Ticket } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
 import { parseDecimalBR } from "@/lib/utils";
@@ -26,6 +33,7 @@ export default function Onboarding() {
     defaultValues: {
       name: "",
       birthDate: "",
+      gender: "unspecified",
       theme: "neutral",
       initialWeight: "",
       initialHeight: "",
@@ -61,7 +69,7 @@ export default function Onboarding() {
     createChild.mutate(
       {
         ...data,
-        gender: data.gender || "unspecified",
+        gender: data.gender,
         initialWeight: weight !== null ? weight.toString() : null,
         initialHeight: height !== null ? height.toString() : null,
         initialHeadCircumference: head !== null ? head.toString() : null,
@@ -161,6 +169,26 @@ export default function Onboarding() {
                 type="date"
                 {...register("birthDate", { required: true })}
                 className="input-field"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Sexo</Label>
+              <Controller
+                name="gender"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="input-field" data-testid="select-gender">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Masculino</SelectItem>
+                      <SelectItem value="female">Feminino</SelectItem>
+                      <SelectItem value="unspecified">Prefiro não informar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               />
             </div>
 
