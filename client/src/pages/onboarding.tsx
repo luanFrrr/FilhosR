@@ -9,10 +9,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
-import { Baby, ArrowRight, Heart, Camera } from "lucide-react";
+import { Baby, ArrowRight, Heart, Camera, Ticket } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
 import { parseDecimalBR } from "@/lib/utils";
 import { PhotoPicker } from "@/components/ui/photo-picker";
+import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
@@ -20,15 +21,16 @@ export default function Onboarding() {
   const { setActiveChildId } = useChildContext();
   const { toast } = useToast();
   const [photo, setPhoto] = useState<string | null>(null);
+  const [redeemOpen, setRedeemOpen] = useState(false);
   const { register, handleSubmit, watch, setValue, control } = useForm({
     defaultValues: {
-      name: '',
-      birthDate: '',
-      theme: 'neutral',
-      initialWeight: '',
-      initialHeight: '',
-      initialHeadCircumference: '',
-    }
+      name: "",
+      birthDate: "",
+      theme: "neutral",
+      initialWeight: "",
+      initialHeight: "",
+      initialHeadCircumference: "",
+    },
   });
 
   const selectedTheme = watch("theme");
@@ -36,7 +38,11 @@ export default function Onboarding() {
 
   const handlePhotoFile = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 10MB", variant: "destructive" });
+      toast({
+        title: "Imagem muito grande",
+        description: "Escolha uma imagem menor que 10MB",
+        variant: "destructive",
+      });
       return;
     }
     try {
@@ -51,35 +57,45 @@ export default function Onboarding() {
     const weight = parseDecimalBR(data.initialWeight);
     const height = parseDecimalBR(data.initialHeight);
     const head = parseDecimalBR(data.initialHeadCircumference);
-    
-    createChild.mutate({
-      ...data,
-      gender: data.gender || 'unspecified',
-      initialWeight: weight !== null ? weight.toString() : null,
-      initialHeight: height !== null ? height.toString() : null,
-      initialHeadCircumference: head !== null ? head.toString() : null,
-      photoUrl: photo,
-    }, {
-      onSuccess: (child) => {
-        setActiveChildId(child.id);
-        toast({ title: "Bem-vindo(a)!", description: "Perfil criado com sucesso." });
-        setLocation("/");
+
+    createChild.mutate(
+      {
+        ...data,
+        gender: data.gender || "unspecified",
+        initialWeight: weight !== null ? weight.toString() : null,
+        initialHeight: height !== null ? height.toString() : null,
+        initialHeadCircumference: head !== null ? head.toString() : null,
+        photoUrl: photo,
       },
-      onError: () => {
-        toast({ title: "Erro ao criar perfil", variant: "destructive" });
-      }
-    });
+      {
+        onSuccess: (child) => {
+          setActiveChildId(child.id);
+          toast({
+            title: "Bem-vindo(a)!",
+            description: "Perfil criado com sucesso.",
+          });
+          setLocation("/");
+        },
+        onError: () => {
+          toast({ title: "Erro ao criar perfil", variant: "destructive" });
+        },
+      },
+    );
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="text-center mb-8">
-           <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
-             <Heart className="w-8 h-8 fill-current" />
-           </div>
-           <h2 className="text-3xl font-display font-bold text-foreground">Vamos começar!</h2>
-           <p className="mt-2 text-muted-foreground">Crie o perfil do seu pequeno para acompanharmos essa jornada juntos.</p>
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
+            <Heart className="w-8 h-8 fill-current" />
+          </div>
+          <h2 className="text-3xl font-display font-bold text-foreground">
+            Vamos começar!
+          </h2>
+          <p className="mt-2 text-muted-foreground">
+            Crie o perfil do seu pequeno para acompanharmos essa jornada juntos.
+          </p>
         </div>
 
         <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-border/50">
@@ -89,17 +105,24 @@ export default function Onboarding() {
                 <div className="flex flex-col items-center gap-3 pb-2">
                   <div className="relative">
                     {photo ? (
-                      <img 
-                        src={photo} 
+                      <img
+                        src={photo}
                         alt="Foto"
                         className="w-24 h-24 rounded-full object-cover border-4 border-primary/20 shadow-lg"
                       />
                     ) : (
-                      <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-lg ${
-                        selectedTheme === 'blue' ? 'bg-blue-400' : 
-                        selectedTheme === 'pink' ? 'bg-pink-400' : 'bg-slate-300'
-                      }`}>
-                        {watchName?.charAt(0)?.toUpperCase() || <Camera className="w-8 h-8 text-white/70" />}
+                      <div
+                        className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-lg ${
+                          selectedTheme === "blue"
+                            ? "bg-blue-400"
+                            : selectedTheme === "pink"
+                              ? "bg-pink-400"
+                              : "bg-slate-300"
+                        }`}
+                      >
+                        {watchName?.charAt(0)?.toUpperCase() || (
+                          <Camera className="w-8 h-8 text-white/70" />
+                        )}
                       </div>
                     )}
                     <Button
@@ -113,45 +136,80 @@ export default function Onboarding() {
                       <Camera className="w-4 h-4 text-primary" />
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Adicionar foto (opcional)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Adicionar foto (opcional)
+                  </p>
                 </div>
               )}
             </PhotoPicker>
 
             <div className="space-y-2">
               <Label htmlFor="name">Nome da Criança</Label>
-              <Input id="name" {...register("name", { required: true })} className="input-field" placeholder="Ex: Miguel" data-testid="input-child-name" />
+              <Input
+                id="name"
+                {...register("name", { required: true })}
+                className="input-field"
+                placeholder="Ex: Miguel"
+                data-testid="input-child-name"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="birthDate">Data de Nascimento</Label>
-              <Input id="birthDate" type="date" {...register("birthDate", { required: true })} className="input-field" />
+              <Input
+                id="birthDate"
+                type="date"
+                {...register("birthDate", { required: true })}
+                className="input-field"
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Tema Visual</Label>
-              <RadioGroup 
-                defaultValue="neutral" 
-                className="flex gap-4" 
+              <RadioGroup
+                defaultValue="neutral"
+                className="flex gap-4"
                 onValueChange={(val) => setValue("theme", val)}
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="neutral" id="neutral" />
-                  <Label htmlFor="neutral" className="cursor-pointer">Neutro</Label>
+                  <Label htmlFor="neutral" className="cursor-pointer">
+                    Neutro
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="blue" id="blue" className="text-blue-500 border-blue-500" />
-                  <Label htmlFor="blue" className="cursor-pointer text-blue-600">Azul</Label>
+                  <RadioGroupItem
+                    value="blue"
+                    id="blue"
+                    className="text-blue-500 border-blue-500"
+                  />
+                  <Label
+                    htmlFor="blue"
+                    className="cursor-pointer text-blue-600"
+                  >
+                    Azul
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="pink" id="pink" className="text-pink-500 border-pink-500" />
-                  <Label htmlFor="pink" className="cursor-pointer text-pink-600">Rosa</Label>
+                  <RadioGroupItem
+                    value="pink"
+                    id="pink"
+                    className="text-pink-500 border-pink-500"
+                  />
+                  <Label
+                    htmlFor="pink"
+                    className="cursor-pointer text-pink-600"
+                  >
+                    Rosa
+                  </Label>
                 </div>
               </RadioGroup>
             </div>
 
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground font-medium">Medidas ao nascer</p>
+              <p className="text-sm text-muted-foreground font-medium">
+                Medidas ao nascer
+              </p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs">Peso (kg)</Label>
@@ -206,13 +264,39 @@ export default function Onboarding() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full btn-primary h-12 text-lg mt-4" disabled={createChild.isPending}>
+            <Button
+              type="submit"
+              className="w-full btn-primary h-12 text-lg mt-4"
+              disabled={createChild.isPending}
+            >
               {createChild.isPending ? "Criando..." : "Criar Perfil"}
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border/50" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-3 text-muted-foreground">ou</span>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            className="w-full gap-2 h-12"
+            onClick={() => setRedeemOpen(true)}
+          >
+            <Ticket className="w-5 h-5" /> Usar Código de Convite
+          </Button>
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            Recebeu um código de convite? Use-o para acompanhar uma criança.
+          </p>
         </div>
       </div>
+
+      <RedeemCodeDialog open={redeemOpen} onOpenChange={setRedeemOpen} />
     </div>
   );
 }
