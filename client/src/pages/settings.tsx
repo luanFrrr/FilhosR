@@ -74,6 +74,7 @@ import {
 } from "@/components/ui/select";
 import { PhotoView } from "@/components/ui/photo-view";
 import { PhotoPicker } from "@/components/ui/photo-picker";
+import { UserAvatar } from "@/components/ui/user-avatar";
 
 function CaregiversList({ childId, isOwner, onRemove }: {
   childId: number;
@@ -96,8 +97,14 @@ function CaregiversList({ childId, isOwner, onRemove }: {
       {otherCaregivers.map((c) => (
         <div key={c.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <User className="w-3.5 h-3.5 text-primary" />
+            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
+              <UserAvatar
+                profileImageUrl={undefined}
+                firstName={c.userFirstName}
+                lastName={c.userLastName}
+                email={c.userEmail}
+                size={28}
+              />
             </div>
             <span className="text-sm truncate" data-testid={`text-caregiver-name-${c.id}`}>
               {[c.userFirstName, c.userLastName].filter(Boolean).join(" ") || c.userEmail || "Cuidador"}
@@ -291,23 +298,19 @@ export default function Settings() {
           className="bg-white p-6 rounded-2xl border border-border shadow-sm flex items-center gap-4"
           data-testid="user-profile-card"
         >
-          {user?.profileImageUrl ? (
-            <img
-              src={user.profileImageUrl}
-              alt={user.firstName || "Usuário"}
-              className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
-            />
-          ) : (
-            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-              <User className="w-8 h-8 text-muted-foreground" />
-            </div>
-          )}
+          <UserAvatar
+            profileImageUrl={user?.profileImageUrl}
+            firstName={user?.firstName}
+            lastName={user?.lastName}
+            email={user?.email}
+            size={64}
+          />
           <div>
             <h2
               className="font-display font-bold text-lg"
               data-testid="text-user-name"
             >
-              {user?.firstName || "Responsável"}
+              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Responsável"}
             </h2>
             <p
               className="text-sm text-muted-foreground"
