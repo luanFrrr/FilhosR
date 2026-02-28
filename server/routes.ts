@@ -10,6 +10,7 @@ import {
   registerAuthRoutes,
   isAuthenticated,
 } from "./replit_integrations/auth";
+import { authStorage } from "./replit_integrations/auth/storage";
 import {
   startVaccineNotificationScheduler,
   sendVaccineNotifications,
@@ -968,8 +969,58 @@ export async function registerRoutes(
     // Marcar código como usado
     await storage.markInviteCodeUsed(invite.id, userId);
 
-    // Buscar dados da criança para resposta
+    // Buscar dados da criança (necessário para notificação e resposta)
     const child = await storage.getChild(invite.childId);
+
+    // 🔔 Notificar o dono (quem criou o convite) que alguém aceitou
+    try {
+      const ownerSubs = await storage.getPushSubscriptionsByUserId(invite.createdBy);
+      if (ownerSubs.length > 0) {
+        const webpushModule = await import("web-push");
+        const webpush = webpushModule.default || webpushModule;
+        const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
+        const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+
+        if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+          webpush.setVapidDetails(
+            process.env.VAPID_SUBJECT || "mailto:filhos@replit.app",
+            VAPID_PUBLIC_KEY,
+            VAPID_PRIVATE_KEY,
+          );
+
+          // Buscar dados do novo cuidador para personalizar a notificação
+          const newCaregiver = await authStorage.getUser(userId);
+          const caregiverName = [newCaregiver?.firstName, newCaregiver?.lastName]
+            .filter(Boolean)
+            .join(" ") || newCaregiver?.email || "Alguém";
+
+          const payload = JSON.stringify({
+            title: `👶 Novo cuidador de ${child?.name || "sua criança"}!`,
+            body: `${caregiverName} aceitou seu convite e agora também cuida de ${child?.name || "sua criança"}.`,
+            icon: "/icons/icon-192x192.png",
+            badge: "/icons/icon-72x72.png",
+            tag: `caregiver-accepted-${invite.childId}-${userId}`,
+            data: { url: "/settings" },
+          });
+
+          for (const sub of ownerSubs) {
+            try {
+              await webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                payload,
+              );
+            } catch (err: any) {
+              if (err.statusCode === 404 || err.statusCode === 410) {
+                await storage.deletePushSubscription(sub.endpoint);
+              }
+            }
+          }
+        }
+      }
+    } catch (notifError) {
+      // Notificação é best-effort — não bloqueia a resposta
+      console.error("Erro ao enviar notificação de cuidador aceito:", notifError);
+    }
 
     res.json({
       message: "Convite aceito! Você agora pode acompanhar esta criança.",
