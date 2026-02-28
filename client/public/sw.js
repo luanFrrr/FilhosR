@@ -1,6 +1,5 @@
-const CACHE_NAME = 'filhos-v2';
+const CACHE_NAME = 'filhos-v3';
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json'
 ];
 
@@ -44,6 +43,11 @@ self.addEventListener('fetch', (event) => {
           });
         })
     );
+    return;
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request));
     return;
   }
 
