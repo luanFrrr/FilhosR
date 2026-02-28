@@ -78,7 +78,7 @@ export function PhotoPicker({ onPhotoSelected, children, enableCrop = true }: Ph
       />
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[280px] rounded-2xl p-6 border-gray-200 bg-white">
+        <DialogContent className="max-w-[280px] rounded-2xl p-6">
           <VisuallyHidden.Root>
             <DialogTitle>Escolher foto</DialogTitle>
           </VisuallyHidden.Root>
