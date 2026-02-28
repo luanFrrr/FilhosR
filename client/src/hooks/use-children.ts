@@ -95,3 +95,61 @@ export function useDeleteChild() {
     },
   });
 }
+
+export function useCaregivers(childId: number) {
+  return useQuery({
+    queryKey: [api.invites.caregivers.path, childId],
+    queryFn: async () => {
+      const url = buildUrl(api.invites.caregivers.path, { childId });
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch caregivers");
+      return res.json() as Promise<Array<{
+        id: number;
+        userId: string;
+        relationship: string;
+        role: string;
+        userName: string | null;
+        userEmail: string | null;
+      }>>;
+    },
+    enabled: !!childId,
+  });
+}
+
+export function useRemoveCaregiver() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ childId, caregiverId }: { childId: number; caregiverId: number }) => {
+      const url = buildUrl(api.invites.removeCareiver.path, { childId, caregiverId });
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Erro ao remover cuidador");
+      }
+    },
+    onSuccess: (_, { childId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.invites.caregivers.path, childId] });
+    },
+  });
+}
+
+export function useLeaveChild() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (childId: number) => {
+      const url = buildUrl(api.invites.leaveChild.path, { childId });
+      const res = await fetch(url, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Erro ao sair");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.children.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.children.listWithRoles.path] });
+    },
+  });
+}

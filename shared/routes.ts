@@ -443,6 +443,14 @@ export const api = {
         403: errorSchemas.validation,
       },
     },
+    leaveChild: {
+      method: "POST" as const,
+      path: "/api/children/:childId/leave",
+      responses: {
+        200: z.object({ message: z.string() }),
+        403: errorSchemas.validation,
+      },
+    },
   },
 };
 

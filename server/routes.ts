@@ -1016,6 +1016,28 @@ export async function registerRoutes(
     res.json(caregiversList);
   });
 
+  // Cuidador sai de uma criança (auto-remoção)
+  app.post(api.invites.leaveChild.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const childId = Number(req.params.childId);
+    if (!childId || isNaN(childId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const role = await storage.getCaregiverRole(userId, childId);
+    if (!role) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    if (role === "owner") {
+      return res.status(403).json({ message: "O responsável principal não pode sair. Exclua a criança se desejar." });
+    }
+
+    await storage.removeCaregiverByUserId(childId, userId);
+    res.json({ message: "Você saiu do cuidado desta criança" });
+  });
+
   // Remover cuidador de uma criança
   app.delete(
     api.invites.removeCareiver.path,

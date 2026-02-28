@@ -5,6 +5,9 @@ import {
   useChildrenWithRoles,
   useUpdateChild,
   useDeleteChild,
+  useCaregivers,
+  useRemoveCaregiver,
+  useLeaveChild,
 } from "@/hooks/use-children";
 import { useGrowthRecords, useUpdateGrowthRecord } from "@/hooks/use-growth";
 import { useAuth } from "@/hooks/use-auth";
@@ -31,6 +34,9 @@ import {
   Loader2,
   Share2,
   Ticket,
+  Users,
+  UserMinus,
+  DoorOpen,
 } from "lucide-react";
 import { InviteCodeDialog } from "@/components/invite/invite-code-dialog";
 import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
@@ -69,12 +75,59 @@ import {
 import { PhotoView } from "@/components/ui/photo-view";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 
+function CaregiversList({ childId, isOwner, onRemove }: {
+  childId: number;
+  isOwner: boolean;
+  onRemove: (caregiverId: number, name: string) => void;
+}) {
+  const { data: caregiversData } = useCaregivers(childId);
+
+  if (!caregiversData || caregiversData.length <= 1) return null;
+
+  const otherCaregivers = caregiversData.filter(c => c.role !== "owner");
+  if (otherCaregivers.length === 0) return null;
+
+  return (
+    <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <Users className="w-3.5 h-3.5" />
+        <span>Cuidadores</span>
+      </div>
+      {otherCaregivers.map((c) => (
+        <div key={c.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <User className="w-3.5 h-3.5 text-primary" />
+            </div>
+            <span className="text-sm truncate" data-testid={`text-caregiver-name-${c.id}`}>
+              {c.userName || c.userEmail || "Cuidador"}
+            </span>
+          </div>
+          {isOwner && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onRemove(c.id, c.userName || c.userEmail || "Cuidador")}
+              data-testid={`button-remove-caregiver-${c.id}`}
+            >
+              <UserMinus className="w-3.5 h-3.5" />
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Settings() {
   const { activeChild, setActiveChildId } = useChildContext();
   const { data: children } = useChildren();
   const { data: childrenWithRoles } = useChildrenWithRoles();
   const updateChild = useUpdateChild();
   const deleteChild = useDeleteChild();
+  const removeCaregiver = useRemoveCaregiver();
+  const leaveChild = useLeaveChild();
   const updateGrowth = useUpdateGrowthRecord();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -361,14 +414,53 @@ export default function Settings() {
                     </div>
                   </div>
                   {isOwner && (
+                    <>
+                      <CaregiversList
+                        childId={child.id}
+                        isOwner={true}
+                        onRemove={(caregiverId, name) => {
+                          if (confirm(`Remover ${name} como cuidador(a)?`)) {
+                            removeCaregiver.mutate(
+                              { childId: child.id, caregiverId },
+                              {
+                                onSuccess: () => toast({ title: `${name} removido(a)` }),
+                                onError: (e) => toast({ title: e.message, variant: "destructive" }),
+                              }
+                            );
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2 text-primary border-primary/30 hover:bg-primary/5"
+                        onClick={() => setSharingChild(child)}
+                        data-testid={`button-invite-caregiver-${child.id}`}
+                      >
+                        <Share2 className="w-4 h-4" /> Convidar cuidador
+                      </Button>
+                    </>
+                  )}
+                  {!isOwner && (
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full gap-2 text-primary border-primary/30 hover:bg-primary/5"
-                      onClick={() => setSharingChild(child)}
-                      data-testid={`button-invite-caregiver-${child.id}`}
+                      className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/5"
+                      onClick={() => {
+                        if (confirm(`Deseja sair do cuidado de ${child.name}? Você perderá o acesso.`)) {
+                          leaveChild.mutate(child.id, {
+                            onSuccess: () => {
+                              toast({ title: `Você saiu do cuidado de ${child.name}` });
+                              setActiveChildId(null);
+                            },
+                            onError: (e) => toast({ title: e.message, variant: "destructive" }),
+                          });
+                        }
+                      }}
+                      disabled={leaveChild.isPending}
+                      data-testid={`button-leave-child-${child.id}`}
                     >
-                      <Share2 className="w-4 h-4" /> Convidar cuidador
+                      <DoorOpen className="w-4 h-4" /> Sair do cuidado
                     </Button>
                   )}
                 </div>

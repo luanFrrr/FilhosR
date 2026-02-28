@@ -159,6 +159,7 @@ export interface IStorage {
     }>
   >;
   removeCaregiverFromChild(childId: number, caregiverId: number): Promise<void>;
+  removeCaregiverByUserId(childId: number, userId: string): Promise<void>;
   createCaregiver(data: {
     childId: number;
     userId: string;
@@ -893,6 +894,17 @@ export class DatabaseStorage implements IStorage {
       .delete(caregivers)
       .where(
         and(eq(caregivers.id, caregiverId), eq(caregivers.childId, childId)),
+      );
+  }
+
+  async removeCaregiverByUserId(
+    childId: number,
+    userId: string,
+  ): Promise<void> {
+    await db
+      .delete(caregivers)
+      .where(
+        and(eq(caregivers.userId, userId), eq(caregivers.childId, childId)),
       );
   }
   async createCaregiver(data: {
