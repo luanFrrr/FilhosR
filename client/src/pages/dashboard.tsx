@@ -175,6 +175,7 @@ export default function Dashboard() {
   const { data: gamification } = useGamification(activeChild?.id || null);
   const { data: todayPhoto } = useTodayPhoto(activeChild?.id || 0);
   const { data: allPhotos } = useDailyPhotos(activeChild?.id || 0);
+  const [redeemOpen, setRedeemOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -183,8 +184,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const [redeemOpen, setRedeemOpen] = useState(false);
 
   if (!activeChild) {
     return (
