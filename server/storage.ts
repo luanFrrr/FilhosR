@@ -40,7 +40,7 @@ import {
   type InsertInviteCode,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users (OIDC users have string IDs)
@@ -157,6 +157,12 @@ export interface IStorage {
     }>
   >;
   removeCaregiverFromChild(childId: number, caregiverId: number): Promise<void>;
+  createCaregiver(data: {
+    childId: number;
+    userId: string;
+    relationship: string;
+    role: string;
+  }): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -186,8 +192,10 @@ export class DatabaseStorage implements IStorage {
       .delete(pushSubscriptions)
       .where(eq(pushSubscriptions.userId, userId));
 
-    // Delete user sessions
-    await db.delete(sessions).where(eq(sessions.userId, userId));
+    // Delete user sessions (sessions table uses JSONB sess column, not a userId column)
+    await db.execute(
+      sql`DELETE FROM sessions WHERE sess->>'userId' = ${userId}`
+    );
 
     // Delete user record
     await db.delete(users).where(eq(users.id, userId));
@@ -866,6 +874,19 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(eq(caregivers.id, caregiverId), eq(caregivers.childId, childId)),
       );
+  }
+  async createCaregiver(data: {
+    childId: number;
+    userId: string;
+    relationship: string;
+    role: string;
+  }): Promise<void> {
+    await db.insert(caregivers).values({
+      childId: data.childId,
+      userId: data.userId,
+      relationship: data.relationship,
+      role: data.role,
+    });
   }
 }
 
