@@ -12,6 +12,17 @@ export function useChildren() {
   });
 }
 
+export function useChildrenWithRoles() {
+  return useQuery({
+    queryKey: [api.children.listWithRoles.path],
+    queryFn: async () => {
+      const res = await fetch(api.children.listWithRoles.path);
+      if (!res.ok) throw new Error("Failed to fetch children with roles");
+      return res.json();
+    },
+  });
+}
+
 export function useChild(id: number) {
   return useQuery({
     queryKey: [api.children.get.path, id],
@@ -39,6 +50,7 @@ export function useCreateChild() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.children.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.children.listWithRoles.path] });
       queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
@@ -57,7 +69,10 @@ export function useUpdateChild() {
       if (!res.ok) throw new Error("Failed to update child");
       return api.children.update.responses[200].parse(await res.json());
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.children.list.path] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.children.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.children.listWithRoles.path] });
+    },
   });
 }
 
@@ -69,8 +84,14 @@ export function useDeleteChild() {
       const res = await fetch(url, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error("Failed to delete child");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to delete child");
+      }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.children.list.path] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.children.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.children.listWithRoles.path] });
+    },
   });
 }

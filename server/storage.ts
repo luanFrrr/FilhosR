@@ -51,6 +51,8 @@ export interface IStorage {
   // Children
   getChild(id: number): Promise<Child | undefined>;
   getChildrenByUserId(userId: string): Promise<Child[]>;
+  getChildrenWithRolesByUserId(userId: string): Promise<Array<Child & { role: string; relationship: string }>>;
+  getCaregiverRole(userId: string, childId: number): Promise<string | null>;
   createChild(child: InsertChild): Promise<Child>;
   updateChild(id: number, child: Partial<InsertChild>): Promise<Child>;
   deleteChild(id: number): Promise<void>;
@@ -208,7 +210,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getChildrenByUserId(userId: string): Promise<Child[]> {
-    // Join caregivers to find children
     const results = await db
       .select({ child: children })
       .from(caregivers)
@@ -216,6 +217,25 @@ export class DatabaseStorage implements IStorage {
       .where(eq(caregivers.userId, userId));
 
     return results.map((r) => r.child);
+  }
+
+  async getChildrenWithRolesByUserId(userId: string): Promise<Array<Child & { role: string; relationship: string }>> {
+    const results = await db
+      .select({ child: children, role: caregivers.role, relationship: caregivers.relationship })
+      .from(caregivers)
+      .innerJoin(children, eq(caregivers.childId, children.id))
+      .where(eq(caregivers.userId, userId));
+
+    return results.map((r) => ({ ...r.child, role: r.role, relationship: r.relationship }));
+  }
+
+  async getCaregiverRole(userId: string, childId: number): Promise<string | null> {
+    const [result] = await db
+      .select({ role: caregivers.role })
+      .from(caregivers)
+      .where(and(eq(caregivers.userId, userId), eq(caregivers.childId, childId)));
+
+    return result?.role ?? null;
   }
 
   async createChild(child: InsertChild): Promise<Child> {

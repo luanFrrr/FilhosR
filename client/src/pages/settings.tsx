@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import {
   useChildren,
+  useChildrenWithRoles,
   useUpdateChild,
   useDeleteChild,
 } from "@/hooks/use-children";
@@ -71,6 +72,7 @@ import { PhotoPicker } from "@/components/ui/photo-picker";
 export default function Settings() {
   const { activeChild, setActiveChildId } = useChildContext();
   const { data: children } = useChildren();
+  const { data: childrenWithRoles } = useChildrenWithRoles();
   const updateChild = useUpdateChild();
   const deleteChild = useDeleteChild();
   const updateGrowth = useUpdateGrowthRecord();
@@ -280,84 +282,98 @@ export default function Settings() {
             </Link>
           </div>
 
-          <div className="space-y-2">
-            {children?.map((child) => (
-              <div
-                key={child.id}
-                className={`bg-white p-4 rounded-xl border ${activeChild?.id === child.id ? "border-primary ring-2 ring-primary/20" : "border-border"} flex items-center gap-3`}
-                data-testid={`child-card-${child.id}`}
-              >
-                <PhotoView src={child.photoUrl || null} alt={child.name}>
-                  {child.photoUrl ? (
-                    <img
-                      src={child.photoUrl}
-                      alt={child.name}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
-                    />
-                  ) : (
-                    <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
-                        child.theme === "blue"
-                          ? "bg-blue-400"
-                          : child.theme === "pink"
-                            ? "bg-pink-400"
-                            : "bg-slate-400"
-                      }`}
-                    >
-                      {child.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </PhotoView>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold truncate">{child.name}</p>
-                  {(() => {
-                    const zodiac = getZodiacSign(child.birthDate);
-                    return (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>
-                          {format(
-                            parseLocalDate(child.birthDate),
-                            "dd/MM/yyyy",
-                          )}
+          <div className="space-y-3">
+            {children?.map((child) => {
+              const roleInfo = childrenWithRoles?.find((c: any) => c.id === child.id);
+              const isOwner = roleInfo?.role === "owner";
+              return (
+                <div key={child.id} className="space-y-2">
+                  <div
+                    className={`bg-white p-4 rounded-xl border ${activeChild?.id === child.id ? "border-primary ring-2 ring-primary/20" : "border-border"} flex items-center gap-3`}
+                    data-testid={`child-card-${child.id}`}
+                  >
+                    <PhotoView src={child.photoUrl || null} alt={child.name}>
+                      {child.photoUrl ? (
+                        <img
+                          src={child.photoUrl}
+                          alt={child.name}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                        />
+                      ) : (
+                        <div
+                          className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                            child.theme === "blue"
+                              ? "bg-blue-400"
+                              : child.theme === "pink"
+                                ? "bg-pink-400"
+                                : "bg-slate-400"
+                          }`}
+                        >
+                          {child.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </PhotoView>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold truncate">{child.name}</p>
+                      {(() => {
+                        const zodiac = getZodiacSign(child.birthDate);
+                        return (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>
+                              {format(
+                                parseLocalDate(child.birthDate),
+                                "dd/MM/yyyy",
+                              )}
+                            </span>
+                            {zodiac && (
+                              <span className="text-primary font-medium">
+                                {zodiac.symbol} {zodiac.name}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {!isOwner && (
+                        <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full mt-1 inline-block">
+                          Cuidador
                         </span>
-                        {zodiac && (
-                          <span className="text-primary font-medium">
-                            {zodiac.symbol} {zodiac.name}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEditDialog(child)}
+                        data-testid={`button-edit-child-${child.id}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      {isOwner && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeletingChild(child)}
+                          data-testid={`button-delete-child-${child.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {isOwner && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2 text-primary border-primary/30 hover:bg-primary/5"
+                      onClick={() => setSharingChild(child)}
+                      data-testid={`button-invite-caregiver-${child.id}`}
+                    >
+                      <Share2 className="w-4 h-4" /> Convidar cuidador
+                    </Button>
+                  )}
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setSharingChild(child)}
-                    title="Compartilhar"
-                    data-testid={`button-share-child-${child.id}`}
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => openEditDialog(child)}
-                    data-testid={`button-edit-child-${child.id}`}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setDeletingChild(child)}
-                    data-testid={`button-delete-child-${child.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {(!children || children.length === 0) && (
               <div className="bg-muted/30 p-8 rounded-xl text-center">

@@ -86,6 +86,9 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **Push Notifications for Vaccines**: Web Push API integration for vaccine reminders. Uses VAPID keys (env vars), `push_subscriptions` table, service worker push handler, and a server-side scheduler that checks daily at 9 AM BRT. Sends reminders for due, upcoming (within 1 month), and overdue (up to 2 months) vaccines. Frontend toggle in Settings with test notification button. Hook: `use-push-notifications.ts`. Backend: `server/vaccineNotifications.ts`.
 - **TWA Asset Links**: Added `.well-known/assetlinks.json` for Google Play TWA verification.
 - **Data Deletion Page**: Server-rendered HTML for Google Play bot crawlers at `/delete-account`.
+- **Caregiver Invite System**: Invite codes (FLH-XXXX format, 48h expiry, single-use) for sharing child access between caregivers. Owner generates code in Settings, other parent redeems in Settings or Dashboard (empty state). Tables: `invite_codes`, `caregivers`. Endpoints: generate, redeem, list invites, list caregivers, remove caregiver. Components: `invite-code-dialog.tsx`, `redeem-code-dialog.tsx`.
+- **Owner-only Delete**: Only the caregiver with role "owner" can delete a child (backend enforced via `getCaregiverRole`). Delete button hidden in Settings for non-owners. New endpoint `/api/children/with-roles` returns children with user's role. Hook: `useChildrenWithRoles`.
+- **Service Worker Cache Fix**: Bumped cache to v3, removed root HTML from static cache, added navigation bypass to always fetch fresh HTML.
 
 ## External Dependencies
 

@@ -71,6 +71,15 @@ export const api = {
         200: z.array(z.custom<typeof children.$inferSelect>()),
       },
     },
+    listWithRoles: {
+      method: "GET" as const,
+      path: "/api/children/with-roles",
+      responses: {
+        200: z.array(
+          z.custom<typeof children.$inferSelect & { role: string; relationship: string }>(),
+        ),
+      },
+    },
     create: {
       method: "POST" as const,
       path: "/api/children",

@@ -69,6 +69,14 @@ export async function registerRoutes(
     res.json(children);
   });
 
+  app.get(api.children.listWithRoles.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const childrenWithRoles = await storage.getChildrenWithRolesByUserId(userId);
+    res.json(childrenWithRoles);
+  });
+
   app.post(api.children.create.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
@@ -140,8 +148,12 @@ export async function registerRoutes(
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
     const id = Number(req.params.id);
-    if (!(await hasChildAccess(userId, id))) {
+    const role = await storage.getCaregiverRole(userId, id);
+    if (!role) {
       return res.status(403).json({ message: "Acesso negado" });
+    }
+    if (role !== "owner") {
+      return res.status(403).json({ message: "Apenas o responsável principal pode excluir" });
     }
 
     await storage.deleteChild(id);
