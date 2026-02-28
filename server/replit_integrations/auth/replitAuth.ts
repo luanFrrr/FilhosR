@@ -51,12 +51,15 @@ function updateUserSession(
 }
 
 async function upsertUser(claims: any) {
+  const firstName = claims["first_name"] || claims["given_name"] || claims["name"] || null;
+  const lastName = claims["last_name"] || claims["family_name"] || null;
+  const profileImageUrl = claims["profile_image_url"] || claims["picture"] || null;
   await authStorage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
+    firstName,
+    lastName,
+    profileImageUrl,
   });
 }
 
