@@ -1,4 +1,16 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, decimal, jsonb, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  boolean,
+  timestamp,
+  date,
+  decimal,
+  jsonb,
+  uniqueIndex,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -15,7 +27,7 @@ export const children = pgTable("children", {
   name: text("name").notNull(),
   birthDate: date("birth_date").notNull(),
   gender: text("gender").notNull(), // 'male', 'female', 'unspecified'
-  theme: text("theme").default('neutral'), // 'blue', 'pink', 'neutral', 'custom'
+  theme: text("theme").default("neutral"), // 'blue', 'pink', 'neutral', 'custom'
   themeColor: text("theme_color"), // for custom theme
   initialWeight: decimal("initial_weight"),
   initialHeight: decimal("initial_height"),
@@ -29,7 +41,7 @@ export const caregivers = pgTable("caregivers", {
   childId: integer("child_id").notNull(),
   userId: varchar("user_id").notNull(), // OIDC sub claim (UUID string)
   relationship: text("relationship").notNull(), // 'father', 'mother', 'guardian', etc.
-  role: text("role").notNull().default('viewer'), // 'owner', 'editor', 'viewer'
+  role: text("role").notNull().default("viewer"), // 'owner', 'editor', 'viewer'
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -50,7 +62,7 @@ export const vaccines = pgTable("vaccines", {
   name: text("name").notNull(),
   scheduledDate: date("scheduled_date").notNull(),
   administeredDate: date("administered_date"),
-  status: text("status").notNull().default('pending'), // 'pending', 'completed', 'overdue'
+  status: text("status").notNull().default("pending"), // 'pending', 'completed', 'overdue'
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -89,7 +101,7 @@ export const gamification = pgTable("gamification", {
   id: serial("id").primaryKey(),
   childId: integer("child_id").notNull(),
   points: integer("points").default(0),
-  level: text("level").default('Iniciante'),
+  level: text("level").default("Iniciante"),
   achievements: jsonb("achievements").default([]),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -104,26 +116,52 @@ export const susVaccines = pgTable("sus_vaccines", {
 });
 
 // Foto do dia - one photo per day per child
-export const dailyPhotos = pgTable("daily_photos", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  date: date("date").notNull(),
-  photoUrl: text("photo_url").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => ({
-  uniqueChildDate: uniqueIndex("daily_photos_child_date_unique").on(table.childId, table.date),
-}));
+export const dailyPhotos = pgTable(
+  "daily_photos",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id").notNull(),
+    date: date("date").notNull(),
+    photoUrl: text("photo_url").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueChildDate: uniqueIndex("daily_photos_child_date_unique").on(
+      table.childId,
+      table.date,
+    ),
+  }),
+);
 
-export const pushSubscriptions = pgTable("push_subscriptions", {
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueEndpoint: uniqueIndex("push_subscriptions_endpoint_unique").on(
+      table.endpoint,
+    ),
+  }),
+);
+
+// Códigos de convite para compartilhar crianças entre cuidadores
+export const inviteCodes = pgTable("invite_codes", {
   id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull(),
-  endpoint: text("endpoint").notNull(),
-  p256dh: text("p256dh").notNull(),
-  auth: text("auth").notNull(),
+  code: varchar("code", { length: 10 }).notNull().unique(),
+  childId: integer("child_id").notNull(),
+  createdBy: varchar("created_by").notNull(), // userId do criador
+  usedBy: varchar("used_by"), // userId de quem resgatou
+  relationship: text("relationship").notNull().default("caregiver"), // relação do convidado
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => ({
-  uniqueEndpoint: uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
-}));
+});
 
 // Registros vacinais individuais
 export const vaccineRecords = pgTable("vaccine_records", {
@@ -154,6 +192,7 @@ export const childrenRelations = relations(children, ({ many, one }) => ({
   vaccineRecords: many(vaccineRecords),
   dailyPhotos: many(dailyPhotos),
   gamification: one(gamification),
+  inviteCodes: many(inviteCodes),
 }));
 
 export const dailyPhotosRelations = relations(dailyPhotos, ({ one }) => ({
@@ -231,19 +270,60 @@ export const vaccineRecordsRelations = relations(vaccineRecords, ({ one }) => ({
   }),
 }));
 
+export const inviteCodesRelations = relations(inviteCodes, ({ one }) => ({
+  child: one(children, {
+    fields: [inviteCodes.childId],
+    references: [children.id],
+  }),
+}));
+
 // === BASE SCHEMAS ===
 
-export const insertChildSchema = createInsertSchema(children).omit({ id: true, createdAt: true });
-export const insertCaregiverSchema = createInsertSchema(caregivers).omit({ id: true, createdAt: true });
-export const insertGrowthRecordSchema = createInsertSchema(growthRecords).omit({ id: true, createdAt: true });
-export const insertVaccineSchema = createInsertSchema(vaccines).omit({ id: true, createdAt: true });
-export const insertHealthRecordSchema = createInsertSchema(healthRecords).omit({ id: true, createdAt: true });
-export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true, createdAt: true });
-export const insertDiaryEntrySchema = createInsertSchema(diaryEntries).omit({ id: true, createdAt: true });
-export const insertSusVaccineSchema = createInsertSchema(susVaccines).omit({ id: true });
-export const insertVaccineRecordSchema = createInsertSchema(vaccineRecords).omit({ id: true, createdAt: true });
-export const insertDailyPhotoSchema = createInsertSchema(dailyPhotos).omit({ id: true, createdAt: true });
-export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
+export const insertChildSchema = createInsertSchema(children).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertCaregiverSchema = createInsertSchema(caregivers).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertGrowthRecordSchema = createInsertSchema(growthRecords).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertVaccineSchema = createInsertSchema(vaccines).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertHealthRecordSchema = createInsertSchema(healthRecords).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertMilestoneSchema = createInsertSchema(milestones).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertDiaryEntrySchema = createInsertSchema(diaryEntries).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertSusVaccineSchema = createInsertSchema(susVaccines).omit({
+  id: true,
+});
+export const insertVaccineRecordSchema = createInsertSchema(
+  vaccineRecords,
+).omit({ id: true, createdAt: true });
+export const insertDailyPhotoSchema = createInsertSchema(dailyPhotos).omit({
+  id: true,
+  createdAt: true,
+});
+export const insertPushSubscriptionSchema = createInsertSchema(
+  pushSubscriptions,
+).omit({ id: true, createdAt: true });
+export const insertInviteCodeSchema = createInsertSchema(inviteCodes).omit({
+  id: true,
+  createdAt: true,
+});
 
 // === EXPLICIT API CONTRACT TYPES ===
 // Note: User and UpsertUser types are re-exported from ./models/auth
@@ -281,7 +361,12 @@ export type DailyPhoto = typeof dailyPhotos.$inferSelect;
 export type InsertDailyPhoto = z.infer<typeof insertDailyPhotoSchema>;
 
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
-export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+export type InsertPushSubscription = z.infer<
+  typeof insertPushSubscriptionSchema
+>;
+
+export type InviteCode = typeof inviteCodes.$inferSelect;
+export type InsertInviteCode = z.infer<typeof insertInviteCodeSchema>;
 
 // Request Types
 export type CreateChildRequest = InsertChild;

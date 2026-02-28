@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
-import { useChildren, useUpdateChild, useDeleteChild } from "@/hooks/use-children";
+import {
+  useChildren,
+  useUpdateChild,
+  useDeleteChild,
+} from "@/hooks/use-children";
 import { useGrowthRecords, useUpdateGrowthRecord } from "@/hooks/use-growth";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/layout/header";
@@ -10,9 +14,25 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { DecimalInput } from "@/components/ui/decimal-input";
-import { 
-  User, Bell, Shield, LogOut, Baby, Pencil, Trash2, Plus, X, Check, Camera, BellRing, Loader2
+import {
+  User,
+  Bell,
+  Shield,
+  LogOut,
+  Baby,
+  Pencil,
+  Trash2,
+  Plus,
+  X,
+  Check,
+  Camera,
+  BellRing,
+  Loader2,
+  Share2,
+  Ticket,
 } from "lucide-react";
+import { InviteCodeDialog } from "@/components/invite/invite-code-dialog";
+import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
 import { compressImage } from "@/lib/imageUtils";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -57,10 +77,19 @@ export default function Settings() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const { isSubscribed, isLoading: pushLoading, subscribe, unsubscribe, sendTest, isSupported } = usePushNotifications();
+  const {
+    isSubscribed,
+    isLoading: pushLoading,
+    subscribe,
+    unsubscribe,
+    sendTest,
+    isSupported,
+  } = usePushNotifications();
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [deletingChild, setDeletingChild] = useState<Child | null>(null);
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
+  const [sharingChild, setSharingChild] = useState<Child | null>(null);
+  const [redeemOpen, setRedeemOpen] = useState(false);
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -80,15 +109,25 @@ export default function Settings() {
       birthDate: child.birthDate,
       gender: child.gender,
       theme: child.theme || "neutral",
-      initialWeight: child.initialWeight ? formatDecimalBR(child.initialWeight) : "",
-      initialHeight: child.initialHeight ? formatDecimalBR(child.initialHeight, 1) : "",
-      initialHeadCircumference: child.initialHeadCircumference ? formatDecimalBR(child.initialHeadCircumference, 1) : "",
+      initialWeight: child.initialWeight
+        ? formatDecimalBR(child.initialWeight)
+        : "",
+      initialHeight: child.initialHeight
+        ? formatDecimalBR(child.initialHeight, 1)
+        : "",
+      initialHeadCircumference: child.initialHeadCircumference
+        ? formatDecimalBR(child.initialHeadCircumference, 1)
+        : "",
     });
   };
 
   const handlePhotoFile = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 10MB", variant: "destructive" });
+      toast({
+        title: "Imagem muito grande",
+        description: "Escolha uma imagem menor que 10MB",
+        variant: "destructive",
+      });
       return;
     }
     try {
@@ -101,11 +140,11 @@ export default function Settings() {
 
   const handleUpdate = async () => {
     if (!editingChild) return;
-    
+
     const weight = parseDecimalBR(editForm.initialWeight);
     const height = parseDecimalBR(editForm.initialHeight);
     const head = parseDecimalBR(editForm.initialHeadCircumference);
-    
+
     try {
       await updateChild.mutateAsync({
         id: editingChild.id,
@@ -118,33 +157,45 @@ export default function Settings() {
         initialHeadCircumference: head !== null ? head.toString() : null,
         photoUrl: editPhoto,
       });
-      
+
       // Also update the birth growth record if it exists
       // This keeps the dashboard in sync with settings
       try {
-        const growthRes = await fetch(`/api/children/${editingChild.id}/growth`);
+        const growthRes = await fetch(
+          `/api/children/${editingChild.id}/growth`,
+        );
         if (growthRes.ok) {
           const growthRecords = await growthRes.json();
-          const birthRecord = growthRecords.find((g: any) => g.date === editForm.birthDate);
+          const birthRecord = growthRecords.find(
+            (g: any) => g.date === editForm.birthDate,
+          );
           if (birthRecord) {
             await updateGrowth.mutateAsync({
               id: birthRecord.id,
               childId: editingChild.id,
               weight: weight !== null ? weight.toString() : birthRecord.weight,
               height: height !== null ? height.toString() : birthRecord.height,
-              headCircumference: head !== null ? head.toString() : birthRecord.headCircumference,
+              headCircumference:
+                head !== null ? head.toString() : birthRecord.headCircumference,
             });
           }
         }
       } catch {
         // Silent fail for growth update - child data was already saved
       }
-      
-      toast({ title: "Dados atualizados!", description: `${editForm.name} foi atualizado com sucesso.` });
+
+      toast({
+        title: "Dados atualizados!",
+        description: `${editForm.name} foi atualizado com sucesso.`,
+      });
       setEditingChild(null);
       setEditPhoto(null);
     } catch {
-      toast({ title: "Erro", description: "Não foi possível atualizar os dados.", variant: "destructive" });
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar os dados.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -152,16 +203,27 @@ export default function Settings() {
     if (!deletingChild) return;
     try {
       await deleteChild.mutateAsync(deletingChild.id);
-      toast({ title: "Perfil removido", description: `${deletingChild.name} foi removido.` });
-      if (activeChild?.id === deletingChild.id && children && children.length > 1) {
-        const remaining = children.filter(c => c.id !== deletingChild.id);
+      toast({
+        title: "Perfil removido",
+        description: `${deletingChild.name} foi removido.`,
+      });
+      if (
+        activeChild?.id === deletingChild.id &&
+        children &&
+        children.length > 1
+      ) {
+        const remaining = children.filter((c) => c.id !== deletingChild.id);
         if (remaining.length > 0) {
           setActiveChildId(remaining[0].id);
         }
       }
       setDeletingChild(null);
     } catch {
-      toast({ title: "Erro", description: "Não foi possível remover o perfil.", variant: "destructive" });
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover o perfil.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -170,56 +232,76 @@ export default function Settings() {
       <Header title="Ajustes" showChildSelector={false} />
 
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
-        
-        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm flex items-center gap-4" data-testid="user-profile-card">
-           {user?.profileImageUrl ? (
-             <img 
-               src={user.profileImageUrl} 
-               alt={user.firstName || 'Usuário'} 
-               className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
-             />
-           ) : (
-             <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-               <User className="w-8 h-8 text-muted-foreground" />
-             </div>
-           )}
-           <div>
-             <h2 className="font-display font-bold text-lg" data-testid="text-user-name">
-               {user?.firstName || 'Responsável'}
-             </h2>
-             <p className="text-sm text-muted-foreground" data-testid="text-user-email">{user?.email || ''}</p>
-           </div>
+        <div
+          className="bg-white p-6 rounded-2xl border border-border shadow-sm flex items-center gap-4"
+          data-testid="user-profile-card"
+        >
+          {user?.profileImageUrl ? (
+            <img
+              src={user.profileImageUrl}
+              alt={user.firstName || "Usuário"}
+              className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
+            />
+          ) : (
+            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+              <User className="w-8 h-8 text-muted-foreground" />
+            </div>
+          )}
+          <div>
+            <h2
+              className="font-display font-bold text-lg"
+              data-testid="text-user-name"
+            >
+              {user?.firstName || "Responsável"}
+            </h2>
+            <p
+              className="text-sm text-muted-foreground"
+              data-testid="text-user-email"
+            >
+              {user?.email || ""}
+            </p>
+          </div>
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between ml-2 mr-2">
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Crianças Cadastradas</h3>
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+              Crianças Cadastradas
+            </h3>
             <Link href="/onboarding">
-              <Button size="sm" variant="ghost" className="text-primary gap-1" data-testid="button-add-child">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-primary gap-1"
+                data-testid="button-add-child"
+              >
                 <Plus className="w-4 h-4" /> Adicionar
               </Button>
             </Link>
           </div>
-          
+
           <div className="space-y-2">
             {children?.map((child) => (
-              <div 
-                key={child.id} 
-                className={`bg-white p-4 rounded-xl border ${activeChild?.id === child.id ? 'border-primary ring-2 ring-primary/20' : 'border-border'} flex items-center gap-3`}
+              <div
+                key={child.id}
+                className={`bg-white p-4 rounded-xl border ${activeChild?.id === child.id ? "border-primary ring-2 ring-primary/20" : "border-border"} flex items-center gap-3`}
                 data-testid={`child-card-${child.id}`}
               >
                 <PhotoView src={child.photoUrl || null} alt={child.name}>
                   {child.photoUrl ? (
-                    <img 
-                      src={child.photoUrl} 
+                    <img
+                      src={child.photoUrl}
                       alt={child.name}
                       className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
                     />
                   ) : (
-                    <div 
+                    <div
                       className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
-                        child.theme === 'blue' ? 'bg-blue-400' : 
-                        child.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
+                        child.theme === "blue"
+                          ? "bg-blue-400"
+                          : child.theme === "pink"
+                            ? "bg-pink-400"
+                            : "bg-slate-400"
                       }`}
                     >
                       {child.name.charAt(0).toUpperCase()}
@@ -232,7 +314,12 @@ export default function Settings() {
                     const zodiac = getZodiacSign(child.birthDate);
                     return (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{format(parseLocalDate(child.birthDate), "dd/MM/yyyy")}</span>
+                        <span>
+                          {format(
+                            parseLocalDate(child.birthDate),
+                            "dd/MM/yyyy",
+                          )}
+                        </span>
                         {zodiac && (
                           <span className="text-primary font-medium">
                             {zodiac.symbol} {zodiac.name}
@@ -243,17 +330,26 @@ export default function Settings() {
                   })()}
                 </div>
                 <div className="flex gap-1">
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setSharingChild(child)}
+                    title="Compartilhar"
+                    data-testid={`button-share-child-${child.id}`}
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
                     onClick={() => openEditDialog(child)}
                     data-testid={`button-edit-child-${child.id}`}
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
+                  <Button
+                    size="icon"
+                    variant="ghost"
                     onClick={() => setDeletingChild(child)}
                     data-testid={`button-delete-child-${child.id}`}
                   >
@@ -266,7 +362,9 @@ export default function Settings() {
             {(!children || children.length === 0) && (
               <div className="bg-muted/30 p-8 rounded-xl text-center">
                 <Baby className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">Nenhuma criança cadastrada</p>
+                <p className="text-muted-foreground">
+                  Nenhuma criança cadastrada
+                </p>
                 <Link href="/onboarding">
                   <Button className="mt-4" data-testid="button-add-first-child">
                     <Plus className="w-4 h-4 mr-2" /> Cadastrar Criança
@@ -278,81 +376,107 @@ export default function Settings() {
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-2">Configurações</h3>
-          
+          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-2">
+            Configurações
+          </h3>
+
           <div className="bg-white rounded-xl border border-border overflow-hidden">
-             <div className="p-4 flex items-center justify-between border-b border-border/50">
-                <div className="flex items-center gap-3">
-                   <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                     <Bell className="w-4 h-4" />
-                   </div>
-                   <div>
-                     <Label>Notificações de Vacinas</Label>
-                     {!isSupported && (
-                       <p className="text-xs text-muted-foreground">Não suportado neste navegador</p>
-                     )}
-                   </div>
+            <div className="p-4 flex items-center justify-between border-b border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                  <Bell className="w-4 h-4" />
                 </div>
-                {pushLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                ) : (
-                  <Switch 
-                    checked={isSubscribed} 
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        subscribe();
-                      } else {
-                        unsubscribe();
-                      }
-                    }}
-                    disabled={!isSupported || pushLoading}
-                    data-testid="switch-notifications" 
-                  />
-                )}
-             </div>
-             {isSubscribed && (
-               <div className="px-4 py-3 border-b border-border/50">
-                 <Button 
-                   variant="outline" 
-                   size="sm" 
-                   className="w-full text-sm gap-2"
-                   onClick={sendTest}
-                   data-testid="button-test-notification"
-                 >
-                   <BellRing className="w-4 h-4" /> Enviar notificação de teste
-                 </Button>
-               </div>
-             )}
-             <div className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                   <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                     <Shield className="w-4 h-4" />
-                   </div>
-                   <Label>Modo Privacidade</Label>
+                <div>
+                  <Label>Notificações de Vacinas</Label>
+                  {!isSupported && (
+                    <p className="text-xs text-muted-foreground">
+                      Não suportado neste navegador
+                    </p>
+                  )}
                 </div>
-                <Switch data-testid="switch-privacy" />
-             </div>
+              </div>
+              {pushLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              ) : (
+                <Switch
+                  checked={isSubscribed}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      subscribe();
+                    } else {
+                      unsubscribe();
+                    }
+                  }}
+                  disabled={!isSupported || pushLoading}
+                  data-testid="switch-notifications"
+                />
+              )}
+            </div>
+            {isSubscribed && (
+              <div className="px-4 py-3 border-b border-border/50">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-sm gap-2"
+                  onClick={sendTest}
+                  data-testid="button-test-notification"
+                >
+                  <BellRing className="w-4 h-4" /> Enviar notificação de teste
+                </Button>
+              </div>
+            )}
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <Label>Modo Privacidade</Label>
+              </div>
+              <Switch data-testid="switch-privacy" />
+            </div>
           </div>
         </div>
 
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          onClick={() => setRedeemOpen(true)}
+          data-testid="button-redeem-invite"
+        >
+          <Ticket className="w-4 h-4" /> Usar Código de Convite
+        </Button>
+
         <a href="/api/logout" data-testid="link-logout">
-          <Button variant="outline" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100 mt-8" data-testid="button-logout">
-             <LogOut className="w-4 h-4 mr-2" /> Sair da Conta
+          <Button
+            variant="outline"
+            className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100 mt-8"
+            data-testid="button-logout"
+          >
+            <LogOut className="w-4 h-4 mr-2" /> Sair da Conta
           </Button>
         </a>
 
         <Link href="/delete-account">
-          <Button variant="ghost" className="w-full text-muted-foreground hover:text-red-500 mt-2 text-sm" data-testid="button-delete-account-link">
-             <Trash2 className="w-4 h-4 mr-2" /> Excluir minha conta
+          <Button
+            variant="ghost"
+            className="w-full text-muted-foreground hover:text-red-500 mt-2 text-sm"
+            data-testid="button-delete-account-link"
+          >
+            <Trash2 className="w-4 h-4 mr-2" /> Excluir minha conta
           </Button>
         </Link>
       </main>
 
-      <Dialog open={!!editingChild} onOpenChange={(open) => !open && setEditingChild(null)}>
+      <Dialog
+        open={!!editingChild}
+        onOpenChange={(open) => !open && setEditingChild(null)}
+      >
         <DialogContent className="max-w-sm mx-auto rounded-2xl">
           <DialogHeader>
             <DialogTitle>Editar Perfil</DialogTitle>
-            <DialogDescription>Atualize os dados de {editingChild?.name}</DialogDescription>
+            <DialogDescription>
+              Atualize os dados de {editingChild?.name}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <PhotoPicker onPhotoSelected={handlePhotoFile}>
@@ -360,17 +484,22 @@ export default function Settings() {
                 <div className="flex flex-col items-center gap-3">
                   <div className="relative">
                     {editPhoto ? (
-                      <img 
-                        src={editPhoto} 
+                      <img
+                        src={editPhoto}
                         alt="Foto"
                         className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-md"
                       />
                     ) : (
-                      <div className={`w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
-                        editForm.theme === 'blue' ? 'bg-blue-400' : 
-                        editForm.theme === 'pink' ? 'bg-pink-400' : 'bg-slate-400'
-                      }`}>
-                        {editForm.name?.charAt(0)?.toUpperCase() || '?'}
+                      <div
+                        className={`w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
+                          editForm.theme === "blue"
+                            ? "bg-blue-400"
+                            : editForm.theme === "pink"
+                              ? "bg-pink-400"
+                              : "bg-slate-400"
+                        }`}
+                      >
+                        {editForm.name?.charAt(0)?.toUpperCase() || "?"}
                       </div>
                     )}
                     <Button
@@ -384,41 +513,55 @@ export default function Settings() {
                       <Camera className="w-4 h-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Toque para adicionar foto</p>
+                  <p className="text-xs text-muted-foreground">
+                    Toque para adicionar foto
+                  </p>
                 </div>
               )}
             </PhotoPicker>
 
             <div className="space-y-2">
               <Label htmlFor="edit-name">Nome</Label>
-              <Input 
+              <Input
                 id="edit-name"
                 value={editForm.name}
-                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, name: e.target.value }))
+                }
                 data-testid="input-edit-name"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-birthdate">Data de Nascimento</Label>
-              <Input 
+              <Input
                 id="edit-birthdate"
                 type="date"
                 value={editForm.birthDate}
-                onChange={(e) => setEditForm(f => ({ ...f, birthDate: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, birthDate: e.target.value }))
+                }
                 data-testid="input-edit-birthdate"
               />
               {(() => {
-                const zodiac = editForm.birthDate ? getZodiacSign(editForm.birthDate) : null;
+                const zodiac = editForm.birthDate
+                  ? getZodiacSign(editForm.birthDate)
+                  : null;
                 return zodiac ? (
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    Signo: <span className="text-primary font-medium">{zodiac.symbol} {zodiac.name}</span>
+                    Signo:{" "}
+                    <span className="text-primary font-medium">
+                      {zodiac.symbol} {zodiac.name}
+                    </span>
                   </p>
                 ) : null;
               })()}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-gender">Sexo</Label>
-              <Select value={editForm.gender} onValueChange={(v) => setEditForm(f => ({ ...f, gender: v }))}>
+              <Select
+                value={editForm.gender}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, gender: v }))}
+              >
                 <SelectTrigger data-testid="select-edit-gender">
                   <SelectValue />
                 </SelectTrigger>
@@ -431,7 +574,10 @@ export default function Settings() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-theme">Tema</Label>
-              <Select value={editForm.theme} onValueChange={(v) => setEditForm(f => ({ ...f, theme: v }))}>
+              <Select
+                value={editForm.theme}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, theme: v }))}
+              >
                 <SelectTrigger data-testid="select-edit-theme">
                   <SelectValue />
                 </SelectTrigger>
@@ -444,33 +590,48 @@ export default function Settings() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="edit-weight" className="text-xs">Peso (kg)</Label>
-                <DecimalInput 
+                <Label htmlFor="edit-weight" className="text-xs">
+                  Peso (kg)
+                </Label>
+                <DecimalInput
                   id="edit-weight"
                   placeholder="3,50"
                   value={editForm.initialWeight}
-                  onChange={(value) => setEditForm(f => ({ ...f, initialWeight: value }))}
+                  onChange={(value) =>
+                    setEditForm((f) => ({ ...f, initialWeight: value }))
+                  }
                   data-testid="input-edit-weight"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-height" className="text-xs">Altura (cm)</Label>
-                <DecimalInput 
+                <Label htmlFor="edit-height" className="text-xs">
+                  Altura (cm)
+                </Label>
+                <DecimalInput
                   id="edit-height"
                   placeholder="50,0"
                   value={editForm.initialHeight}
-                  onChange={(value) => setEditForm(f => ({ ...f, initialHeight: value }))}
+                  onChange={(value) =>
+                    setEditForm((f) => ({ ...f, initialHeight: value }))
+                  }
                   decimalPlaces={1}
                   data-testid="input-edit-height"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-head" className="text-xs">P. Cefálico (cm)</Label>
-                <DecimalInput 
+                <Label htmlFor="edit-head" className="text-xs">
+                  P. Cefálico (cm)
+                </Label>
+                <DecimalInput
                   id="edit-head"
                   placeholder="35,0"
                   value={editForm.initialHeadCircumference}
-                  onChange={(value) => setEditForm(f => ({ ...f, initialHeadCircumference: value }))}
+                  onChange={(value) =>
+                    setEditForm((f) => ({
+                      ...f,
+                      initialHeadCircumference: value,
+                    }))
+                  }
                   decimalPlaces={1}
                   data-testid="input-edit-head"
                 />
@@ -478,26 +639,42 @@ export default function Settings() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setEditingChild(null)} data-testid="button-cancel-edit">
+            <Button
+              variant="outline"
+              onClick={() => setEditingChild(null)}
+              data-testid="button-cancel-edit"
+            >
               <X className="w-4 h-4 mr-1" /> Cancelar
             </Button>
-            <Button onClick={handleUpdate} disabled={updateChild.isPending} data-testid="button-confirm-edit">
-              <Check className="w-4 h-4 mr-1" /> {updateChild.isPending ? "Salvando..." : "Salvar"}
+            <Button
+              onClick={handleUpdate}
+              disabled={updateChild.isPending}
+              data-testid="button-confirm-edit"
+            >
+              <Check className="w-4 h-4 mr-1" />{" "}
+              {updateChild.isPending ? "Salvando..." : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deletingChild} onOpenChange={(open) => !open && setDeletingChild(null)}>
+      <AlertDialog
+        open={!!deletingChild}
+        onOpenChange={(open) => !open && setDeletingChild(null)}
+      >
         <AlertDialogContent className="max-w-sm mx-auto rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Remover {deletingChild?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Todos os registros de crescimento, vacinas, marcos e memórias desta criança serão permanentemente excluídos.
+              Esta ação não pode ser desfeita. Todos os registros de
+              crescimento, vacinas, marcos e memórias desta criança serão
+              permanentemente excluídos.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel data-testid="button-cancel-delete">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-500 hover:bg-red-600 text-white"
@@ -508,6 +685,17 @@ export default function Settings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {sharingChild && (
+        <InviteCodeDialog
+          open={!!sharingChild}
+          onOpenChange={(open) => !open && setSharingChild(null)}
+          childId={sharingChild.id}
+          childName={sharingChild.name}
+        />
+      )}
+
+      <RedeemCodeDialog open={redeemOpen} onOpenChange={setRedeemOpen} />
     </div>
   );
 }

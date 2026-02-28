@@ -1,10 +1,10 @@
-import { z } from 'zod';
-import { 
-  insertChildSchema, 
-  insertGrowthRecordSchema, 
-  insertVaccineSchema, 
-  insertHealthRecordSchema, 
-  insertMilestoneSchema, 
+import { z } from "zod";
+import {
+  insertChildSchema,
+  insertGrowthRecordSchema,
+  insertVaccineSchema,
+  insertHealthRecordSchema,
+  insertMilestoneSchema,
   insertDiaryEntrySchema,
   insertVaccineRecordSchema,
   insertDailyPhotoSchema,
@@ -18,8 +18,10 @@ import {
   gamification,
   susVaccines,
   vaccineRecords,
-  dailyPhotos
-} from './schema';
+  dailyPhotos,
+  inviteCodes,
+  caregivers,
+} from "./schema";
 
 // ============================================
 // SHARED ERROR SCHEMAS
@@ -44,34 +46,34 @@ export const api = {
   // Auth & User
   auth: {
     me: {
-      method: 'GET' as const,
-      path: '/api/auth/me',
+      method: "GET" as const,
+      path: "/api/auth/me",
       responses: {
         200: z.custom<typeof users.$inferSelect>(),
         401: errorSchemas.validation, // Not authenticated
       },
     },
     gamification: {
-      method: 'GET' as const,
-      path: '/api/gamification',
+      method: "GET" as const,
+      path: "/api/gamification",
       responses: {
         200: z.custom<typeof gamification.$inferSelect>(),
       },
-    }
+    },
   },
 
   // Children
   children: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children',
+      method: "GET" as const,
+      path: "/api/children",
       responses: {
         200: z.array(z.custom<typeof children.$inferSelect>()),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children',
+      method: "POST" as const,
+      path: "/api/children",
       input: insertChildSchema,
       responses: {
         201: z.custom<typeof children.$inferSelect>(),
@@ -79,16 +81,16 @@ export const api = {
       },
     },
     get: {
-      method: 'GET' as const,
-      path: '/api/children/:id',
+      method: "GET" as const,
+      path: "/api/children/:id",
       responses: {
         200: z.custom<typeof children.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     update: {
-      method: 'PUT' as const,
-      path: '/api/children/:id',
+      method: "PUT" as const,
+      path: "/api/children/:id",
       input: insertChildSchema.partial(),
       responses: {
         200: z.custom<typeof children.$inferSelect>(),
@@ -96,8 +98,8 @@ export const api = {
       },
     },
     delete: {
-      method: 'DELETE' as const,
-      path: '/api/children/:id',
+      method: "DELETE" as const,
+      path: "/api/children/:id",
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,
@@ -108,15 +110,15 @@ export const api = {
   // Growth Records
   growth: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/growth',
+      method: "GET" as const,
+      path: "/api/children/:childId/growth",
       responses: {
         200: z.array(z.custom<typeof growthRecords.$inferSelect>()),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children/:childId/growth',
+      method: "POST" as const,
+      path: "/api/children/:childId/growth",
       input: insertGrowthRecordSchema.omit({ childId: true }),
       responses: {
         201: z.custom<typeof growthRecords.$inferSelect>(),
@@ -124,8 +126,8 @@ export const api = {
       },
     },
     update: {
-      method: 'PATCH' as const,
-      path: '/api/growth/:id',
+      method: "PATCH" as const,
+      path: "/api/growth/:id",
       input: insertGrowthRecordSchema.omit({ childId: true }).partial(),
       responses: {
         200: z.custom<typeof growthRecords.$inferSelect>(),
@@ -133,8 +135,8 @@ export const api = {
       },
     },
     archive: {
-      method: 'POST' as const,
-      path: '/api/growth/:id/archive',
+      method: "POST" as const,
+      path: "/api/growth/:id/archive",
       responses: {
         200: z.custom<typeof growthRecords.$inferSelect>(),
         404: errorSchemas.notFound,
@@ -145,15 +147,15 @@ export const api = {
   // Vaccines
   vaccines: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/vaccines',
+      method: "GET" as const,
+      path: "/api/children/:childId/vaccines",
       responses: {
         200: z.array(z.custom<typeof vaccines.$inferSelect>()),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children/:childId/vaccines',
+      method: "POST" as const,
+      path: "/api/children/:childId/vaccines",
       input: insertVaccineSchema.omit({ childId: true }),
       responses: {
         201: z.custom<typeof vaccines.$inferSelect>(),
@@ -161,8 +163,8 @@ export const api = {
       },
     },
     update: {
-      method: 'PATCH' as const,
-      path: '/api/vaccines/:id',
+      method: "PATCH" as const,
+      path: "/api/vaccines/:id",
       input: insertVaccineSchema.partial(),
       responses: {
         200: z.custom<typeof vaccines.$inferSelect>(),
@@ -174,15 +176,15 @@ export const api = {
   // Health Records
   health: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/health',
+      method: "GET" as const,
+      path: "/api/children/:childId/health",
       responses: {
         200: z.array(z.custom<typeof healthRecords.$inferSelect>()),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children/:childId/health',
+      method: "POST" as const,
+      path: "/api/children/:childId/health",
       input: insertHealthRecordSchema.omit({ childId: true }),
       responses: {
         201: z.custom<typeof healthRecords.$inferSelect>(),
@@ -190,8 +192,8 @@ export const api = {
       },
     },
     update: {
-      method: 'PATCH' as const,
-      path: '/api/health/:id',
+      method: "PATCH" as const,
+      path: "/api/health/:id",
       input: insertHealthRecordSchema.partial(),
       responses: {
         200: z.custom<typeof healthRecords.$inferSelect>(),
@@ -199,8 +201,8 @@ export const api = {
       },
     },
     archive: {
-      method: 'POST' as const,
-      path: '/api/health/:id/archive',
+      method: "POST" as const,
+      path: "/api/health/:id/archive",
       responses: {
         200: z.custom<typeof healthRecords.$inferSelect>(),
         404: errorSchemas.notFound,
@@ -211,15 +213,15 @@ export const api = {
   // Milestones
   milestones: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/milestones',
+      method: "GET" as const,
+      path: "/api/children/:childId/milestones",
       responses: {
         200: z.array(z.custom<typeof milestones.$inferSelect>()),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children/:childId/milestones',
+      method: "POST" as const,
+      path: "/api/children/:childId/milestones",
       input: insertMilestoneSchema.omit({ childId: true }),
       responses: {
         201: z.custom<typeof milestones.$inferSelect>(),
@@ -227,8 +229,8 @@ export const api = {
       },
     },
     update: {
-      method: 'PATCH' as const,
-      path: '/api/children/:childId/milestones/:milestoneId',
+      method: "PATCH" as const,
+      path: "/api/children/:childId/milestones/:milestoneId",
       input: insertMilestoneSchema.omit({ childId: true }).partial(),
       responses: {
         200: z.custom<typeof milestones.$inferSelect>(),
@@ -236,8 +238,8 @@ export const api = {
       },
     },
     delete: {
-      method: 'DELETE' as const,
-      path: '/api/children/:childId/milestones/:milestoneId',
+      method: "DELETE" as const,
+      path: "/api/children/:childId/milestones/:milestoneId",
       responses: {
         204: z.object({}),
         404: errorSchemas.notFound,
@@ -248,15 +250,15 @@ export const api = {
   // Diary
   diary: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/diary',
+      method: "GET" as const,
+      path: "/api/children/:childId/diary",
       responses: {
         200: z.array(z.custom<typeof diaryEntries.$inferSelect>()),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children/:childId/diary',
+      method: "POST" as const,
+      path: "/api/children/:childId/diary",
       input: insertDiaryEntrySchema.omit({ childId: true }),
       responses: {
         201: z.custom<typeof diaryEntries.$inferSelect>(),
@@ -264,8 +266,8 @@ export const api = {
       },
     },
     update: {
-      method: 'PATCH' as const,
-      path: '/api/children/:childId/diary/:entryId',
+      method: "PATCH" as const,
+      path: "/api/children/:childId/diary/:entryId",
       input: insertDiaryEntrySchema.omit({ childId: true }).partial(),
       responses: {
         200: z.custom<typeof diaryEntries.$inferSelect>(),
@@ -273,8 +275,8 @@ export const api = {
       },
     },
     delete: {
-      method: 'DELETE' as const,
-      path: '/api/children/:childId/diary/:entryId',
+      method: "DELETE" as const,
+      path: "/api/children/:childId/diary/:entryId",
       responses: {
         204: z.object({}),
         404: errorSchemas.notFound,
@@ -285,8 +287,8 @@ export const api = {
   // SUS Vaccines Catalog
   susVaccines: {
     list: {
-      method: 'GET' as const,
-      path: '/api/sus-vaccines',
+      method: "GET" as const,
+      path: "/api/sus-vaccines",
       responses: {
         200: z.array(z.custom<typeof susVaccines.$inferSelect>()),
       },
@@ -296,15 +298,15 @@ export const api = {
   // Vaccine Records (Carteira Vacinal)
   vaccineRecords: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/vaccine-records',
+      method: "GET" as const,
+      path: "/api/children/:childId/vaccine-records",
       responses: {
         200: z.array(z.custom<typeof vaccineRecords.$inferSelect>()),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children/:childId/vaccine-records',
+      method: "POST" as const,
+      path: "/api/children/:childId/vaccine-records",
       input: insertVaccineRecordSchema.omit({ childId: true }),
       responses: {
         201: z.custom<typeof vaccineRecords.$inferSelect>(),
@@ -312,8 +314,8 @@ export const api = {
       },
     },
     update: {
-      method: 'PATCH' as const,
-      path: '/api/vaccine-records/:id',
+      method: "PATCH" as const,
+      path: "/api/vaccine-records/:id",
       input: insertVaccineRecordSchema.partial(),
       responses: {
         200: z.custom<typeof vaccineRecords.$inferSelect>(),
@@ -321,8 +323,8 @@ export const api = {
       },
     },
     delete: {
-      method: 'DELETE' as const,
-      path: '/api/vaccine-records/:id',
+      method: "DELETE" as const,
+      path: "/api/vaccine-records/:id",
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,
@@ -333,22 +335,22 @@ export const api = {
   // Daily Photos (Foto do dia)
   dailyPhotos: {
     list: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/daily-photos',
+      method: "GET" as const,
+      path: "/api/children/:childId/daily-photos",
       responses: {
         200: z.array(z.custom<typeof dailyPhotos.$inferSelect>()),
       },
     },
     today: {
-      method: 'GET' as const,
-      path: '/api/children/:childId/daily-photos/today',
+      method: "GET" as const,
+      path: "/api/children/:childId/daily-photos/today",
       responses: {
         200: z.custom<typeof dailyPhotos.$inferSelect>().nullable(),
       },
     },
     create: {
-      method: 'POST' as const,
-      path: '/api/children/:childId/daily-photos',
+      method: "POST" as const,
+      path: "/api/children/:childId/daily-photos",
       input: insertDailyPhotoSchema.omit({ childId: true }),
       responses: {
         201: z.custom<typeof dailyPhotos.$inferSelect>(),
@@ -357,8 +359,8 @@ export const api = {
       },
     },
     delete: {
-      method: 'DELETE' as const,
-      path: '/api/daily-photos/:id',
+      method: "DELETE" as const,
+      path: "/api/daily-photos/:id",
       responses: {
         204: z.undefined(),
         403: errorSchemas.validation,
@@ -366,9 +368,79 @@ export const api = {
       },
     },
   },
+
+  // Invite Codes (Compartilhamento entre cuidadores)
+  invites: {
+    generate: {
+      method: "POST" as const,
+      path: "/api/children/:childId/invite",
+      input: z.object({
+        relationship: z.string().default("caregiver"),
+      }),
+      responses: {
+        201: z.object({
+          code: z.string(),
+          expiresAt: z.string(),
+          childName: z.string(),
+        }),
+        403: errorSchemas.validation,
+      },
+    },
+    redeem: {
+      method: "POST" as const,
+      path: "/api/invite/redeem",
+      input: z.object({
+        code: z.string().min(1),
+        relationship: z.string().optional(),
+      }),
+      responses: {
+        200: z.object({
+          message: z.string(),
+          childName: z.string(),
+        }),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+        409: z.object({ message: z.string() }),
+      },
+    },
+    listForChild: {
+      method: "GET" as const,
+      path: "/api/children/:childId/invites",
+      responses: {
+        200: z.array(z.custom<typeof inviteCodes.$inferSelect>()),
+      },
+    },
+    caregivers: {
+      method: "GET" as const,
+      path: "/api/children/:childId/caregivers",
+      responses: {
+        200: z.array(
+          z.object({
+            id: z.number(),
+            userId: z.string(),
+            relationship: z.string(),
+            role: z.string(),
+            userName: z.string().nullable(),
+            userEmail: z.string().nullable(),
+          }),
+        ),
+      },
+    },
+    removeCareiver: {
+      method: "DELETE" as const,
+      path: "/api/children/:childId/caregivers/:caregiverId",
+      responses: {
+        204: z.void(),
+        403: errorSchemas.validation,
+      },
+    },
+  },
 };
 
-export function buildUrl(path: string, params?: Record<string, string | number>): string {
+export function buildUrl(
+  path: string,
+  params?: Record<string, string | number>,
+): string {
   let url = path;
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
