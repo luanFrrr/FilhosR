@@ -277,6 +277,27 @@ export const inviteCodesRelations = relations(inviteCodes, ({ one }) => ({
   }),
 }));
 
+export const activityComments = pgTable("activity_comments", {
+  id: serial("id").primaryKey(),
+  childId: integer("child_id").notNull(),
+  recordType: text("record_type").notNull(),
+  recordId: integer("record_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const activityCommentsRelations = relations(activityComments, ({ one }) => ({
+  child: one(children, {
+    fields: [activityComments.childId],
+    references: [children.id],
+  }),
+  user: one(users, {
+    fields: [activityComments.userId],
+    references: [users.id],
+  }),
+}));
+
 // === BASE SCHEMAS ===
 
 export const insertChildSchema = createInsertSchema(children).omit({
@@ -367,6 +388,13 @@ export type InsertPushSubscription = z.infer<
 
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type InsertInviteCode = z.infer<typeof insertInviteCodeSchema>;
+
+export const insertActivityCommentSchema = createInsertSchema(activityComments).omit({
+  id: true,
+  createdAt: true,
+});
+export type ActivityComment = typeof activityComments.$inferSelect;
+export type InsertActivityComment = z.infer<typeof insertActivityCommentSchema>;
 
 // Request Types
 export type CreateChildRequest = InsertChild;

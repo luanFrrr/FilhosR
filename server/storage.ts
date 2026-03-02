@@ -14,6 +14,7 @@ import {
   dailyPhotos,
   pushSubscriptions,
   inviteCodes,
+  activityComments,
   type User,
   type Child,
   type InsertChild,
@@ -38,6 +39,8 @@ import {
   type InsertPushSubscription,
   type InviteCode,
   type InsertInviteCode,
+  type ActivityComment,
+  type InsertActivityComment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql } from "drizzle-orm";
@@ -167,6 +170,12 @@ export interface IStorage {
     relationship: string;
     role: string;
   }): Promise<void>;
+
+  // Activity Comments
+  getCommentsByRecord(childId: number, recordType: string, recordId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>>;
+  getCommentsByChild(childId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>>;
+  createComment(comment: InsertActivityComment): Promise<ActivityComment>;
+  deleteComment(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -922,6 +931,55 @@ export class DatabaseStorage implements IStorage {
       relationship: data.relationship,
       role: data.role,
     });
+  }
+
+  async getCommentsByRecord(childId: number, recordType: string, recordId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>> {
+    const results = await db
+      .select({
+        comment: activityComments,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+      })
+      .from(activityComments)
+      .leftJoin(users, eq(activityComments.userId, users.id))
+      .where(
+        and(
+          eq(activityComments.childId, childId),
+          eq(activityComments.recordType, recordType),
+          eq(activityComments.recordId, recordId),
+        ),
+      );
+    return results.map((r) => ({
+      ...r.comment,
+      userFirstName: r.userFirstName,
+      userLastName: r.userLastName,
+    }));
+  }
+
+  async getCommentsByChild(childId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>> {
+    const results = await db
+      .select({
+        comment: activityComments,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+      })
+      .from(activityComments)
+      .leftJoin(users, eq(activityComments.userId, users.id))
+      .where(eq(activityComments.childId, childId));
+    return results.map((r) => ({
+      ...r.comment,
+      userFirstName: r.userFirstName,
+      userLastName: r.userLastName,
+    }));
+  }
+
+  async createComment(comment: InsertActivityComment): Promise<ActivityComment> {
+    const [newComment] = await db.insert(activityComments).values(comment).returning();
+    return newComment;
+  }
+
+  async deleteComment(id: number): Promise<void> {
+    await db.delete(activityComments).where(eq(activityComments.id, id));
   }
 }
 

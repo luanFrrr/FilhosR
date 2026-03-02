@@ -21,6 +21,7 @@ import {
   dailyPhotos,
   inviteCodes,
   caregivers,
+  activityComments,
 } from "./schema";
 
 // ============================================
@@ -450,6 +451,43 @@ export const api = {
       responses: {
         200: z.object({ message: z.string() }),
         403: errorSchemas.validation,
+      },
+    },
+  },
+  // Activity Comments
+  comments: {
+    list: {
+      method: "GET" as const,
+      path: "/api/children/:childId/comments",
+      responses: {
+        200: z.array(z.custom<typeof activityComments.$inferSelect & { userFirstName: string | null; userLastName: string | null }>()),
+      },
+    },
+    listByRecord: {
+      method: "GET" as const,
+      path: "/api/children/:childId/comments/:recordType/:recordId",
+      responses: {
+        200: z.array(z.custom<typeof activityComments.$inferSelect & { userFirstName: string | null; userLastName: string | null }>()),
+      },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/children/:childId/comments",
+      input: z.object({
+        recordType: z.string(),
+        recordId: z.number(),
+        text: z.string().min(1),
+      }),
+      responses: {
+        201: z.custom<typeof activityComments.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    delete: {
+      method: "DELETE" as const,
+      path: "/api/comments/:id",
+      responses: {
+        204: z.void(),
       },
     },
   },
