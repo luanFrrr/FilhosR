@@ -12,7 +12,8 @@ export type UploadBucket =
   | "profile-photos"
   | "child-photos"
   | "milestone-photos"
-  | "daily-photos";
+  | "daily-photos"
+  | "vaccine-photos";
 
 /**
  * Faz upload de uma imagem base64 para o Supabase Storage.

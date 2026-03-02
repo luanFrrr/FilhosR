@@ -22,6 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { LikeButton } from "@/components/social/LikeButton";
 import { MilestoneComments } from "@/components/social/MilestoneComments";
 import { useMilestonesWithSocial } from "@/hooks/use-social";
+import { useUpload } from "@/hooks/use-upload";
 
 const celebrationMessages = [
   { title: "Que momento especial!", subtitle: "Cada conquista é um tesouro para guardar no coração" },
@@ -75,22 +76,19 @@ export default function Memories() {
     }
   }, [editingMilestone, editForm]);
 
+  const { upload, isUploading: isUploadingPhoto } = useUpload();
+  const [milestoneFile, setMilestoneFile] = useState<File | null>(null);
+
   const handleImageFile = async (file: File) => {
     if (file.size > 15 * 1024 * 1024) {
       toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
       return;
     }
-    try {
-      const compressedImage = await compressImage(file, 1200, 0.8);
-      const sizeInKB = Math.round(compressedImage.length * 0.75 / 1024);
-      if (sizeInKB > 8000) {
-        toast({ title: "Imagem ainda muito grande", description: "Tente uma foto com menor resolução", variant: "destructive" });
-        return;
-      }
-      setMilestoneImage(compressedImage);
-    } catch {
-      toast({ title: "Erro ao processar imagem", variant: "destructive" });
-    }
+    setMilestoneFile(file);
+    // Para preview local enquanto não salva
+    const reader = new FileReader();
+    reader.onloadend = () => setMilestoneImage(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
   const triggerCelebration = () => {
@@ -100,9 +98,22 @@ export default function Memories() {
     setTimeout(() => setShowCelebration(false), 3500);
   };
 
-  const onSubmitMilestone = (data: any) => {
+  const onSubmitMilestone = async (data: any) => {
     if (!activeChild) return;
     
+    let photoUrl = milestoneImage;
+
+    // Se houver um novo arquivo, faz upload para o Supabase
+    if (milestoneFile) {
+      const uploadedUrl = await upload(milestoneFile, {
+        bucket: "milestone-photos",
+        path: `${activeChild.id}/milestone-${Date.now()}.jpg`,
+        maxSize: 1200,
+        quality: 0.8,
+      });
+      if (uploadedUrl) photoUrl = uploadedUrl;
+    }
+
     // Fix date offset issue by ensuring YYYY-MM-DD
     const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
     
@@ -110,20 +121,34 @@ export default function Memories() {
       childId: activeChild.id, 
       ...data,
       date,
-      photoUrl: milestoneImage || null
+      photoUrl
     }, {
       onSuccess: () => {
         setOpenMilestone(false);
         milestoneForm.reset();
         setMilestoneImage(null);
+        setMilestoneFile(null);
         triggerCelebration();
       }
     });
   };
 
-  const onSubmitEdit = (data: any) => {
+  const onSubmitEdit = async (data: any) => {
     if (!activeChild || !editingMilestone) return;
     
+    let photoUrl = milestoneImage;
+
+    // Se houver um novo arquivo selecionado na edição
+    if (milestoneFile) {
+      const uploadedUrl = await upload(milestoneFile, {
+        bucket: "milestone-photos",
+        path: `${activeChild.id}/milestone-${Date.now()}.jpg`,
+        maxSize: 1200,
+        quality: 0.8,
+      });
+      if (uploadedUrl) photoUrl = uploadedUrl;
+    }
+
     // Fix date offset issue
     const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
     
@@ -132,12 +157,13 @@ export default function Memories() {
       milestoneId: editingMilestone.id,
       ...data,
       date,
-      photoUrl: milestoneImage
+      photoUrl
     }, {
       onSuccess: () => {
         setEditingMilestone(null);
         editForm.reset();
         setMilestoneImage(null);
+        setMilestoneFile(null);
         toast({ title: "Marco atualizado!" });
       }
     });

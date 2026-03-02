@@ -21,6 +21,7 @@ import { compressImage } from "@/lib/imageUtils";
 import { parseDecimalBR } from "@/lib/utils";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
+import { useUpload } from "@/hooks/use-upload";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
@@ -28,7 +29,9 @@ export default function Onboarding() {
   const createChild = useCreateChild();
   const { setActiveChildId } = useChildContext();
   const { toast } = useToast();
+  const { upload, isUploading: isUploadingPhoto } = useUpload();
   const [photo, setPhoto] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
   const isAddingAnother = existingChildren && existingChildren.length > 0;
   const { register, handleSubmit, watch, setValue, control } = useForm({
@@ -55,18 +58,30 @@ export default function Onboarding() {
       });
       return;
     }
-    try {
-      const compressed = await compressImage(file, 400, 0.8);
-      setPhoto(compressed);
-    } catch {
-      toast({ title: "Erro ao processar imagem", variant: "destructive" });
-    }
+    setPhotoFile(file);
+    // Para preview local enquanto não salva
+    const reader = new FileReader();
+    reader.onloadend = () => setPhoto(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
-  const onSubmit = (data: any) => {
+  const onSubmit = async (data: any) => {
     const weight = parseDecimalBR(data.initialWeight);
     const height = parseDecimalBR(data.initialHeight);
     const head = parseDecimalBR(data.initialHeadCircumference);
+
+    let photoUrl = photo;
+
+    // Se houver um novo arquivo, faz upload para o Supabase
+    if (photoFile) {
+      const uploadedUrl = await upload(photoFile, {
+        bucket: "child-photos",
+        path: `avatar-${Date.now()}.jpg`,
+        maxSize: 400,
+        quality: 0.8,
+      });
+      if (uploadedUrl) photoUrl = uploadedUrl;
+    }
 
     createChild.mutate(
       {
@@ -75,7 +90,7 @@ export default function Onboarding() {
         initialWeight: weight !== null ? weight.toString() : null,
         initialHeight: height !== null ? height.toString() : null,
         initialHeadCircumference: head !== null ? head.toString() : null,
-        photoUrl: photo,
+        photoUrl,
       },
       {
         onSuccess: (child) => {

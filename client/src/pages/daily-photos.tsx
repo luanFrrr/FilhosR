@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PhotoView } from "@/components/ui/photo-view";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import { X } from "lucide-react";
+import { useUpload } from "@/hooks/use-upload";
 
 const MENSAGENS_MOMENTO = [
   "Esse momento não volta. Ainda bem que você guardou.",
@@ -54,6 +55,7 @@ export default function DailyPhotos() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showFeedback, setShowFeedback] = useState<{ url: string; message: string } | null>(null);
   const pickerOpenerRef = useRef<(() => void) | null>(null);
+  const { upload, isUploading: isUploadingToStorage } = useUpload();
 
   // Cronological order: oldest first, newest last (timeline style)
   const sortedPhotos = photos?.slice().sort((a, b) => 
@@ -103,26 +105,31 @@ export default function DailyPhotos() {
     setIsUploading(true);
     
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const photoUrl = reader.result as string;
-        const today = new Date().toISOString().split('T')[0];
-        
-        await createPhoto.mutateAsync({
-          childId: activeChild.id,
-          date: today,
-          photoUrl,
-        });
-        
-        const newStreak = hadPhotoYesterday ? streakDays + 1 : 1;
-        const mensagem = getEmotionalMessage(newStreak, hadPhotoYesterday);
-        
-        setShowFeedback({ url: photoUrl, message: mensagem });
-        setTimeout(() => setShowFeedback(null), 5000);
-        
-        setCurrentIndex(-1);
-      };
-      reader.readAsDataURL(file);
+      // 1. Upload para o Supabase Storage
+      const today = new Date().toISOString().split('T')[0];
+      const photoUrl = await upload(file, {
+        bucket: "daily-photos",
+        path: `${activeChild.id}/${today}-${Date.now()}.jpg`,
+        maxSize: 1200,
+        quality: 0.8,
+      });
+
+      if (!photoUrl) throw new Error("Falha no upload da foto");
+
+      // 2. Salva o registro no banco com a URL do Storage
+      await createPhoto.mutateAsync({
+        childId: activeChild.id,
+        date: today,
+        photoUrl,
+      });
+      
+      const newStreak = hadPhotoYesterday ? streakDays + 1 : 1;
+      const mensagem = getEmotionalMessage(newStreak, hadPhotoYesterday);
+      
+      setShowFeedback({ url: photoUrl, message: mensagem });
+      setTimeout(() => setShowFeedback(null), 5000);
+      
+      setCurrentIndex(-1);
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -132,7 +139,7 @@ export default function DailyPhotos() {
     } finally {
       setIsUploading(false);
     }
-  }, [activeChild, createPhoto, toast, hadPhotoYesterday, streakDays, getEmotionalMessage]);
+  }, [activeChild, upload, createPhoto, toast, hadPhotoYesterday, streakDays, getEmotionalMessage]);
 
   const handleDeleteTodayPhoto = useCallback(async () => {
     if (!todayPhoto || !activeChild) return;
