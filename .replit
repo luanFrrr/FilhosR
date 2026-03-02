@@ -47,3 +47,4 @@ integrations = ["javascript_log_in_with_replit:2.0.0"]
 VAPID_PUBLIC_KEY = "BMFK8ckLlLhodrWwu-SIyD2pzBSzgO0zA9W4Owl5ySsOwRkAed0_AwXgatrpQrI-96vWML7c1ANJv4K7ZK5R_Oo"
 VAPID_PRIVATE_KEY = "l9uFnXKuB2B97iytOpLh_XOtWJIiamiQBKD50QF8blI"
 VAPID_SUBJECT = "mailto:filhos@replit.app"
+SUPABASE_URL = "https://aexwwgbdvhqnvcdcemhh.supabase.co"
