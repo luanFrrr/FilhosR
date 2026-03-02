@@ -367,13 +367,14 @@ export async function registerRoutes(
     await storage.addPoints(childId, 20);
 
     // Notify other caregivers
-    const user = await storage.getUser(userId);
+    const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
     const userName = user?.firstName || "Alguém";
+    const childName = child?.name || "seu filho(a)";
     notifyCaregivers(
       childId,
       userId,
       "✨ Novo marco registrado!",
-      `${userName} adicionou o marco "${record.title}"`
+      `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`
     );
 
     res.status(201).json(record);
@@ -443,13 +444,14 @@ export async function registerRoutes(
     await storage.addPoints(childId, 5);
 
     // Notify other caregivers
-    const user = await storage.getUser(userId);
+    const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
     const userName = user?.firstName || "Alguém";
+    const childName = child?.name || "seu filho(a)";
     notifyCaregivers(
       childId,
       userId,
       "📖 Nova nota no diário",
-      `${userName} escreveu um novo registro no diário`
+      `${userName} escreveu uma nova nota no diário do ${childName}`
     );
 
     res.status(201).json(record);
@@ -531,14 +533,19 @@ export async function registerRoutes(
       await storage.addPoints(childId, 15);
 
       // Notify other caregivers
-      const user = await storage.getUser(userId);
+      const [user, child, allVaccines] = await Promise.all([
+        storage.getUser(userId),
+        storage.getChild(childId),
+        storage.getSusVaccines()
+      ]);
       const userName = user?.firstName || "Alguém";
-      const susVaccine = await storage.getSusVaccines().then(list => list.find(v => v.id === record.susVaccineId));
+      const childName = child?.name || "seu filho(a)";
+      const susVaccine = allVaccines.find(v => v.id === record.susVaccineId);
       notifyCaregivers(
         childId,
         userId,
         "💉 Nova vacina registrada",
-        `${userName} registrou a vacina ${susVaccine?.name || ""} (${record.dose})`
+        `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`
       );
 
       res.status(201).json(record);
@@ -678,13 +685,14 @@ export async function registerRoutes(
       await storage.addPoints(childId, 5);
 
       // Notify other caregivers
-      const user = await storage.getUser(userId);
+      const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
       const userName = user?.firstName || "Alguém";
+      const childName = child?.name || "seu filho(a)";
       notifyCaregivers(
         childId,
         userId,
         "📸 Nova Foto do Dia!",
-        `${userName} adicionou uma nova foto hoje`
+        `${userName} adicionou a foto do dia do ${childName}`
       );
 
       res.status(201).json(photo);
