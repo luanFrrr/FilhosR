@@ -17,6 +17,7 @@ import {
   sendVaccineNotifications,
   notifyCaregivers,
 } from "./vaccineNotifications";
+import { uploadToStorage, type UploadBucket } from "./supabaseStorage";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -383,7 +384,7 @@ export async function registerRoutes(
 
     // Notify other caregivers
     const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-    const userName = user?.firstName || "Alguém";
+    const userName = user?.displayFirstName || user?.firstName || "Alguém";
     const childName = child?.name || "seu filho(a)";
     notifyCaregivers(
       childId,
@@ -460,7 +461,7 @@ export async function registerRoutes(
 
     // Notify other caregivers
     const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-    const userName = user?.firstName || "Alguém";
+    const userName = user?.displayFirstName || user?.firstName || "Alguém";
     const childName = child?.name || "seu filho(a)";
     notifyCaregivers(
       childId,
@@ -553,7 +554,7 @@ export async function registerRoutes(
         storage.getChild(childId),
         storage.getSusVaccines()
       ]);
-      const userName = user?.firstName || "Alguém";
+      const userName = user?.displayFirstName || user?.firstName || "Alguém";
       const childName = child?.name || "seu filho(a)";
       const susVaccine = allVaccines.find(v => v.id === record.susVaccineId);
       notifyCaregivers(
@@ -701,7 +702,7 @@ export async function registerRoutes(
 
       // Notify other caregivers
       const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-      const userName = user?.firstName || "Alguém";
+      const userName = user?.displayFirstName || user?.firstName || "Alguém";
       const childName = child?.name || "seu filho(a)";
       notifyCaregivers(
         childId,
@@ -1244,7 +1245,7 @@ export async function registerRoutes(
 
       // Notificar outros cuidadores
       const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-      const userName = user?.firstName || "Alguém";
+      const userName = user?.displayFirstName || user?.firstName || "Alguém";
       const childName = child?.name || "seu filho(a)";
       notifyCaregivers(
         childId,
@@ -1368,61 +1369,67 @@ export async function registerRoutes(
     }
   });
 
-  // Upload de foto de perfil → Supabase Storage
+  // Salvar URL da foto de perfil (após upload via /api/upload)
   app.post("/api/profile/photo", isAuthenticated, async (req: any, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const { base64, mimeType } = req.body;
-    if (!base64 || !mimeType) {
-      return res.status(400).json({ message: "base64 e mimeType são obrigatórios" });
+    // Modo 1: recebe URL já processada pelo /api/upload
+    if (req.body.url) {
+      const updated = await authStorage.updateUserProfile(userId, {
+        displayPhotoUrl: req.body.url,
+      });
+      return res.json({ user: updated });
     }
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      // Fallback: salva como data URL no campo displayPhotoUrl se Supabase não configurado
-      const dataUrl = `data:${mimeType};base64,${base64}`;
-      const updated = await authStorage.updateUserProfile(userId, {
-        displayPhotoUrl: dataUrl,
-      });
-      return res.json({ url: dataUrl, user: updated });
+    // Modo 2: base64 direto (legacy / fallback quando /api/upload não usado)
+    const { base64, mimeType } = req.body;
+    if (!base64 || !mimeType) {
+      return res.status(400).json({ message: "url ou base64+mimeType são obrigatórios" });
     }
 
     try {
-      const ext = mimeType.split("/")[1] || "jpg";
-      const fileName = `${userId}/avatar.${ext}`;
-      const buffer = Buffer.from(base64, "base64");
-
-      const uploadRes = await fetch(
-        `${supabaseUrl}/storage/v1/object/profile-photos/${fileName}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${supabaseKey}`,
-            "Content-Type": mimeType,
-            "x-upsert": "true",
-          },
-          body: buffer,
-        },
+      const url = await uploadToStorage(
+        "profile-photos",
+        `${userId}/avatar.jpg`,
+        base64,
+        mimeType
       );
-
-      if (!uploadRes.ok) {
-        const err = await uploadRes.text();
-        console.error("Supabase upload error:", err);
-        return res.status(500).json({ message: "Erro ao fazer upload da foto" });
-      }
-
-      const publicUrl = `${supabaseUrl}/storage/v1/object/public/profile-photos/${fileName}`;
-      const updated = await authStorage.updateUserProfile(userId, {
-        displayPhotoUrl: publicUrl,
-      });
-
-      res.json({ url: publicUrl, user: updated });
+      const updated = await authStorage.updateUserProfile(userId, { displayPhotoUrl: url });
+      res.json({ url, user: updated });
     } catch (err: any) {
       console.error("Profile photo upload failed:", err);
       res.status(500).json({ message: "Erro ao processar foto" });
+    }
+  });
+
+  // === UPLOAD UNIVERSAL DE FOTO (Supabase Storage) ===
+  // Aceita: { base64, mimeType, bucket, path }
+  // buckets permitidos: child-photos, milestone-photos, daily-photos
+  app.post("/api/upload", isAuthenticated, async (req: any, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const allowed: UploadBucket[] = ["child-photos", "milestone-photos", "daily-photos", "profile-photos"];
+    const { base64, mimeType, bucket, path: filePath } = req.body;
+
+    if (!base64 || !mimeType || !bucket || !filePath) {
+      return res.status(400).json({ message: "base64, mimeType, bucket e path são obrigatórios" });
+    }
+    if (!allowed.includes(bucket)) {
+      return res.status(400).json({ message: "Bucket não permitido" });
+    }
+    // Previne path traversal
+    if (filePath.includes("..") || filePath.startsWith("/")) {
+      return res.status(400).json({ message: "Path inválido" });
+    }
+
+    try {
+      const url = await uploadToStorage(bucket, filePath, base64, mimeType);
+      res.json({ url });
+    } catch (err: any) {
+      console.error("[upload] Failed:", err.message);
+      res.status(500).json({ message: "Erro ao fazer upload da foto" });
     }
   });
 

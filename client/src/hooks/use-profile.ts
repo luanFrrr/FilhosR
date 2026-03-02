@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { compressImage } from "@/lib/imageUtils";
+import { uploadImage } from "@/hooks/use-upload";
 
 type ProfileUpdateData = {
   displayFirstName?: string | null;
@@ -38,21 +38,23 @@ export function useUploadProfilePhoto() {
 
   return useMutation({
     mutationFn: async (file: File) => {
-      // Comprimir imagem antes de enviar (max 600px, qualidade 0.85)
-      const compressed = await compressImage(file, 600, 0.85);
+      // Upload para Supabase Storage via endpoint universal
+      const url = await uploadImage(file, {
+        bucket: "profile-photos",
+        path: `user/${Date.now()}.jpg`,
+        maxSize: 600,
+        quality: 0.85,
+      });
 
-      // Extrair base64 e mimeType
-      const [header, base64] = compressed.split(",");
-      const mimeType = header.match(/data:([^;]+)/)?.[1] || "image/jpeg";
-
+      // Salva a URL no perfil do usuário
       const res = await fetch("/api/profile/photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ base64, mimeType }),
+        body: JSON.stringify({ url }),
       });
-      if (!res.ok) throw new Error("Erro ao fazer upload da foto");
-      return res.json() as Promise<{ url: string; user: any }>;
+      if (!res.ok) throw new Error("Erro ao salvar foto de perfil");
+      return res.json() as Promise<{ user: any }>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
