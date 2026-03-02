@@ -85,7 +85,6 @@ export const milestones = pgTable("milestones", {
   title: text("title").notNull(),
   description: text("description"),
   photoUrl: text("photo_url"),
-  videoUrl: text("video_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -376,5 +375,5 @@ export type UpdateChildRequest = Partial<InsertChild>;
 export type CreateGrowthRecordRequest = InsertGrowthRecord;
 export type CreateVaccineRequest = InsertVaccine;
 export type CreateHealthRecordRequest = InsertHealthRecord;
-export type CreateMilestoneRequest = InsertMilestone & { videoUrl?: string | null };
+export type CreateMilestoneRequest = InsertMilestone;
 export type CreateDiaryEntryRequest = InsertDiaryEntry;

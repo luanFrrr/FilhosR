@@ -39,7 +39,7 @@ Core entities include:
 - **GrowthRecords**: Weight, height, head circumference tracking over time
 - **Vaccines/VaccineRecords**: Custom vaccines and SUS-standard vaccine tracking
 - **HealthRecords**: Illness tracking with symptoms and medications
-- **Milestones/DiaryEntries**: Memory keeping features. Milestones support titles, descriptions, dates, photos (base64), and video links (YouTube/Vimeo).
+- **Milestones/DiaryEntries**: Memory keeping features. Milestones support titles, descriptions, dates, and photos (base64).
 - **Gamification**: Points and levels to encourage engagement
 
 ### API Structure
@@ -87,7 +87,7 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **TWA Asset Links**: Added `.well-known/assetlinks.json` for Google Play TWA verification.
 - **Data Deletion Page**: Server-rendered HTML for Google Play bot crawlers at `/delete-account`.
 - **Caregiver Invite System**: Invite codes (FLH-XXXX format, 48h expiry, single-use) for sharing child access between caregivers. Owner generates code in Settings, other parent redeems in Settings or Dashboard (empty state). Tables: `invite_codes`, `caregivers`. Endpoints: generate, redeem, list invites, list caregivers, remove caregiver. Components: `invite-code-dialog.tsx`, `redeem-code-dialog.tsx`.
-- **Primeiras Vezes (Milestones)**: Seção de "primeiras vezes" para registrar e celebrar os marcos do bebê com fotos e links de vídeos. Inclui animações de celebração e sistema de pontos (20 pontos por marco).
+- **Primeiras Vezes (Milestones)**: Seção de "primeiras vezes" para registrar e celebrar os marcos do bebê com fotos. Inclui animações de celebração e sistema de pontos (20 pontos por marco).
 - **Owner-only Delete**: Only the caregiver with role "owner" can delete a child (backend enforced via `getCaregiverRole`). Delete button hidden in Settings for non-owners. New endpoint `/api/children/with-roles` returns children with user's role. Hook: `useChildrenWithRoles`.
 - **Service Worker Cache Fix**: Bumped cache to v3, removed root HTML from static cache, added navigation bypass to always fetch fresh HTML.
 

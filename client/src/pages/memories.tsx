@@ -47,7 +47,6 @@ export default function Memories() {
   const [openMilestone, setOpenMilestone] = useState(false);
   const [openDiary, setOpenDiary] = useState(false);
   const [milestoneImage, setMilestoneImage] = useState<string | null>(null);
-  const [milestoneVideo, setMilestoneVideo] = useState<string | null>(null);
   const [viewMilestone, setViewMilestone] = useState<Milestone | null>(null);
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Milestone | null>(null);
@@ -67,10 +66,8 @@ export default function Memories() {
         date: editingMilestone.date,
         title: editingMilestone.title,
         description: editingMilestone.description || "",
-        videoUrl: editingMilestone.videoUrl || "",
       });
       setMilestoneImage(editingMilestone.photoUrl || null);
-      setMilestoneVideo(editingMilestone.videoUrl || null);
     }
   }, [editingMilestone, editForm]);
 
@@ -109,14 +106,12 @@ export default function Memories() {
       childId: activeChild.id, 
       ...data,
       date,
-      photoUrl: milestoneImage || null,
-      videoUrl: milestoneVideo || null
+      photoUrl: milestoneImage || null
     }, {
       onSuccess: () => {
         setOpenMilestone(false);
         milestoneForm.reset();
         setMilestoneImage(null);
-        setMilestoneVideo(null);
         triggerCelebration();
       }
     });
@@ -133,14 +128,12 @@ export default function Memories() {
       milestoneId: editingMilestone.id,
       ...data,
       date,
-      photoUrl: milestoneImage,
-      videoUrl: milestoneVideo
+      photoUrl: milestoneImage
     }, {
       onSuccess: () => {
         setEditingMilestone(null);
         editForm.reset();
         setMilestoneImage(null);
-        setMilestoneVideo(null);
         toast({ title: "Marco atualizado!" });
       }
     });
@@ -336,15 +329,6 @@ export default function Memories() {
                        )}
                      </div>
 
-                     <div className="space-y-2">
-                       <Label>Link do Vídeo (YouTube/Vimeo)</Label>
-                       <Input 
-                         placeholder="https://..." 
-                         {...milestoneForm.register("videoUrl")} 
-                         data-testid="input-milestone-video" 
-                       />
-                     </div>
-
                      <Button type="submit" className="w-full" disabled={createMilestone.isPending} data-testid="button-save-milestone">
                        {createMilestone.isPending ? "Guardando..." : "Guardar lembrança"}
                      </Button>
@@ -475,22 +459,6 @@ export default function Memories() {
                 />
               )}
               
-              {viewMilestone.videoUrl && (
-                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black flex items-center justify-center">
-                  <a 
-                    href={viewMilestone.videoUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-white flex flex-col items-center gap-2 hover:text-primary transition-colors"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                      <Sparkles className="w-6 h-6" />
-                    </div>
-                    <span className="text-sm font-medium">Ver Vídeo</span>
-                  </a>
-                </div>
-              )}
-              
               <p className="text-foreground leading-relaxed">{viewMilestone.description}</p>
               
               <DialogFooter className="flex gap-2 sm:gap-2">
@@ -538,11 +506,6 @@ export default function Memories() {
               <Label>Título</Label>
               <Input {...editForm.register("title")} />
             </div>
-            <div className="space-y-2">
-              <Label>Link do Vídeo</Label>
-              <Input {...editForm.register("videoUrl")} placeholder="Link do YouTube ou similar" />
-            </div>
-            
             <div className="space-y-2">
               <Label>Descrição</Label>
               <Textarea {...editForm.register("description")} />
