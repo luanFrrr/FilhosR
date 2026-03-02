@@ -491,6 +491,24 @@ export const api = {
       },
     },
   },
+
+  // Milestone Likes
+  likes: {
+    get: {
+      method: "GET" as const,
+      path: "/api/milestones/:milestoneId/likes",
+      responses: {
+        200: z.object({ count: z.number(), userLiked: z.boolean() }),
+      },
+    },
+    toggle: {
+      method: "POST" as const,
+      path: "/api/milestones/:milestoneId/like",
+      responses: {
+        200: z.object({ count: z.number(), userLiked: z.boolean() }),
+      },
+    },
+  },
 };
 
 export function buildUrl(

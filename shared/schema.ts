@@ -234,11 +234,12 @@ export const healthRecordsRelations = relations(healthRecords, ({ one }) => ({
   }),
 }));
 
-export const milestonesRelations = relations(milestones, ({ one }) => ({
+export const milestonesRelations = relations(milestones, ({ one, many }) => ({
   child: one(children, {
     fields: [milestones.childId],
     references: [children.id],
   }),
+  likes: many(milestoneLikes),
 }));
 
 export const diaryEntriesRelations = relations(diaryEntries, ({ one }) => ({
@@ -294,6 +295,34 @@ export const activityCommentsRelations = relations(activityComments, ({ one }) =
   }),
   user: one(users, {
     fields: [activityComments.userId],
+    references: [users.id],
+  }),
+}));
+
+// Likes em marcos (primeiras vezes)
+export const milestoneLikes = pgTable(
+  "milestone_likes",
+  {
+    id: serial("id").primaryKey(),
+    milestoneId: integer("milestone_id").notNull(),
+    userId: varchar("user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueUserMilestone: uniqueIndex("milestone_likes_user_milestone_unique").on(
+      table.milestoneId,
+      table.userId,
+    ),
+  }),
+);
+
+export const milestoneLikesRelations = relations(milestoneLikes, ({ one }) => ({
+  milestone: one(milestones, {
+    fields: [milestoneLikes.milestoneId],
+    references: [milestones.id],
+  }),
+  user: one(users, {
+    fields: [milestoneLikes.userId],
     references: [users.id],
   }),
 }));
@@ -395,6 +424,23 @@ export const insertActivityCommentSchema = createInsertSchema(activityComments).
 });
 export type ActivityComment = typeof activityComments.$inferSelect;
 export type InsertActivityComment = z.infer<typeof insertActivityCommentSchema>;
+
+export const insertMilestoneLikeSchema = createInsertSchema(milestoneLikes).omit({
+  id: true,
+  createdAt: true,
+});
+export type MilestoneLike = typeof milestoneLikes.$inferSelect;
+export type InsertMilestoneLike = z.infer<typeof insertMilestoneLikeSchema>;
+
+export type MilestoneLikeStatus = {
+  count: number;
+  userLiked: boolean;
+};
+
+export type MilestoneWithSocial = Milestone & {
+  likeCount: number;
+  commentCount: number;
+};
 
 // Request Types
 export type CreateChildRequest = InsertChild;

@@ -3,8 +3,9 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { caregivers } from "@shared/schema";
+import { caregivers, activityComments } from "@shared/schema";
 import { db } from "./db";
+import { eq as drizzleEq } from "drizzle-orm";
 import {
   setupAuth,
   registerAuthRoutes,
@@ -336,6 +337,20 @@ export async function registerRoutes(
 
     const record = await storage.archiveHealthRecord(id);
     res.json(record);
+  });
+
+  // Milestones with social counts (likes + comments)
+  app.get("/api/children/:childId/milestones/social", isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const childId = Number(req.params.childId);
+    if (!(await hasChildAccess(userId, childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const milestonesWithSocial = await storage.getMilestonesWithSocialCounts(childId, userId);
+    res.json(milestonesWithSocial);
   });
 
   // Milestones
@@ -1174,6 +1189,157 @@ export async function registerRoutes(
       res.json({ message: "Cuidador removido com sucesso" });
     },
   );
+
+  // === COMMENTS (Comentários em marcos e outros registros) ===
+
+  // Listar comentários por registro específico
+  app.get(api.comments.listByRecord.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const childId = Number(req.params.childId);
+    if (!(await hasChildAccess(userId, childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const recordType = String(req.params.recordType);
+    const recordId = String(req.params.recordId);
+    const comments = await storage.getCommentsByRecord(childId, recordType, Number(recordId));
+    res.json(comments);
+  });
+
+  // Listar todos os comentários de uma criança
+  app.get(api.comments.list.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const childId = Number(req.params.childId);
+    if (!(await hasChildAccess(userId, childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const comments = await storage.getCommentsByChild(childId);
+    res.json(comments);
+  });
+
+  // Criar comentário
+  app.post(api.comments.create.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const childId = Number(req.params.childId);
+    if (!(await hasChildAccess(userId, childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    try {
+      const input = api.comments.create.input.parse(req.body);
+      const comment = await storage.createComment({
+        childId,
+        userId,
+        recordType: input.recordType,
+        recordId: input.recordId,
+        text: input.text,
+      });
+
+      // Notificar outros cuidadores
+      const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
+      const userName = user?.firstName || "Alguém";
+      const childName = child?.name || "seu filho(a)";
+      notifyCaregivers(
+        childId,
+        userId,
+        "💬 Novo comentário",
+        `${userName} comentou em um marco de ${childName}`,
+      );
+
+      res.status(201).json(comment);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  // Deletar comentário (apenas o autor ou cuidador da criança)
+  app.delete(api.comments.delete.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const commentId = Number(req.params.id);
+    if (!commentId || isNaN(commentId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const [existingComment] = await db
+      .select()
+      .from(activityComments)
+      .where(drizzleEq(activityComments.id, commentId));
+
+    if (!existingComment) {
+      return res.status(404).json({ message: "Comentário não encontrado" });
+    }
+
+    // Verificar acesso: ser o autor OU ter acesso à criança
+    if (existingComment.userId !== userId) {
+      const hasAccess = await hasChildAccess(userId, existingComment.childId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+    }
+
+    await storage.deleteComment(commentId);
+    res.status(204).send();
+  });
+
+  // === MILESTONE LIKES ===
+
+  // Obter status de like de um marco
+  app.get(api.likes.get.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const milestoneId = Number(req.params.milestoneId);
+    if (!milestoneId || isNaN(milestoneId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    // Verificar acesso via milestone
+    const milestone = await storage.getMilestoneById(milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ message: "Marco não encontrado" });
+    }
+    if (!(await hasChildAccess(userId, milestone.childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const status = await storage.getMilestoneLikeStatus(milestoneId, userId);
+    res.json(status);
+  });
+
+  // Toggle like em um marco
+  app.post(api.likes.toggle.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const milestoneId = Number(req.params.milestoneId);
+    if (!milestoneId || isNaN(milestoneId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    // Verificar acesso via milestone
+    const milestone = await storage.getMilestoneById(milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ message: "Marco não encontrado" });
+    }
+    if (!(await hasChildAccess(userId, milestone.childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const status = await storage.toggleMilestoneLike(milestoneId, userId);
+    res.json(status);
+  });
 
   startVaccineNotificationScheduler();
 

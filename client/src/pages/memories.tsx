@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Star, Book, Image as ImageIcon, Camera, X, Edit2, Trash2, Heart, Sparkles } from "lucide-react";
+import { Star, Book, Image as ImageIcon, Camera, X, Edit2, Trash2, Heart, Sparkles, MessageCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { compressImage } from "@/lib/imageUtils";
@@ -19,6 +19,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import type { Milestone, DiaryEntry } from "@shared/schema";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { LikeButton } from "@/components/social/LikeButton";
+import { MilestoneComments } from "@/components/social/MilestoneComments";
+import { useMilestonesWithSocial } from "@/hooks/use-social";
 
 const celebrationMessages = [
   { title: "Que momento especial!", subtitle: "Cada conquista é um tesouro para guardar no coração" },
@@ -36,6 +39,7 @@ const celebrationMessages = [
 export default function Memories() {
   const { activeChild } = useChildContext();
   const { data: milestones } = useMilestones(activeChild?.id || 0);
+  const { data: milestonesWithSocial } = useMilestonesWithSocial(activeChild?.id || 0);
   const { data: diary } = useDiary(activeChild?.id || 0);
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
@@ -338,7 +342,9 @@ export default function Memories() {
             </div>
 
             <div className="relative border-l-2 border-primary/20 ml-4 space-y-8 pb-8">
-               {milestones?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((milestone) => (
+             {milestones?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((milestone) => {
+               const social = milestonesWithSocial?.find(m => m.id === milestone.id);
+               return (
                  <div 
                    key={milestone.id} 
                    className="relative pl-6 cursor-pointer group"
@@ -359,10 +365,30 @@ export default function Memories() {
                      )}
                      <h3 className="font-display font-bold text-lg mb-2">{milestone.title}</h3>
                      <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{milestone.description}</p>
-                     <p className="text-xs text-primary mt-2">Toque para ver detalhes</p>
+                     {/* Social counters */}
+                     {(social && (social.likeCount > 0 || social.commentCount > 0)) && (
+                       <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
+                         {social.likeCount > 0 && (
+                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                             <Heart className="w-3 h-3 fill-rose-400 text-rose-400" />
+                             {social.likeCount}
+                           </span>
+                         )}
+                         {social.commentCount > 0 && (
+                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                             <MessageCircle className="w-3 h-3" />
+                             {social.commentCount}
+                           </span>
+                         )}
+                       </div>
+                     )}
+                     {!(social?.likeCount || social?.commentCount) && (
+                       <p className="text-xs text-primary mt-2">Toque para ver detalhes</p>
+                     )}
                    </div>
                  </div>
-               ))}
+               );
+             })}
                {(!milestones || milestones.length === 0) && (
                  <p className="pl-6 text-muted-foreground italic">Registre os primeiros momentos especiais...</p>
                )}
@@ -460,6 +486,20 @@ export default function Memories() {
               )}
               
               <p className="text-foreground leading-relaxed">{viewMilestone.description}</p>
+
+              {/* Social: Like + Comments */}
+              <div className="border-t border-border/50 pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <LikeButton
+                    milestoneId={viewMilestone.id}
+                    childId={activeChild?.id || 0}
+                  />
+                </div>
+                <MilestoneComments
+                  childId={activeChild?.id || 0}
+                  milestoneId={viewMilestone.id}
+                />
+              </div>
               
               <DialogFooter className="flex gap-2 sm:gap-2">
                 <Button 

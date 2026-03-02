@@ -15,6 +15,7 @@ import {
   pushSubscriptions,
   inviteCodes,
   activityComments,
+  milestoneLikes,
   type User,
   type Child,
   type InsertChild,
@@ -41,9 +42,11 @@ import {
   type InsertInviteCode,
   type ActivityComment,
   type InsertActivityComment,
+  type MilestoneLikeStatus,
+  type MilestoneWithSocial,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql } from "drizzle-orm";
+import { eq, and, gt, sql, count } from "drizzle-orm";
 
 export interface IStorage {
   // Users (OIDC users have string IDs)
@@ -176,6 +179,11 @@ export interface IStorage {
   getCommentsByChild(childId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>>;
   createComment(comment: InsertActivityComment): Promise<ActivityComment>;
   deleteComment(id: number): Promise<void>;
+
+  // Milestone Likes
+  getMilestoneLikeStatus(milestoneId: number, userId: string): Promise<MilestoneLikeStatus>;
+  toggleMilestoneLike(milestoneId: number, userId: string): Promise<MilestoneLikeStatus>;
+  getMilestonesWithSocialCounts(childId: number, userId: string): Promise<MilestoneWithSocial[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -980,6 +988,78 @@ export class DatabaseStorage implements IStorage {
 
   async deleteComment(id: number): Promise<void> {
     await db.delete(activityComments).where(eq(activityComments.id, id));
+  }
+
+  // Milestone Likes
+  async getMilestoneLikeStatus(milestoneId: number, userId: string): Promise<MilestoneLikeStatus> {
+    const [likeCount] = await db
+      .select({ count: count() })
+      .from(milestoneLikes)
+      .where(eq(milestoneLikes.milestoneId, milestoneId));
+
+    const [userLikeRow] = await db
+      .select()
+      .from(milestoneLikes)
+      .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)));
+
+    return {
+      count: likeCount?.count ?? 0,
+      userLiked: !!userLikeRow,
+    };
+  }
+
+  async toggleMilestoneLike(milestoneId: number, userId: string): Promise<MilestoneLikeStatus> {
+    const existing = await db
+      .select()
+      .from(milestoneLikes)
+      .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)));
+
+    if (existing.length > 0) {
+      // Remove like
+      await db
+        .delete(milestoneLikes)
+        .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)));
+    } else {
+      // Add like
+      await db.insert(milestoneLikes).values({ milestoneId, userId });
+    }
+
+    return this.getMilestoneLikeStatus(milestoneId, userId);
+  }
+
+  async getMilestonesWithSocialCounts(childId: number, userId: string): Promise<MilestoneWithSocial[]> {
+    const allMilestones = await db
+      .select()
+      .from(milestones)
+      .where(eq(milestones.childId, childId));
+
+    const results: MilestoneWithSocial[] = await Promise.all(
+      allMilestones.map(async (milestone) => {
+        const [likeCount] = await db
+          .select({ count: count() })
+          .from(milestoneLikes)
+          .where(eq(milestoneLikes.milestoneId, milestone.id));
+
+        const [commentCount] = await db
+          .select({ count: count() })
+          .from(activityComments)
+          .where(
+            and(
+              eq(activityComments.childId, childId),
+              eq(activityComments.recordType, "milestone"),
+              eq(activityComments.recordId, milestone.id),
+            ),
+          );
+
+        return {
+          ...milestone,
+          likeCount: likeCount?.count ?? 0,
+          commentCount: commentCount?.count ?? 0,
+        };
+      }),
+    );
+
+    return results;
   }
 }
 
