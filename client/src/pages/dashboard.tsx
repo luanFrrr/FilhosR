@@ -195,15 +195,17 @@ export default function Dashboard() {
             acompanhar uma criança.
           </p>
           <div className="flex flex-col gap-3">
-            <Link href="/onboarding" className="btn-primary inline-block">
-              Começar agora
+            <Link href="/onboarding" className="w-full">
+              <Button className="w-full h-12 text-lg font-bold shadow-lg shadow-primary/20">
+                Começar agora
+              </Button>
             </Link>
             <Button
               variant="outline"
-              className="w-full gap-2"
+              className="w-full h-12 gap-2 border-primary/30 text-primary font-semibold"
               onClick={() => setRedeemOpen(true)}
             >
-              <Ticket className="w-4 h-4" /> Usar Código de Convite
+              <Ticket className="w-5 h-5" /> Usar Código de Convite
             </Button>
           </div>
         </div>
