@@ -7,6 +7,7 @@ import { ChildProvider } from "@/hooks/use-child-context";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
+import { NotificationPermissionBanner } from "@/components/notifications/NotificationPermissionBanner";
 
 // Pages
 import Dashboard from "@/pages/dashboard";
@@ -28,6 +29,7 @@ function AuthenticatedRouter() {
 
   return (
     <>
+      <NotificationPermissionBanner />
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/growth" component={Growth} />

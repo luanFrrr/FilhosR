@@ -4,7 +4,7 @@ import { useChildren } from "./use-children";
 
 interface ChildContextType {
   activeChildId: number | null;
-  setActiveChildId: (id: number) => void;
+  setActiveChildId: (id: number | null) => void;
   activeChild: Child | undefined;
   isLoading: boolean;
 }
@@ -41,7 +41,7 @@ export function ChildProvider({ children }: { children: React.ReactNode }) {
 
   const activeChild = childList?.find((c) => c.id === activeChildId);
 
-  const setActiveChildId = (id: number) => {
+  const setActiveChildId = (id: number | null) => {
     setActiveChildIdState(id);
   };
 

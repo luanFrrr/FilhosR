@@ -30,6 +30,7 @@ import {
   X,
   Check,
   Camera,
+  BellOff,
   BellRing,
   Loader2,
   Share2,
@@ -37,6 +38,7 @@ import {
   Users,
   UserMinus,
   DoorOpen,
+  ExternalLink,
 } from "lucide-react";
 import { InviteCodeDialog } from "@/components/invite/invite-code-dialog";
 import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
@@ -492,50 +494,88 @@ export default function Settings() {
           </h3>
 
           <div className="bg-white rounded-xl border border-border overflow-hidden">
-            <div className="p-4 flex items-center justify-between border-b border-border/50">
-              <div className="flex items-center gap-3">
+            {/* Notificações: painel de status inteligente */}
+            <div className="p-4 border-b border-border/50">
+              <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
                   <Bell className="w-4 h-4" />
                 </div>
-                <div>
-                  <Label>Notificações de Vacinas</Label>
-                  {!isSupported && (
-                    <p className="text-xs text-muted-foreground">
-                      Não suportado neste navegador
-                    </p>
-                  )}
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">Notificações</p>
+                  <p className="text-xs text-muted-foreground">
+                    Vacinas, marcos e atividades da família
+                  </p>
                 </div>
+                {pushLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
               </div>
-              {pushLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+
+              {!isSupported ? (
+                <div className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2">
+                  <BellOff className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <p className="text-xs text-muted-foreground">
+                    Notificações não suportadas neste navegador
+                  </p>
+                </div>
+              ) : Notification.permission === "denied" ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 bg-red-50 rounded-lg px-3 py-2">
+                    <BellOff className="w-4 h-4 text-red-400 shrink-0" />
+                    <p className="text-xs text-red-600">
+                      Permissão bloqueada no dispositivo. Ative manualmente nas configurações do navegador.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2 text-xs"
+                    onClick={() => window.open("app-settings:", "_blank")}
+                    data-testid="button-open-browser-settings"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Abrir configurações do navegador
+                  </Button>
+                </div>
+              ) : isSubscribed ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
+                    <BellRing className="w-4 h-4 text-green-500 shrink-0" />
+                    <p className="text-xs text-green-700 font-medium">
+                      ✓ Notificações ativadas
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs gap-1"
+                      onClick={sendTest}
+                      data-testid="button-test-notification"
+                    >
+                      <BellRing className="w-3.5 h-3.5" /> Testar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 text-xs text-muted-foreground gap-1"
+                      onClick={unsubscribe}
+                      disabled={pushLoading}
+                      data-testid="button-disable-notifications"
+                    >
+                      <BellOff className="w-3.5 h-3.5" /> Desativar
+                    </Button>
+                  </div>
+                </div>
               ) : (
-                <Switch
-                  checked={isSubscribed}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      subscribe();
-                    } else {
-                      unsubscribe();
-                    }
-                  }}
-                  disabled={!isSupported || pushLoading}
-                  data-testid="switch-notifications"
-                />
+                <Button
+                  className="w-full gap-2 h-10 rounded-xl"
+                  onClick={subscribe}
+                  disabled={pushLoading}
+                  data-testid="button-enable-notifications"
+                >
+                  <Bell className="w-4 h-4" /> Ativar notificações
+                </Button>
               )}
             </div>
-            {isSubscribed && (
-              <div className="px-4 py-3 border-b border-border/50">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-sm gap-2"
-                  onClick={sendTest}
-                  data-testid="button-test-notification"
-                >
-                  <BellRing className="w-4 h-4" /> Enviar notificação de teste
-                </Button>
-              </div>
-            )}
+
             <div className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
