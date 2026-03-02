@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -1339,6 +1339,91 @@ export async function registerRoutes(
 
     const status = await storage.toggleMilestoneLike(milestoneId, userId);
     res.json(status);
+  });
+
+  // === PERFIL DO USUÁRIO ===
+
+  // Atualizar dados de exibição do perfil (nome/sobrenome customizáveis)
+  app.put("/api/profile", isAuthenticated, async (req: any, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const schema = z.object({
+      displayFirstName: z.string().min(1).max(50).optional().nullable(),
+      displayLastName: z.string().max(80).optional().nullable(),
+    });
+
+    try {
+      const data = schema.parse(req.body);
+      const updated = await authStorage.updateUserProfile(userId, {
+        displayFirstName: data.displayFirstName ?? null,
+        displayLastName: data.displayLastName ?? null,
+      });
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  // Upload de foto de perfil → Supabase Storage
+  app.post("/api/profile/photo", isAuthenticated, async (req: any, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const { base64, mimeType } = req.body;
+    if (!base64 || !mimeType) {
+      return res.status(400).json({ message: "base64 e mimeType são obrigatórios" });
+    }
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      // Fallback: salva como data URL no campo displayPhotoUrl se Supabase não configurado
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+      const updated = await authStorage.updateUserProfile(userId, {
+        displayPhotoUrl: dataUrl,
+      });
+      return res.json({ url: dataUrl, user: updated });
+    }
+
+    try {
+      const ext = mimeType.split("/")[1] || "jpg";
+      const fileName = `${userId}/avatar.${ext}`;
+      const buffer = Buffer.from(base64, "base64");
+
+      const uploadRes = await fetch(
+        `${supabaseUrl}/storage/v1/object/profile-photos/${fileName}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${supabaseKey}`,
+            "Content-Type": mimeType,
+            "x-upsert": "true",
+          },
+          body: buffer,
+        },
+      );
+
+      if (!uploadRes.ok) {
+        const err = await uploadRes.text();
+        console.error("Supabase upload error:", err);
+        return res.status(500).json({ message: "Erro ao fazer upload da foto" });
+      }
+
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/profile-photos/${fileName}`;
+      const updated = await authStorage.updateUserProfile(userId, {
+        displayPhotoUrl: publicUrl,
+      });
+
+      res.json({ url: publicUrl, user: updated });
+    } catch (err: any) {
+      console.error("Profile photo upload failed:", err);
+      res.status(500).json({ message: "Erro ao processar foto" });
+    }
   });
 
   startVaccineNotificationScheduler();

@@ -77,16 +77,30 @@ export function registerAuthRoutes(app: Express): void {
         lastName = parts.slice(1).join(" ");
       }
 
-      // Only update if we have something useful
-      if (firstName || profileImageUrl) {
-        const existing = await authStorage.getUser(userId);
-        await authStorage.upsertUser({
-          id: userId,
-          email: existing?.email ?? email,
-          firstName: firstName ?? existing?.firstName ?? null,
-          lastName: lastName ?? existing?.lastName ?? null,
-          profileImageUrl: profileImageUrl ?? existing?.profileImageUrl ?? null,
-        });
+      const existing = await authStorage.getUser(userId);
+
+      // Se o perfil foi customizado pelo usuário, não sobrescrever os campos de exibição
+      if (!existing?.profileCustomized) {
+        if (firstName || profileImageUrl) {
+          await authStorage.upsertUser({
+            id: userId,
+            email: existing?.email ?? email,
+            firstName: firstName ?? existing?.firstName ?? null,
+            lastName: lastName ?? existing?.lastName ?? null,
+            profileImageUrl: profileImageUrl ?? existing?.profileImageUrl ?? null,
+          });
+        }
+      } else {
+        // Apenas atualiza email se necessário
+        if (email && email !== existing?.email) {
+          await authStorage.upsertUser({
+            id: userId,
+            email,
+            firstName: existing?.firstName ?? null,
+            lastName: existing?.lastName ?? null,
+            profileImageUrl: existing?.profileImageUrl ?? null,
+          });
+        }
       }
 
       const updated = await authStorage.getUser(userId);

@@ -49,6 +49,7 @@ import { getZodiacSign } from "@/lib/zodiac";
 import { format } from "date-fns";
 import { parseLocalDate, parseDecimalBR, formatDecimalBR } from "@/lib/utils";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { useUpdateProfile, useUploadProfilePhoto, getDisplayName, getDisplayFirstName, getDisplayPhotoUrl } from "@/hooks/use-profile";
 import {
   Dialog,
   DialogContent,
@@ -149,6 +150,38 @@ export default function Settings() {
     sendTest,
     isSupported,
   } = usePushNotifications();
+
+  const updateProfile = useUpdateProfile();
+  const uploadPhoto = useUploadProfilePhoto();
+
+  // Estado para edição de perfil inline
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "" });
+
+  const openProfileEdit = () => {
+    setProfileForm({
+      firstName: user?.displayFirstName || user?.firstName || "",
+      lastName: user?.displayLastName || user?.lastName || "",
+    });
+    setEditingProfile(true);
+  };
+
+  const handleProfileSave = async () => {
+    if (!profileForm.firstName.trim()) return;
+    await updateProfile.mutateAsync({
+      displayFirstName: profileForm.firstName.trim(),
+      displayLastName: profileForm.lastName.trim() || null,
+    });
+    setEditingProfile(false);
+  };
+
+  const handleProfilePhotoUpload = async (file: File) => {
+    if (file.size > 8 * 1024 * 1024) {
+      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 8MB", variant: "destructive" });
+      return;
+    }
+    await uploadPhoto.mutateAsync(file);
+  };
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [deletingChild, setDeletingChild] = useState<Child | null>(null);
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
@@ -297,30 +330,110 @@ export default function Settings() {
 
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
         <div
-          className="bg-white p-6 rounded-2xl border border-border shadow-sm flex items-center gap-4"
+          className="bg-white p-6 rounded-2xl border border-border shadow-sm"
           data-testid="user-profile-card"
         >
-          <UserAvatar
-            profileImageUrl={user?.profileImageUrl}
-            firstName={user?.firstName}
-            lastName={user?.lastName}
-            email={user?.email}
-            size={64}
-          />
-          <div>
-            <h2
-              className="font-display font-bold text-lg"
-              data-testid="text-user-name"
-            >
-              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Responsável"}
-            </h2>
-            <p
-              className="text-sm text-muted-foreground"
-              data-testid="text-user-email"
-            >
-              {user?.email || ""}
-            </p>
-          </div>
+          {!editingProfile ? (
+            <div className="flex items-center gap-4">
+              <div className="relative shrink-0">
+                <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-primary/20">
+                  <UserAvatar
+                    profileImageUrl={getDisplayPhotoUrl(user)}
+                    firstName={user?.displayFirstName || user?.firstName}
+                    lastName={user?.displayLastName || user?.lastName}
+                    email={user?.email}
+                    size={64}
+                  />
+                </div>
+                <PhotoPicker onPhotoSelected={handleProfilePhotoUpload}>
+                  {(openPicker) => (
+                    <button
+                      onClick={openPicker}
+                      disabled={uploadPhoto.isPending}
+                      className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-sm text-white"
+                      aria-label="Alterar foto de perfil"
+                    >
+                      {uploadPhoto.isPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Camera className="w-3 h-3" />
+                      )}
+                    </button>
+                  )}
+                </PhotoPicker>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2
+                  className="font-display font-bold text-lg"
+                  data-testid="text-user-name"
+                >
+                  {getDisplayFirstName(user)}
+                </h2>
+                <p
+                  className="text-sm text-muted-foreground"
+                  data-testid="text-user-email"
+                >
+                  {user?.email || ""}
+                </p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={openProfileEdit}
+                className="shrink-0"
+                aria-label="Editar perfil"
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Editar perfil</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Nome</label>
+                  <Input
+                    value={profileForm.firstName}
+                    onChange={(e) => setProfileForm(f => ({ ...f, firstName: e.target.value }))}
+                    placeholder="Seu nome"
+                    data-testid="input-display-first-name"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Sobrenome</label>
+                  <Input
+                    value={profileForm.lastName}
+                    onChange={(e) => setProfileForm(f => ({ ...f, lastName: e.target.value }))}
+                    placeholder="Sobrenome"
+                    data-testid="input-display-last-name"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  onClick={handleProfileSave}
+                  disabled={updateProfile.isPending || !profileForm.firstName.trim()}
+                  data-testid="button-save-profile"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  {updateProfile.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setEditingProfile(false)}
+                  disabled={updateProfile.isPending}
+                >
+                  <X className="w-4 h-4 mr-1" /> Cancelar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este nome aparecerá nos comentários e marcos da família.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
