@@ -14,6 +14,7 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import {
   startVaccineNotificationScheduler,
   sendVaccineNotifications,
+  notifyCaregivers,
 } from "./vaccineNotifications";
 
 export async function registerRoutes(
@@ -364,6 +365,17 @@ export async function registerRoutes(
     const record = await storage.createMilestone({ ...input, childId });
 
     await storage.addPoints(childId, 20);
+
+    // Notify other caregivers
+    const user = await storage.getUser(userId);
+    const userName = user?.firstName || "Alguém";
+    notifyCaregivers(
+      childId,
+      userId,
+      "✨ Novo marco registrado!",
+      `${userName} adicionou o marco "${record.title}"`
+    );
+
     res.status(201).json(record);
   });
 
@@ -429,6 +441,17 @@ export async function registerRoutes(
     const record = await storage.createDiaryEntry({ ...input, childId });
 
     await storage.addPoints(childId, 5);
+
+    // Notify other caregivers
+    const user = await storage.getUser(userId);
+    const userName = user?.firstName || "Alguém";
+    notifyCaregivers(
+      childId,
+      userId,
+      "📖 Nova nota no diário",
+      `${userName} escreveu um novo registro no diário`
+    );
+
     res.status(201).json(record);
   });
 
@@ -506,6 +529,18 @@ export async function registerRoutes(
 
       // Gamification: evento vacina_registrada
       await storage.addPoints(childId, 15);
+
+      // Notify other caregivers
+      const user = await storage.getUser(userId);
+      const userName = user?.firstName || "Alguém";
+      const susVaccine = await storage.getSusVaccines().then(list => list.find(v => v.id === record.susVaccineId));
+      notifyCaregivers(
+        childId,
+        userId,
+        "💉 Nova vacina registrada",
+        `${userName} registrou a vacina ${susVaccine?.name || ""} (${record.dose})`
+      );
+
       res.status(201).json(record);
     },
   );
@@ -641,6 +676,17 @@ export async function registerRoutes(
 
       // Gamification: evento foto_do_dia_registrada
       await storage.addPoints(childId, 5);
+
+      // Notify other caregivers
+      const user = await storage.getUser(userId);
+      const userName = user?.firstName || "Alguém";
+      notifyCaregivers(
+        childId,
+        userId,
+        "📸 Nova Foto do Dia!",
+        `${userName} adicionou uma nova foto hoje`
+      );
+
       res.status(201).json(photo);
     } catch (error: any) {
       // Handle unique constraint violation (race condition)

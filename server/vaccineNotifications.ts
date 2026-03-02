@@ -238,6 +238,60 @@ export async function sendVaccineNotifications(): Promise<number> {
 
 let notificationInterval: NodeJS.Timeout | null = null;
 
+export async function notifyCaregivers(
+  childId: number,
+  senderId: string,
+  title: string,
+  body: string
+): Promise<void> {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+
+  try {
+    const child = await storage.getChild(childId);
+    if (!child) return;
+
+    // Get all caregivers for this child
+    const caregiversList = await storage.getCaregiversByChildId(childId);
+    
+    // Filter out the sender and get unique user IDs
+    const recipientIds = [...new Set(
+      caregiversList
+        .filter(c => c.userId !== senderId)
+        .map(c => c.userId)
+    )];
+
+    for (const userId of recipientIds) {
+      const subs = await storage.getPushSubscriptionsByUserId(userId);
+      const payload = JSON.stringify({
+        title,
+        body,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/icon-72x72.png",
+        tag: `activity-${childId}`,
+        data: { url: "/" }
+      });
+
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            payload
+          );
+        } catch (error: any) {
+          if (error.statusCode === 404 || error.statusCode === 410) {
+            await storage.deletePushSubscription(sub.endpoint);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[notifications] Error sending activity notification:", error);
+  }
+}
+
 export function startVaccineNotificationScheduler(): void {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     console.log("[notifications] VAPID keys not configured, scheduler not started");
