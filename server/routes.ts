@@ -1410,7 +1410,13 @@ export async function registerRoutes(
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const allowed: UploadBucket[] = ["child-photos", "milestone-photos", "daily-photos", "profile-photos"];
+    const allowed: UploadBucket[] = [
+      "child-photos",
+      "milestone-photos",
+      "daily-photos",
+      "profile-photos",
+      "vaccine-photos",
+    ];
     const { base64, mimeType, bucket, path: filePath } = req.body;
 
     if (!base64 || !mimeType || !bucket || !filePath) {
