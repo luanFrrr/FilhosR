@@ -899,11 +899,23 @@ export class DatabaseStorage implements IStorage {
         userFirstName: users.firstName,
         userLastName: users.lastName,
         userEmail: users.email,
+        displayFirstName: users.displayFirstName,
+        displayLastName: users.displayLastName,
+        profileCustomized: users.profileCustomized,
       })
       .from(caregivers)
       .leftJoin(users, eq(caregivers.userId, users.id))
       .where(eq(caregivers.childId, childId));
-    return results;
+
+    return results.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      relationship: r.relationship,
+      role: r.role,
+      userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
+      userLastName: r.profileCustomized ? r.displayLastName : (r.displayLastName || r.userLastName),
+      userEmail: r.userEmail,
+    }));
   }
 
   async removeCaregiverFromChild(
@@ -947,6 +959,9 @@ export class DatabaseStorage implements IStorage {
         comment: activityComments,
         userFirstName: users.firstName,
         userLastName: users.lastName,
+        displayFirstName: users.displayFirstName,
+        displayLastName: users.displayLastName,
+        profileCustomized: users.profileCustomized,
       })
       .from(activityComments)
       .leftJoin(users, eq(activityComments.userId, users.id))
@@ -959,8 +974,8 @@ export class DatabaseStorage implements IStorage {
       );
     return results.map((r) => ({
       ...r.comment,
-      userFirstName: r.userFirstName,
-      userLastName: r.userLastName,
+      userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
+      userLastName: r.profileCustomized ? r.displayLastName : (r.displayLastName || r.userLastName),
     }));
   }
 
@@ -970,14 +985,17 @@ export class DatabaseStorage implements IStorage {
         comment: activityComments,
         userFirstName: users.firstName,
         userLastName: users.lastName,
+        displayFirstName: users.displayFirstName,
+        displayLastName: users.displayLastName,
+        profileCustomized: users.profileCustomized,
       })
       .from(activityComments)
       .leftJoin(users, eq(activityComments.userId, users.id))
       .where(eq(activityComments.childId, childId));
     return results.map((r) => ({
       ...r.comment,
-      userFirstName: r.userFirstName,
-      userLastName: r.userLastName,
+      userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
+      userLastName: r.profileCustomized ? r.displayLastName : (r.displayLastName || r.userLastName),
     }));
   }
 

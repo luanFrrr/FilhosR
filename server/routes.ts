@@ -19,6 +19,14 @@ import {
 } from "./vaccineNotifications";
 import { uploadToStorage, type UploadBucket } from "./supabaseStorage";
 
+const resolveUserName = (user: any) => {
+  if (!user) return "Alguém";
+  if (user.profileCustomized) {
+    return [user.displayFirstName, user.displayLastName].filter(Boolean).join(" ") || "Alguém";
+  }
+  return [user.displayFirstName || user.firstName, user.displayLastName || user.lastName].filter(Boolean).join(" ") || "Alguém";
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express,
@@ -384,7 +392,7 @@ export async function registerRoutes(
 
     // Notify other caregivers
     const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-    const userName = user?.displayFirstName || user?.firstName || "Alguém";
+    const userName = resolveUserName(user);
     const childName = child?.name || "seu filho(a)";
     notifyCaregivers(
       childId,
@@ -461,7 +469,7 @@ export async function registerRoutes(
 
     // Notify other caregivers
     const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-    const userName = user?.displayFirstName || user?.firstName || "Alguém";
+    const userName = resolveUserName(user);
     const childName = child?.name || "seu filho(a)";
     notifyCaregivers(
       childId,
@@ -554,7 +562,7 @@ export async function registerRoutes(
         storage.getChild(childId),
         storage.getSusVaccines()
       ]);
-      const userName = user?.displayFirstName || user?.firstName || "Alguém";
+      const userName = resolveUserName(user);
       const childName = child?.name || "seu filho(a)";
       const susVaccine = allVaccines.find(v => v.id === record.susVaccineId);
       notifyCaregivers(
@@ -702,7 +710,7 @@ export async function registerRoutes(
 
       // Notify other caregivers
       const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-      const userName = user?.displayFirstName || user?.firstName || "Alguém";
+      const userName = resolveUserName(user);
       const childName = child?.name || "seu filho(a)";
       notifyCaregivers(
         childId,
@@ -1060,9 +1068,10 @@ export async function registerRoutes(
 
           // Buscar dados do novo cuidador para personalizar a notificação
           const newCaregiver = await authStorage.getUser(userId);
-          const caregiverName = [newCaregiver?.firstName, newCaregiver?.lastName]
-            .filter(Boolean)
-            .join(" ") || newCaregiver?.email || "Alguém";
+          let caregiverName = resolveUserName(newCaregiver);
+          if (caregiverName === "Alguém" && newCaregiver?.email) {
+            caregiverName = newCaregiver.email;
+          }
 
           const payload = JSON.stringify({
             title: `👶 Novo cuidador de ${child?.name || "sua criança"}!`,
@@ -1245,7 +1254,7 @@ export async function registerRoutes(
 
       // Notificar outros cuidadores
       const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-      const userName = user?.displayFirstName || user?.firstName || "Alguém";
+      const userName = resolveUserName(user);
       const childName = child?.name || "seu filho(a)";
       notifyCaregivers(
         childId,
