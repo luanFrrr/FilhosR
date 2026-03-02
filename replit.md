@@ -95,9 +95,11 @@ All API routes are prefixed with `/api/` and organized by resource:
 ## External Dependencies
 
 ### Database
-- **PostgreSQL**: Primary database, connection via `DATABASE_URL` environment variable
+- **PostgreSQL on Supabase**: Primary database hosted on Supabase (São Paulo region), connected via Session Pooler
+- **Connection**: Uses `SUPABASE_DATABASE_URL` secret (falls back to `DATABASE_URL` if not set). SSL is required and configured automatically.
 - **Drizzle ORM**: Type-safe database queries with schema defined in `shared/schema.ts`
-- **connect-pg-simple**: Session storage in PostgreSQL for Replit Auth sessions
+- **connect-pg-simple**: Session storage in PostgreSQL for Replit Auth sessions (uses SSL when connecting to Supabase)
+- **Schema Sync**: Run `npm run db:push` to push schema changes to Supabase
 
 ### UI Libraries
 - **Radix UI**: Full suite of accessible, unstyled primitives (dialogs, dropdowns, tabs, etc.)
