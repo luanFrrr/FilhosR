@@ -202,10 +202,10 @@ export default function Dashboard() {
             </Link>
             <Button
               variant="outline"
-              className="w-full h-12 gap-2 border-primary/30 text-primary font-semibold"
+              className="w-full h-14 gap-3 border-primary text-primary font-bold text-lg shadow-md hover:bg-primary/5 active:scale-[0.98] transition-all"
               onClick={() => setRedeemOpen(true)}
             >
-              <Ticket className="w-5 h-5" /> Usar Código de Convite
+              <Ticket className="w-6 h-6" /> Usar Código de Convite
             </Button>
           </div>
         </div>

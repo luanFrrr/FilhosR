@@ -417,7 +417,7 @@ export default function Settings() {
                     </div>
                   </div>
                   {isOwner && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <CaregiversList
                         childId={child.id}
                         isOwner={true}
@@ -436,11 +436,11 @@ export default function Settings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full gap-2 text-primary border-primary/30 hover:bg-primary/5 h-10 font-semibold shadow-sm"
+                        className="w-full gap-2 text-primary border-primary/30 hover:bg-primary/5 h-12 font-bold shadow-sm text-base"
                         onClick={() => setSharingChild(child)}
                         data-testid={`button-invite-caregiver-${child.id}`}
                       >
-                        <Share2 className="w-4 h-4" /> Convidar cuidador
+                        <Share2 className="w-5 h-5" /> Convidar cuidador
                       </Button>
                     </div>
                   )}
