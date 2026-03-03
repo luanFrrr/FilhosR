@@ -995,7 +995,8 @@ export class DatabaseStorage implements IStorage {
           eq(activityComments.recordType, recordType),
           eq(activityComments.recordId, recordId),
         ),
-      );
+      )
+      .orderBy(activityComments.createdAt); // ORDER BY createdAt ASC — mais antigos primeiro
     return results.map((r) => ({
       ...r.comment,
       userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
@@ -1015,7 +1016,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(activityComments)
       .leftJoin(users, eq(activityComments.userId, users.id))
-      .where(eq(activityComments.childId, childId));
+      .where(eq(activityComments.childId, childId))
+      .orderBy(activityComments.createdAt); // ORDER BY createdAt ASC
     return results.map((r) => ({
       ...r.comment,
       userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
@@ -1034,16 +1036,18 @@ export class DatabaseStorage implements IStorage {
 
   // Milestone Likes
   async getMilestoneLikeStatus(milestoneId: number, userId: string): Promise<MilestoneLikeStatus> {
-    const [likeCount] = await db
-      .select({ count: count() })
-      .from(milestoneLikes)
-      .where(eq(milestoneLikes.milestoneId, milestoneId));
-
-    const [userLikeRow] = await db
-      .select()
-      .from(milestoneLikes)
-      .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)));
-
+    // 1 query com COUNT + verificação de like do usuário em paralelo
+    const [[likeCount], [userLikeRow]] = await Promise.all([
+      db
+        .select({ count: count() })
+        .from(milestoneLikes)
+        .where(eq(milestoneLikes.milestoneId, milestoneId)),
+      db
+        .select({ id: milestoneLikes.userId })
+        .from(milestoneLikes)
+        .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)))
+        .limit(1),
+    ]);
     return {
       count: likeCount?.count ?? 0,
       userLiked: !!userLikeRow,

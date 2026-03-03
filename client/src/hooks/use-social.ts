@@ -111,7 +111,6 @@ export function useMilestoneLikes(milestoneId: number) {
       return res.json();
     },
     enabled: !!milestoneId,
-    staleTime: 30_000,
   });
 }
 
