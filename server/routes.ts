@@ -215,10 +215,27 @@ export async function registerRoutes(
     // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: gamificação
-    storage
-      .addPoints(childId, 10)
-      .catch((err) => console.error("[bg] Erro addPoints growth:", err));
+    // Background: gamificação + notificações (não bloqueia a resposta)
+    (async () => {
+      try {
+        await storage.addPoints(childId, 10);
+        const [user, child] = await Promise.all([
+          storage.getUser(userId),
+          storage.getChild(childId),
+        ]);
+        const userName = resolveUserName(user);
+        const childName = child?.name || "seu filho(a)";
+        notifyCaregivers(
+          childId,
+          userId,
+          "📏 Novo registro de crescimento",
+          `${userName} registrou peso/altura do ${childName}`,
+          "/growth",
+        );
+      } catch (err) {
+        console.error("[bg] Erro pós-criação de crescimento:", err);
+      }
+    })();
   });
 
   app.patch(api.growth.update.path, isAuthenticated, async (req, res) => {
@@ -285,10 +302,27 @@ export async function registerRoutes(
     // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: gamificação
-    storage
-      .addPoints(childId, 10)
-      .catch((err) => console.error("[bg] Erro addPoints vaccine:", err));
+    // Background: gamificação + notificações (não bloqueia a resposta)
+    (async () => {
+      try {
+        await storage.addPoints(childId, 10);
+        const [user, child] = await Promise.all([
+          storage.getUser(userId),
+          storage.getChild(childId),
+        ]);
+        const userName = resolveUserName(user);
+        const childName = child?.name || "seu filho(a)";
+        notifyCaregivers(
+          childId,
+          userId,
+          "💉 Nova vacina adicionada",
+          `${userName} adicionou a vacina "${record.name}" para o ${childName}`,
+          "/vaccines",
+        );
+      } catch (err) {
+        console.error("[bg] Erro pós-criação de vacina:", err);
+      }
+    })();
   });
 
   app.patch(api.vaccines.update.path, isAuthenticated, async (req, res) => {

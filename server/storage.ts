@@ -542,12 +542,14 @@ export class DatabaseStorage implements IStorage {
 
   async addPoints(childId: number, points: number): Promise<Gamification> {
     // Compute new points and level in a single atomic upsert (no extra SELECTs)
+    const newPoints = sql`COALESCE(${gamification.points}, 0) + ${points}`;
+
     const levelExpr = sql<string>`
       CASE
-        WHEN (COALESCE(points, 0) + ${points}) > 2000 THEN 'Guardião da Infância'
-        WHEN (COALESCE(points, 0) + ${points}) > 1000 THEN 'Mãe/Pai Coruja'
-        WHEN (COALESCE(points, 0) + ${points}) > 500  THEN 'Mãe/Pai Dedicado'
-        WHEN (COALESCE(points, 0) + ${points}) > 100  THEN 'Cuidador Atento'
+        WHEN (${newPoints}) > 2000 THEN 'Guardião da Infância'
+        WHEN (${newPoints}) > 1000 THEN 'Mãe/Pai Coruja'
+        WHEN (${newPoints}) > 500  THEN 'Mãe/Pai Dedicado'
+        WHEN (${newPoints}) > 100  THEN 'Cuidador Atento'
         ELSE 'Iniciante'
       END
     `;
