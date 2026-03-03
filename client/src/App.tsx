@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,8 +25,20 @@ import DeleteAccount from "@/pages/delete-account";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRouter() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const isAuthPage = location === "/onboarding";
+
+  // Escuta mensagens do Service Worker para navegar sem reload (notificações)
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "NAVIGATE" && event.data?.url) {
+        setLocation(event.data.url);
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", handler);
+    return () =>
+      navigator.serviceWorker?.removeEventListener("message", handler);
+  }, [setLocation]);
 
   return (
     <>
