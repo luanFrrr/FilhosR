@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearch } from "wouter";
 import { useChildContext } from "@/hooks/use-child-context";
 import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useDiary, useCreateDiaryEntry, useUpdateDiaryEntry, useDeleteDiaryEntry } from "@/hooks/use-memories";
 import { Header } from "@/components/layout/header";
@@ -60,6 +61,19 @@ export default function Memories() {
   const [deleteDiaryConfirm, setDeleteDiaryConfirm] = useState<DiaryEntry | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMsg, setCelebrationMsg] = useState({ title: "", subtitle: "" });
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const tabParam = searchParams.get("tab") || "milestones";
+  const idParam = searchParams.get("id");
+
+  const [activeTab, setActiveTab] = useState(tabParam);
+
+  // Deep link: abre o marco específico quando vindo de uma notificação
+  useEffect(() => {
+    if (!idParam || !milestones) return;
+    const target = milestones.find((m) => m.id === Number(idParam));
+    if (target) setViewMilestone(target);
+  }, [idParam, milestones]);
 
   const milestoneForm = useForm();
   const editForm = useForm();
@@ -280,7 +294,7 @@ export default function Memories() {
       </AnimatePresence>
 
       <main className="max-w-md mx-auto px-4 py-6">
-        <Tabs defaultValue="milestones" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
              <TabsTrigger value="milestones" className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold">
                <Star className="w-4 h-4 mr-2" /> Marcos

@@ -187,7 +187,7 @@ function buildNotificationPayload(reminders: VaccineReminder[]): any {
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-72x72.png",
     tag: "vaccine-reminder",
-    data: { url: "/" },
+    data: { url: "/cartao-vacinas" },
   };
 }
 
@@ -242,7 +242,8 @@ export async function notifyCaregivers(
   childId: number,
   senderId: string,
   title: string,
-  body: string
+  body: string,
+  url: string = "/"
 ): Promise<void> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
 
@@ -268,7 +269,7 @@ export async function notifyCaregivers(
         icon: "/icons/icon-192x192.png",
         badge: "/icons/icon-72x72.png",
         tag: `activity-${childId}`,
-        data: { url: "/" }
+        data: { url }
       });
 
       for (const sub of subs) {

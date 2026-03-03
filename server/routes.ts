@@ -395,7 +395,8 @@ export async function registerRoutes(
       childId,
       userId,
       "✨ Novo marco registrado!",
-      `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`
+      `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
+      `/memorias?tab=milestones&id=${record.id}`
     );
 
     res.status(201).json(record);
@@ -472,7 +473,8 @@ export async function registerRoutes(
       childId,
       userId,
       "📖 Nova nota no diário",
-      `${userName} escreveu uma nova nota no diário do ${childName}`
+      `${userName} escreveu uma nova nota no diário do ${childName}`,
+      "/memorias?tab=diary"
     );
 
     res.status(201).json(record);
@@ -566,7 +568,8 @@ export async function registerRoutes(
         childId,
         userId,
         "💉 Nova vacina registrada",
-        `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`
+        `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`,
+        "/cartao-vacinas"
       );
 
       res.status(201).json(record);
@@ -711,7 +714,8 @@ export async function registerRoutes(
         childId,
         userId,
         "📸 Nova Foto do Dia!",
-        `${userName} adicionou a foto do dia do ${childName}`
+        `${userName} adicionou a foto do dia do ${childName}`,
+        "/fotos-diarias"
       );
 
       res.status(201).json(photo);
@@ -1254,6 +1258,7 @@ export async function registerRoutes(
         userId,
         "💬 Novo comentário",
         `${userName} comentou em um marco de ${childName}`,
+        `/memorias?tab=milestones&id=${comment.recordId}`
       );
 
       res.status(201).json(comment);
