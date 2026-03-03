@@ -652,7 +652,11 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const photos = await storage.getDailyPhotos(childId);
+    const photos = await storage.getDailyPhotos(
+      childId,
+      Number(req.query.limit) || 30,
+      Number(req.query.offset) || 0,
+    );
     res.json(photos);
   });
 

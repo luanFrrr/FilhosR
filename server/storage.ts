@@ -48,6 +48,12 @@ import {
 import { db } from "./db";
 import { eq, and, gt, sql, count, desc } from "drizzle-orm";
 
+// ─── Cache em memória para dados estáticos ────────────────────────────────────
+let _susVaccinesCache: SusVaccine[] | null = null;
+let _susVaccinesCacheAt = 0;
+const SUS_CACHE_TTL = 24 * 60 * 60 * 1_000; // 24 horas
+
+
 export interface IStorage {
   hasChildAccessDirect(userId: string, childId: number): Promise<boolean>;
   // Users (OIDC users have string IDs)
@@ -130,7 +136,7 @@ export interface IStorage {
   deleteVaccineRecord(id: number): Promise<void>;
 
   // Daily Photos
-  getDailyPhotos(childId: number): Promise<DailyPhoto[]>;
+  getDailyPhotos(childId: number, limit?: number, offset?: number): Promise<DailyPhoto[]>;
   getDailyPhotoByDate(
     childId: number,
     date: string,
@@ -562,7 +568,15 @@ export class DatabaseStorage implements IStorage {
 
   // SUS Vaccines
   async getSusVaccines(): Promise<SusVaccine[]> {
-    return await db.select().from(susVaccines);
+    // Cache de 24h — a lista do PNI/SUS raramente muda
+    const now = Date.now();
+    if (_susVaccinesCache && now - _susVaccinesCacheAt < SUS_CACHE_TTL) {
+      return _susVaccinesCache;
+    }
+    const rows = await db.select().from(susVaccines);
+    _susVaccinesCache = rows;
+    _susVaccinesCacheAt = now;
+    return rows;
   }
 
   async initializeSusVaccines(): Promise<void> {
@@ -773,12 +787,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Daily Photos
-  async getDailyPhotos(childId: number): Promise<DailyPhoto[]> {
+  async getDailyPhotos(childId: number, limit = 30, offset = 0): Promise<DailyPhoto[]> {
     return await db
       .select()
       .from(dailyPhotos)
       .where(eq(dailyPhotos.childId, childId))
-      .orderBy(desc(dailyPhotos.date)); // Mais recentes primeiro
+      .orderBy(desc(dailyPhotos.date)) // Mais recentes primeiro
+      .limit(limit)
+      .offset(offset);
   }
 
   async getDailyPhotoByDate(
