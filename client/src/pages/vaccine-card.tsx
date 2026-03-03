@@ -259,6 +259,23 @@ export default function VaccineCard() {
     return vaccineRecords?.filter(r => r.susVaccineId === vaccineId) || [];
   };
 
+  const isPending = createRecord.isPending || updateRecord.isPending;
+
+  const childAgeMonths = activeChild?.birthDate 
+    ? differenceInMonths(new Date(), parseLocalDate(activeChild.birthDate)) 
+    : 0;
+
+  const pendingByVaccine = useMemo((): Map<number, { vaccineId: number; vaccineName: string; dose: string; expectedMonths: number }[]> => {
+    if (!susVaccines || !vaccineRecords || !activeChild?.birthDate) return new Map();
+    return getPendingDosesByVaccine(susVaccines, vaccineRecords, childAgeMonths);
+  }, [susVaccines, vaccineRecords, childAgeMonths, activeChild?.birthDate]);
+
+  const pendingCount = useMemo(() => {
+    let count = 0;
+    pendingByVaccine.forEach(doses => count += doses.length);
+    return count;
+  }, [pendingByVaccine]);
+
   if (!activeChild) {
     return (
       <div className="min-h-screen bg-background pb-24">
@@ -269,24 +286,6 @@ export default function VaccineCard() {
       </div>
     );
   }
-
-  const isPending = createRecord.isPending || updateRecord.isPending;
-  
-  // Calculate child age in months and pending vaccines
-  const childAgeMonths = activeChild?.birthDate 
-    ? differenceInMonths(new Date(), parseLocalDate(activeChild.birthDate)) 
-    : 0;
-  
-  const pendingByVaccine = useMemo((): Map<number, { vaccineId: number; vaccineName: string; dose: string; expectedMonths: number }[]> => {
-    if (!susVaccines || !vaccineRecords || !activeChild?.birthDate) return new Map();
-    return getPendingDosesByVaccine(susVaccines, vaccineRecords, childAgeMonths);
-  }, [susVaccines, vaccineRecords, childAgeMonths, activeChild?.birthDate]);
-  
-  const pendingCount = useMemo(() => {
-    let count = 0;
-    pendingByVaccine.forEach(doses => count += doses.length);
-    return count;
-  }, [pendingByVaccine]);
 
   return (
     <div className="min-h-screen bg-background pb-24">
