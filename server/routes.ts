@@ -22,9 +22,19 @@ import { uploadToStorage, type UploadBucket } from "./supabaseStorage";
 const resolveUserName = (user: any) => {
   if (!user) return "Alguém";
   if (user.profileCustomized) {
-    return [user.displayFirstName, user.displayLastName].filter(Boolean).join(" ") || "Alguém";
+    return (
+      [user.displayFirstName, user.displayLastName].filter(Boolean).join(" ") ||
+      "Alguém"
+    );
   }
-  return [user.displayFirstName || user.firstName, user.displayLastName || user.lastName].filter(Boolean).join(" ") || "Alguém";
+  return (
+    [
+      user.displayFirstName || user.firstName,
+      user.displayLastName || user.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ") || "Alguém"
+  );
 };
 
 export async function registerRoutes(
@@ -78,13 +88,18 @@ export async function registerRoutes(
     res.json(children);
   });
 
-  app.get(api.children.listWithRoles.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+  app.get(
+    api.children.listWithRoles.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const childrenWithRoles = await storage.getChildrenWithRolesByUserId(userId);
-    res.json(childrenWithRoles);
-  });
+      const childrenWithRoles =
+        await storage.getChildrenWithRolesByUserId(userId);
+      res.json(childrenWithRoles);
+    },
+  );
 
   app.post(api.children.create.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
@@ -162,7 +177,9 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
     if (role !== "owner") {
-      return res.status(403).json({ message: "Apenas o responsável principal pode excluir" });
+      return res
+        .status(403)
+        .json({ message: "Apenas o responsável principal pode excluir" });
     }
 
     await storage.deleteChild(id);
@@ -195,8 +212,13 @@ export async function registerRoutes(
     const input = api.growth.create.input.parse(req.body);
     const record = await storage.createGrowthRecord({ ...input, childId });
 
-    await storage.addPoints(childId, 10);
+    // Responde imediatamente
     res.status(201).json(record);
+
+    // Background: gamificação
+    storage
+      .addPoints(childId, 10)
+      .catch((err) => console.error("[bg] Erro addPoints growth:", err));
   });
 
   app.patch(api.growth.update.path, isAuthenticated, async (req, res) => {
@@ -260,8 +282,13 @@ export async function registerRoutes(
     const input = api.vaccines.create.input.parse(req.body);
     const record = await storage.createVaccine({ ...input, childId });
 
-    await storage.addPoints(childId, 10);
+    // Responde imediatamente
     res.status(201).json(record);
+
+    // Background: gamificação
+    storage
+      .addPoints(childId, 10)
+      .catch((err) => console.error("[bg] Erro addPoints vaccine:", err));
   });
 
   app.patch(api.vaccines.update.path, isAuthenticated, async (req, res) => {
@@ -346,18 +373,25 @@ export async function registerRoutes(
   });
 
   // Milestones with social counts (likes + comments)
-  app.get("/api/children/:childId/milestones/social", isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+  app.get(
+    "/api/children/:childId/milestones/social",
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const childId = Number(req.params.childId);
-    if (!(await hasChildAccess(userId, childId))) {
-      return res.status(403).json({ message: "Acesso negado" });
-    }
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
 
-    const milestonesWithSocial = await storage.getMilestonesWithSocialCounts(childId, userId);
-    res.json(milestonesWithSocial);
-  });
+      const milestonesWithSocial = await storage.getMilestonesWithSocialCounts(
+        childId,
+        userId,
+      );
+      res.json(milestonesWithSocial);
+    },
+  );
 
   // Milestones
   app.get(api.milestones.list.path, isAuthenticated, async (req, res) => {
@@ -385,21 +419,30 @@ export async function registerRoutes(
     const input = api.milestones.create.input.parse(req.body);
     const record = await storage.createMilestone({ ...input, childId });
 
-    await storage.addPoints(childId, 20);
-
-    // Notify other caregivers
-    const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-    const userName = resolveUserName(user);
-    const childName = child?.name || "seu filho(a)";
-    notifyCaregivers(
-      childId,
-      userId,
-      "✨ Novo marco registrado!",
-      `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
-      `/memorias?tab=milestones&id=${record.id}`
-    );
-
+    // Responde imediatamente — operações secundárias rodam em background
     res.status(201).json(record);
+
+    // Background: gamificação + notificações (não bloqueia a resposta)
+    (async () => {
+      try {
+        await storage.addPoints(childId, 20);
+        const [user, child] = await Promise.all([
+          storage.getUser(userId),
+          storage.getChild(childId),
+        ]);
+        const userName = resolveUserName(user);
+        const childName = child?.name || "seu filho(a)";
+        notifyCaregivers(
+          childId,
+          userId,
+          "✨ Novo marco registrado!",
+          `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
+          `/memorias?tab=milestones&id=${record.id}`,
+        );
+      } catch (err) {
+        console.error("[bg] Erro pós-criação de marco:", err);
+      }
+    })();
   });
 
   app.patch(api.milestones.update.path, isAuthenticated, async (req, res) => {
@@ -463,21 +506,30 @@ export async function registerRoutes(
     const input = api.diary.create.input.parse(req.body);
     const record = await storage.createDiaryEntry({ ...input, childId });
 
-    await storage.addPoints(childId, 5);
-
-    // Notify other caregivers
-    const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-    const userName = resolveUserName(user);
-    const childName = child?.name || "seu filho(a)";
-    notifyCaregivers(
-      childId,
-      userId,
-      "📖 Nova nota no diário",
-      `${userName} escreveu uma nova nota no diário do ${childName}`,
-      "/memorias?tab=diary"
-    );
-
+    // Responde imediatamente — operações secundárias rodam em background
     res.status(201).json(record);
+
+    // Background: gamificação + notificações (não bloqueia a resposta)
+    (async () => {
+      try {
+        await storage.addPoints(childId, 5);
+        const [user, child] = await Promise.all([
+          storage.getUser(userId),
+          storage.getChild(childId),
+        ]);
+        const userName = resolveUserName(user);
+        const childName = child?.name || "seu filho(a)";
+        notifyCaregivers(
+          childId,
+          userId,
+          "📖 Nova nota no diário",
+          `${userName} escreveu uma nova nota no diário do ${childName}`,
+          "/memorias?tab=diary",
+        );
+      } catch (err) {
+        console.error("[bg] Erro pós-criação de diário:", err);
+      }
+    })();
   });
 
   app.patch(api.diary.update.path, isAuthenticated, async (req, res) => {
@@ -552,27 +604,34 @@ export async function registerRoutes(
       const input = api.vaccineRecords.create.input.parse(req.body);
       const record = await storage.createVaccineRecord({ ...input, childId });
 
-      // Gamification: evento vacina_registrada
-      await storage.addPoints(childId, 15);
-
-      // Notify other caregivers
-      const [user, child, allVaccines] = await Promise.all([
-        storage.getUser(userId),
-        storage.getChild(childId),
-        storage.getSusVaccines()
-      ]);
-      const userName = resolveUserName(user);
-      const childName = child?.name || "seu filho(a)";
-      const susVaccine = allVaccines.find(v => v.id === record.susVaccineId);
-      notifyCaregivers(
-        childId,
-        userId,
-        "💉 Nova vacina registrada",
-        `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`,
-        "/cartao-vacinas"
-      );
-
+      // Responde imediatamente — operações secundárias rodam em background
       res.status(201).json(record);
+
+      // Background: gamificação + notificações (não bloqueia a resposta)
+      (async () => {
+        try {
+          await storage.addPoints(childId, 15);
+          const [user, child, allVaccines] = await Promise.all([
+            storage.getUser(userId),
+            storage.getChild(childId),
+            storage.getSusVaccines(),
+          ]);
+          const userName = resolveUserName(user);
+          const childName = child?.name || "seu filho(a)";
+          const susVaccine = allVaccines.find(
+            (v) => v.id === record.susVaccineId,
+          );
+          notifyCaregivers(
+            childId,
+            userId,
+            "💉 Nova vacina registrada",
+            `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`,
+            "/cartao-vacinas",
+          );
+        } catch (err) {
+          console.error("[bg] Erro pós-criação de vacina:", err);
+        }
+      })();
     },
   );
 
@@ -703,22 +762,30 @@ export async function registerRoutes(
     try {
       const photo = await storage.createDailyPhoto({ ...input, childId });
 
-      // Gamification: evento foto_do_dia_registrada
-      await storage.addPoints(childId, 5);
-
-      // Notify other caregivers
-      const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-      const userName = resolveUserName(user);
-      const childName = child?.name || "seu filho(a)";
-      notifyCaregivers(
-        childId,
-        userId,
-        "📸 Nova Foto do Dia!",
-        `${userName} adicionou a foto do dia do ${childName}`,
-        "/fotos-diarias"
-      );
-
+      // Responde imediatamente
       res.status(201).json(photo);
+
+      // Background: gamificação + notificações (não bloqueia a resposta)
+      (async () => {
+        try {
+          await storage.addPoints(childId, 5);
+          const [user, child] = await Promise.all([
+            storage.getUser(userId),
+            storage.getChild(childId),
+          ]);
+          const userName = resolveUserName(user);
+          const childName = child?.name || "seu filho(a)";
+          notifyCaregivers(
+            childId,
+            userId,
+            "📸 Nova Foto do Dia!",
+            `${userName} adicionou a foto do dia do ${childName}`,
+            "/fotos-diarias",
+          );
+        } catch (err) {
+          console.error("[bg] Erro pós-criação de foto:", err);
+        }
+      })();
     } catch (error: any) {
       // Handle unique constraint violation (race condition)
       if (error.code === "23505") {
@@ -1049,7 +1116,9 @@ export async function registerRoutes(
 
     // 🔔 Notificar o dono (quem criou o convite) que alguém aceitou
     try {
-      const ownerSubs = await storage.getPushSubscriptionsByUserId(invite.createdBy);
+      const ownerSubs = await storage.getPushSubscriptionsByUserId(
+        invite.createdBy,
+      );
       if (ownerSubs.length > 0) {
         const webpushModule = await import("web-push");
         const webpush = webpushModule.default || webpushModule;
@@ -1082,7 +1151,10 @@ export async function registerRoutes(
           for (const sub of ownerSubs) {
             try {
               await webpush.sendNotification(
-                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                {
+                  endpoint: sub.endpoint,
+                  keys: { p256dh: sub.p256dh, auth: sub.auth },
+                },
                 payload,
               );
             } catch (err: any) {
@@ -1095,7 +1167,10 @@ export async function registerRoutes(
       }
     } catch (notifError) {
       // Notificação é best-effort — não bloqueia a resposta
-      console.error("Erro ao enviar notificação de cuidador aceito:", notifError);
+      console.error(
+        "Erro ao enviar notificação de cuidador aceito:",
+        notifError,
+      );
     }
 
     res.json({
@@ -1158,7 +1233,12 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
     if (role === "owner") {
-      return res.status(403).json({ message: "O responsável principal não pode sair. Exclua a criança se desejar." });
+      return res
+        .status(403)
+        .json({
+          message:
+            "O responsável principal não pode sair. Exclua a criança se desejar.",
+        });
     }
 
     await storage.removeCaregiverByUserId(childId, userId);
@@ -1211,7 +1291,11 @@ export async function registerRoutes(
 
     const recordType = String(req.params.recordType);
     const recordId = String(req.params.recordId);
-    const comments = await storage.getCommentsByRecord(childId, recordType, Number(recordId));
+    const comments = await storage.getCommentsByRecord(
+      childId,
+      recordType,
+      Number(recordId),
+    );
     res.json(comments);
   });
 
@@ -1249,19 +1333,29 @@ export async function registerRoutes(
         text: input.text,
       });
 
-      // Notificar outros cuidadores
-      const [user, child] = await Promise.all([storage.getUser(userId), storage.getChild(childId)]);
-      const userName = resolveUserName(user);
-      const childName = child?.name || "seu filho(a)";
-      notifyCaregivers(
-        childId,
-        userId,
-        "💬 Novo comentário",
-        `${userName} comentou em um marco de ${childName}`,
-        `/memorias?tab=milestones&id=${comment.recordId}`
-      );
-
+      // Responde imediatamente
       res.status(201).json(comment);
+
+      // Background: notificações (não bloqueia a resposta)
+      (async () => {
+        try {
+          const [user, child] = await Promise.all([
+            storage.getUser(userId),
+            storage.getChild(childId),
+          ]);
+          const userName = resolveUserName(user);
+          const childName = child?.name || "seu filho(a)";
+          notifyCaregivers(
+            childId,
+            userId,
+            "💬 Novo comentário",
+            `${userName} comentou em um marco de ${childName}`,
+            `/memorias?tab=milestones&id=${comment.recordId}`,
+          );
+        } catch (err) {
+          console.error("[bg] Erro pós-criação de comentário:", err);
+        }
+      })();
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -1392,7 +1486,9 @@ export async function registerRoutes(
     // Modo 2: base64 direto (legacy / fallback quando /api/upload não usado)
     const { base64, mimeType } = req.body;
     if (!base64 || !mimeType) {
-      return res.status(400).json({ message: "url ou base64+mimeType são obrigatórios" });
+      return res
+        .status(400)
+        .json({ message: "url ou base64+mimeType são obrigatórios" });
     }
 
     try {
@@ -1400,9 +1496,11 @@ export async function registerRoutes(
         "profile-photos",
         `${userId}/avatar.jpg`,
         base64,
-        mimeType
+        mimeType,
       );
-      const updated = await authStorage.updateUserProfile(userId, { displayPhotoUrl: url });
+      const updated = await authStorage.updateUserProfile(userId, {
+        displayPhotoUrl: url,
+      });
       res.json({ url, user: updated });
     } catch (err: any) {
       console.error("Profile photo upload failed:", err);
@@ -1427,7 +1525,9 @@ export async function registerRoutes(
     const { base64, mimeType, bucket, path: filePath } = req.body;
 
     if (!base64 || !mimeType || !bucket || !filePath) {
-      return res.status(400).json({ message: "base64, mimeType, bucket e path são obrigatórios" });
+      return res
+        .status(400)
+        .json({ message: "base64, mimeType, bucket e path são obrigatórios" });
     }
     if (!allowed.includes(bucket)) {
       return res.status(400).json({ message: "Bucket não permitido" });

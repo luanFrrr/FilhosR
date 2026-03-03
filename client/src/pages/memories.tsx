@@ -1,17 +1,45 @@
 import { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { useChildContext } from "@/hooks/use-child-context";
-import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useDiary, useCreateDiaryEntry, useUpdateDiaryEntry, useDeleteDiaryEntry } from "@/hooks/use-memories";
+import {
+  useMilestones,
+  useCreateMilestone,
+  useUpdateMilestone,
+  useDeleteMilestone,
+  useDiary,
+  useCreateDiaryEntry,
+  useUpdateDiaryEntry,
+  useDeleteDiaryEntry,
+} from "@/hooks/use-memories";
 import { Header } from "@/components/layout/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Star, Book, Image as ImageIcon, Camera, X, Edit2, Trash2, Heart, Sparkles, MessageCircle } from "lucide-react";
+import {
+  Star,
+  Book,
+  Image as ImageIcon,
+  Camera,
+  X,
+  Edit2,
+  Trash2,
+  Heart,
+  Sparkles,
+  MessageCircle,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { compressImage } from "@/lib/imageUtils";
@@ -19,7 +47,16 @@ import { parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import type { Milestone, DiaryEntry } from "@shared/schema";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { LikeButton } from "@/components/social/LikeButton";
 import { MilestoneComments } from "@/components/social/MilestoneComments";
 import { useMilestonesWithSocial } from "@/hooks/use-social";
@@ -27,22 +64,54 @@ import { useUpload } from "@/hooks/use-upload";
 import { useRealtimeSocial } from "@/hooks/use-realtime-social";
 
 const celebrationMessages = [
-  { title: "Que momento especial!", subtitle: "Cada conquista é um tesouro para guardar no coração" },
-  { title: "Parabéns, papais!", subtitle: "Vocês estão construindo memórias lindas juntos" },
-  { title: "Marco registrado!", subtitle: "Esse momento ficará eternizado para sempre" },
-  { title: "Que orgulho!", subtitle: "Cada pequeno passo é uma grande vitória" },
-  { title: "Momento mágico salvo!", subtitle: "O amor de vocês está em cada detalhe" },
-  { title: "Conquista desbloqueada!", subtitle: "A jornada da maternidade/paternidade é incrível" },
-  { title: "Lembranças preciosas!", subtitle: "Um dia vocês vão olhar para trás e sorrir" },
-  { title: "Que emoção!", subtitle: "Esses momentos são o que fazem a vida valer a pena" },
-  { title: "Eternizado com carinho!", subtitle: "Cada marco é uma estrela no céu de vocês" },
-  { title: "Momento inesquecível!", subtitle: "O amor cresce a cada dia junto com seu pequeno" },
+  {
+    title: "Que momento especial!",
+    subtitle: "Cada conquista é um tesouro para guardar no coração",
+  },
+  {
+    title: "Parabéns, papais!",
+    subtitle: "Vocês estão construindo memórias lindas juntos",
+  },
+  {
+    title: "Marco registrado!",
+    subtitle: "Esse momento ficará eternizado para sempre",
+  },
+  {
+    title: "Que orgulho!",
+    subtitle: "Cada pequeno passo é uma grande vitória",
+  },
+  {
+    title: "Momento mágico salvo!",
+    subtitle: "O amor de vocês está em cada detalhe",
+  },
+  {
+    title: "Conquista desbloqueada!",
+    subtitle: "A jornada da maternidade/paternidade é incrível",
+  },
+  {
+    title: "Lembranças preciosas!",
+    subtitle: "Um dia vocês vão olhar para trás e sorrir",
+  },
+  {
+    title: "Que emoção!",
+    subtitle: "Esses momentos são o que fazem a vida valer a pena",
+  },
+  {
+    title: "Eternizado com carinho!",
+    subtitle: "Cada marco é uma estrela no céu de vocês",
+  },
+  {
+    title: "Momento inesquecível!",
+    subtitle: "O amor cresce a cada dia junto com seu pequeno",
+  },
 ];
 
 export default function Memories() {
   const { activeChild } = useChildContext();
   const { data: milestones } = useMilestones(activeChild?.id || 0);
-  const { data: milestonesWithSocial } = useMilestonesWithSocial(activeChild?.id || 0);
+  const { data: milestonesWithSocial } = useMilestonesWithSocial(
+    activeChild?.id || 0,
+  );
   const { data: diary } = useDiary(activeChild?.id || 0);
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
@@ -55,12 +124,18 @@ export default function Memories() {
   const [openDiary, setOpenDiary] = useState(false);
   const [milestoneImage, setMilestoneImage] = useState<string | null>(null);
   const [viewMilestone, setViewMilestone] = useState<Milestone | null>(null);
-  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(
+    null,
+  );
   const [deleteConfirm, setDeleteConfirm] = useState<Milestone | null>(null);
   const [editingDiary, setEditingDiary] = useState<DiaryEntry | null>(null);
-  const [deleteDiaryConfirm, setDeleteDiaryConfirm] = useState<DiaryEntry | null>(null);
+  const [deleteDiaryConfirm, setDeleteDiaryConfirm] =
+    useState<DiaryEntry | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [celebrationMsg, setCelebrationMsg] = useState({ title: "", subtitle: "" });
+  const [celebrationMsg, setCelebrationMsg] = useState({
+    title: "",
+    subtitle: "",
+  });
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
   const tabParam = searchParams.get("tab") || "milestones";
@@ -99,7 +174,11 @@ export default function Memories() {
 
   const handleImageFile = async (file: File) => {
     if (file.size > 15 * 1024 * 1024) {
-      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 15MB", variant: "destructive" });
+      toast({
+        title: "Imagem muito grande",
+        description: "Escolha uma imagem menor que 15MB",
+        variant: "destructive",
+      });
       return;
     }
     setMilestoneFile(file);
@@ -110,7 +189,10 @@ export default function Memories() {
   };
 
   const triggerCelebration = () => {
-    const msg = celebrationMessages[Math.floor(Math.random() * celebrationMessages.length)];
+    const msg =
+      celebrationMessages[
+        Math.floor(Math.random() * celebrationMessages.length)
+      ];
     setCelebrationMsg(msg);
     setShowCelebration(true);
     setTimeout(() => setShowCelebration(false), 3500);
@@ -132,7 +214,9 @@ export default function Memories() {
       if (uploadedUrl) photoUrl = uploadedUrl;
     }
 
-    const date = data.date?.includes('T') ? data.date.split('T')[0] : (data.date || new Date().toISOString().split('T')[0]);
+    const date = data.date?.includes("T")
+      ? data.date.split("T")[0]
+      : data.date || new Date().toISOString().split("T")[0];
 
     try {
       await createMilestone.mutateAsync({
@@ -148,7 +232,11 @@ export default function Memories() {
       setMilestoneFile(null);
       triggerCelebration();
     } catch {
-      toast({ title: "Erro ao salvar marco", description: "Tente novamente", variant: "destructive" });
+      toast({
+        title: "Erro ao salvar marco",
+        description: "Tente novamente",
+        variant: "destructive",
+      });
     }
   };
 
@@ -168,7 +256,9 @@ export default function Memories() {
       if (uploadedUrl) photoUrl = uploadedUrl;
     }
 
-    const date = data.date?.includes('T') ? data.date.split('T')[0] : (data.date || new Date().toISOString().split('T')[0]);
+    const date = data.date?.includes("T")
+      ? data.date.split("T")[0]
+      : data.date || new Date().toISOString().split("T")[0];
 
     try {
       await updateMilestone.mutateAsync({
@@ -184,22 +274,29 @@ export default function Memories() {
       setMilestoneFile(null);
       toast({ title: "Marco atualizado!" });
     } catch {
-      toast({ title: "Erro ao atualizar marco", description: "Tente novamente", variant: "destructive" });
+      toast({
+        title: "Erro ao atualizar marco",
+        description: "Tente novamente",
+        variant: "destructive",
+      });
     }
   };
 
   const handleDelete = () => {
     if (!activeChild || !deleteConfirm) return;
-    deleteMilestone.mutate({
-      childId: activeChild.id,
-      milestoneId: deleteConfirm.id
-    }, {
-      onSuccess: () => {
-        setDeleteConfirm(null);
-        setViewMilestone(null);
-        toast({ title: "Marco excluído" });
-      }
-    });
+    deleteMilestone.mutate(
+      {
+        childId: activeChild.id,
+        milestoneId: deleteConfirm.id,
+      },
+      {
+        onSuccess: () => {
+          setDeleteConfirm(null);
+          setViewMilestone(null);
+          toast({ title: "Marco excluído" });
+        },
+      },
+    );
   };
 
   useEffect(() => {
@@ -213,40 +310,63 @@ export default function Memories() {
 
   const onSubmitDiary = (data: any) => {
     if (!activeChild) return;
-    createDiary.mutate({ childId: activeChild.id, ...data, photoUrls: [] }, {
-      onSuccess: () => {
-        setOpenDiary(false);
-        diaryForm.reset();
-        toast({ title: "Diário atualizado!" });
-      }
-    });
+    createDiary.mutate(
+      { childId: activeChild.id, ...data, photoUrls: [] },
+      {
+        onSuccess: () => {
+          setOpenDiary(false);
+          diaryForm.reset();
+          toast({ title: "Diário atualizado!" });
+        },
+        onError: () => {
+          toast({
+            title: "Erro ao salvar diário",
+            description: "Tente novamente",
+            variant: "destructive",
+          });
+        },
+      },
+    );
   };
 
   const onSubmitEditDiary = (data: any) => {
     if (!activeChild || !editingDiary) return;
-    updateDiary.mutate({
-      childId: activeChild.id,
-      entryId: editingDiary.id,
-      ...data,
-    }, {
-      onSuccess: () => {
-        setEditingDiary(null);
-        toast({ title: "Registro atualizado!" });
-      }
-    });
+    updateDiary.mutate(
+      {
+        childId: activeChild.id,
+        entryId: editingDiary.id,
+        ...data,
+      },
+      {
+        onSuccess: () => {
+          setEditingDiary(null);
+          toast({ title: "Registro atualizado!" });
+        },
+        onError: () => {
+          toast({
+            title: "Erro ao atualizar diário",
+            description: "Tente novamente",
+            variant: "destructive",
+          });
+        },
+      },
+    );
   };
 
   const handleDeleteDiary = () => {
     if (!activeChild || !deleteDiaryConfirm) return;
-    deleteDiary.mutate({
-      childId: activeChild.id,
-      entryId: deleteDiaryConfirm.id,
-    }, {
-      onSuccess: () => {
-        setDeleteDiaryConfirm(null);
-        toast({ title: "Registro excluído" });
-      }
-    });
+    deleteDiary.mutate(
+      {
+        childId: activeChild.id,
+        entryId: deleteDiaryConfirm.id,
+      },
+      {
+        onSuccess: () => {
+          setDeleteDiaryConfirm(null);
+          toast({ title: "Registro excluído" });
+        },
+      },
+    );
   };
 
   return (
@@ -279,7 +399,9 @@ export default function Memories() {
                 transition={{ delay: 0.2 }}
               >
                 <Sparkles className="w-8 h-8 mx-auto mb-2 text-yellow-300" />
-                <h2 className="text-2xl font-bold mb-2">{celebrationMsg.title}</h2>
+                <h2 className="text-2xl font-bold mb-2">
+                  {celebrationMsg.title}
+                </h2>
                 <p className="text-white/90">{celebrationMsg.subtitle}</p>
                 <div className="mt-4 text-sm bg-white/20 rounded-full px-4 py-2 inline-block">
                   +20 pontos de amor
@@ -293,12 +415,18 @@ export default function Memories() {
       <main className="max-w-md mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
-             <TabsTrigger value="milestones" className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold">
-               <Star className="w-4 h-4 mr-2" /> Marcos
-             </TabsTrigger>
-             <TabsTrigger value="diary" className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold">
-               <Book className="w-4 h-4 mr-2" /> Diário
-             </TabsTrigger>
+            <TabsTrigger
+              value="milestones"
+              className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
+            >
+              <Star className="w-4 h-4 mr-2" /> Marcos
+            </TabsTrigger>
+            <TabsTrigger
+              value="diary"
+              className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
+            >
+              <Book className="w-4 h-4 mr-2" /> Diário
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="milestones">
@@ -307,235 +435,343 @@ export default function Memories() {
                 "Esses momentos passam rápido. Ainda bem que você guardou."
               </p>
             </div>
-            
-            <div className="mb-6 flex justify-end">
-               <Dialog open={openMilestone} onOpenChange={(open) => {
-                 setOpenMilestone(open);
-                 if (!open) {
-                   setMilestoneImage(null);
-                   milestoneForm.reset();
-                 }
-               }}>
-                 <DialogTrigger asChild>
-                   <Button className="rounded-full" data-testid="button-new-milestone">
-                     <Heart className="w-4 h-4 mr-2" /> Guardar lembrança
-                   </Button>
-                 </DialogTrigger>
-                 <DialogContent className="rounded-2xl max-w-sm mx-auto">
-                   <DialogHeader>
-                     <DialogTitle>Guardar uma lembrança</DialogTitle>
-                     <DialogDescription>Esse momento merece ser eternizado com carinho</DialogDescription>
-                   </DialogHeader>
-                   <form onSubmit={milestoneForm.handleSubmit(onSubmitMilestone)} className="space-y-4 pt-2">
-                     <div className="space-y-2">
-                       <Label>Data</Label>
-                       <Input type="date" {...milestoneForm.register("date")} data-testid="input-milestone-date" />
-                     </div>
-                     <div className="space-y-2">
-                       <Label>Título</Label>
-                       <Input placeholder="Ex: Primeiro sorriso" {...milestoneForm.register("title")} data-testid="input-milestone-title" />
-                     </div>
-                     <div className="space-y-2">
-                       <Label>Descrição</Label>
-                       <Textarea placeholder="Como foi esse momento?" {...milestoneForm.register("description")} data-testid="input-milestone-description" />
-                     </div>
-                     
-                     <div className="space-y-2">
-                       <Label>Foto do momento</Label>
-                       {milestoneImage ? (
-                         <div className="relative">
-                           <img 
-                             src={milestoneImage} 
-                             alt="Preview" 
-                             className="w-full h-40 object-cover rounded-xl border border-border"
-                           />
-                           <Button
-                             type="button"
-                             size="icon"
-                             variant="destructive"
-                             className="absolute top-2 right-2 h-8 w-8 rounded-full"
-                             onClick={() => setMilestoneImage(null)}
-                             data-testid="button-remove-photo"
-                           >
-                             <X className="w-4 h-4" />
-                           </Button>
-                         </div>
-                       ) : (
-                         <PhotoPicker onPhotoSelected={handleImageFile}>
-                           {(openPicker) => (
-                             <Button
-                               type="button"
-                               variant="outline"
-                               className="w-full h-24 border-dashed flex flex-col gap-2"
-                               onClick={openPicker}
-                               data-testid="button-upload-photo"
-                             >
-                               <Camera className="w-6 h-6 text-muted-foreground" />
-                               <span className="text-sm text-muted-foreground">Adicionar foto</span>
-                             </Button>
-                           )}
-                         </PhotoPicker>
-                       )}
-                     </div>
 
-                      <Button type="submit" className="w-full" disabled={createMilestone.isPending || isUploadingPhoto} data-testid="button-save-milestone">
-                        {isUploadingPhoto ? "Enviando foto..." : createMilestone.isPending ? "Guardando..." : "Guardar lembrança"}
-                      </Button>
-                   </form>
-                 </DialogContent>
-               </Dialog>
+            <div className="mb-6 flex justify-end">
+              <Dialog
+                open={openMilestone}
+                onOpenChange={(open) => {
+                  setOpenMilestone(open);
+                  if (!open) {
+                    setMilestoneImage(null);
+                    milestoneForm.reset();
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    className="rounded-full"
+                    data-testid="button-new-milestone"
+                  >
+                    <Heart className="w-4 h-4 mr-2" /> Guardar lembrança
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="rounded-2xl max-w-sm mx-auto">
+                  <DialogHeader>
+                    <DialogTitle>Guardar uma lembrança</DialogTitle>
+                    <DialogDescription>
+                      Esse momento merece ser eternizado com carinho
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form
+                    onSubmit={milestoneForm.handleSubmit(onSubmitMilestone)}
+                    className="space-y-4 pt-2"
+                  >
+                    <div className="space-y-2">
+                      <Label>Data</Label>
+                      <Input
+                        type="date"
+                        {...milestoneForm.register("date")}
+                        data-testid="input-milestone-date"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Título</Label>
+                      <Input
+                        placeholder="Ex: Primeiro sorriso"
+                        {...milestoneForm.register("title")}
+                        data-testid="input-milestone-title"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição</Label>
+                      <Textarea
+                        placeholder="Como foi esse momento?"
+                        {...milestoneForm.register("description")}
+                        data-testid="input-milestone-description"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Foto do momento</Label>
+                      {milestoneImage ? (
+                        <div className="relative">
+                          <img
+                            src={milestoneImage}
+                            alt="Preview"
+                            className="w-full h-40 object-cover rounded-xl border border-border"
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="destructive"
+                            className="absolute top-2 right-2 h-8 w-8 rounded-full"
+                            onClick={() => setMilestoneImage(null)}
+                            data-testid="button-remove-photo"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <PhotoPicker onPhotoSelected={handleImageFile}>
+                          {(openPicker) => (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full h-24 border-dashed flex flex-col gap-2"
+                              onClick={openPicker}
+                              data-testid="button-upload-photo"
+                            >
+                              <Camera className="w-6 h-6 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                Adicionar foto
+                              </span>
+                            </Button>
+                          )}
+                        </PhotoPicker>
+                      )}
+                    </div>
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={createMilestone.isPending || isUploadingPhoto}
+                      data-testid="button-save-milestone"
+                    >
+                      {isUploadingPhoto
+                        ? "Enviando foto..."
+                        : createMilestone.isPending
+                          ? "Guardando..."
+                          : "Guardar lembrança"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div className="relative border-l-2 border-primary/20 ml-4 space-y-8 pb-8">
-             {milestones?.slice().sort((a, b) => {
-               const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
-               if (dateDiff !== 0) return dateDiff;
-               // Mesmo dia: o mais recentemente criado fica em cima
-               return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-             }).map((milestone) => {
-               const social = milestonesWithSocial?.find(m => m.id === milestone.id);
-               return (
-                 <div 
-                   key={milestone.id} 
-                   className="relative pl-6 cursor-pointer group"
-                   onClick={() => setViewMilestone(milestone)}
-                   data-testid={`milestone-item-${milestone.id}`}
-                 >
-                   <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
-                   <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">
-                     {format(parseLocalDate(milestone.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
-                   </span>
-                   <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
-                     {milestone.photoUrl && (
-                       <img 
-                         src={milestone.photoUrl} 
-                         alt={milestone.title} 
-                         className="w-full h-32 object-cover rounded-lg mb-3"
-                       />
-                     )}
-                     <h3 className="font-display font-bold text-lg mb-2">{milestone.title}</h3>
-                     <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{milestone.description}</p>
-                     {/* Social counters */}
-                     {(social && (social.likeCount > 0 || social.commentCount > 0)) && (
-                       <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
-                         {social.likeCount > 0 && (
-                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                             <Heart className="w-3 h-3 fill-rose-400 text-rose-400" />
-                             {social.likeCount}
-                           </span>
-                         )}
-                         {social.commentCount > 0 && (
-                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                             <MessageCircle className="w-3 h-3" />
-                             {social.commentCount}
-                           </span>
-                         )}
-                       </div>
-                     )}
-                     {!(social?.likeCount || social?.commentCount) && (
-                       <p className="text-xs text-primary mt-2">Toque para ver detalhes</p>
-                     )}
-                   </div>
-                 </div>
-               );
-             })}
-               {(!milestones || milestones.length === 0) && (
-                 <p className="pl-6 text-muted-foreground italic">Registre os primeiros momentos especiais...</p>
-               )}
+              {milestones
+                ?.slice()
+                .sort((a, b) => {
+                  const dateDiff =
+                    new Date(b.date).getTime() - new Date(a.date).getTime();
+                  if (dateDiff !== 0) return dateDiff;
+                  // Mesmo dia: o mais recentemente criado fica em cima
+                  return (
+                    new Date(b.createdAt ?? 0).getTime() -
+                    new Date(a.createdAt ?? 0).getTime()
+                  );
+                })
+                .map((milestone) => {
+                  const social = milestonesWithSocial?.find(
+                    (m) => m.id === milestone.id,
+                  );
+                  return (
+                    <div
+                      key={milestone.id}
+                      className="relative pl-6 cursor-pointer group"
+                      onClick={() => setViewMilestone(milestone)}
+                      data-testid={`milestone-item-${milestone.id}`}
+                    >
+                      <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
+                      <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">
+                        {format(
+                          parseLocalDate(milestone.date),
+                          "dd 'de' MMMM, yyyy",
+                          { locale: ptBR },
+                        )}
+                      </span>
+                      <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
+                        {milestone.photoUrl && (
+                          <img
+                            src={milestone.photoUrl}
+                            alt={milestone.title}
+                            className="w-full h-32 object-cover rounded-lg mb-3"
+                          />
+                        )}
+                        <h3 className="font-display font-bold text-lg mb-2">
+                          {milestone.title}
+                        </h3>
+                        <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">
+                          {milestone.description}
+                        </p>
+                        {/* Social counters */}
+                        {social &&
+                          (social.likeCount > 0 || social.commentCount > 0) && (
+                            <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
+                              {social.likeCount > 0 && (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Heart className="w-3 h-3 fill-rose-400 text-rose-400" />
+                                  {social.likeCount}
+                                </span>
+                              )}
+                              {social.commentCount > 0 && (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <MessageCircle className="w-3 h-3" />
+                                  {social.commentCount}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        {!(social?.likeCount || social?.commentCount) && (
+                          <p className="text-xs text-primary mt-2">
+                            Toque para ver detalhes
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              {(!milestones || milestones.length === 0) && (
+                <p className="pl-6 text-muted-foreground italic">
+                  Registre os primeiros momentos especiais...
+                </p>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="diary">
-             <div className="mb-6 flex justify-end">
-               <Dialog open={openDiary} onOpenChange={setOpenDiary}>
-                 <DialogTrigger asChild>
-                   <Button className="rounded-full" data-testid="button-new-diary">+ Escrever</Button>
-                 </DialogTrigger>
-                 <DialogContent className="rounded-2xl max-w-sm mx-auto">
-                   <DialogHeader>
-                     <DialogTitle>Querido Diário...</DialogTitle>
-                     <DialogDescription>Escreva sobre o dia de hoje</DialogDescription>
-                   </DialogHeader>
-                   <form onSubmit={diaryForm.handleSubmit(onSubmitDiary)} className="space-y-4 pt-2">
-                     <div className="space-y-2">
-                       <Label>Data</Label>
-                       <Input type="date" {...diaryForm.register("date")} data-testid="input-diary-date" />
-                     </div>
-                     <div className="space-y-2">
-                       <Label>O que aconteceu hoje?</Label>
-                       <Textarea {...diaryForm.register("content")} className="min-h-[120px]" data-testid="input-diary-content" />
-                     </div>
-                     <Button type="submit" className="w-full" disabled={createDiary.isPending} data-testid="button-save-diary">
-                       {createDiary.isPending ? "Salvando..." : "Salvar no Diário"}
-                     </Button>
-                   </form>
-                 </DialogContent>
-               </Dialog>
+            <div className="mb-6 flex justify-end">
+              <Dialog open={openDiary} onOpenChange={setOpenDiary}>
+                <DialogTrigger asChild>
+                  <Button
+                    className="rounded-full"
+                    data-testid="button-new-diary"
+                  >
+                    + Escrever
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="rounded-2xl max-w-sm mx-auto">
+                  <DialogHeader>
+                    <DialogTitle>Querido Diário...</DialogTitle>
+                    <DialogDescription>
+                      Escreva sobre o dia de hoje
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form
+                    onSubmit={diaryForm.handleSubmit(onSubmitDiary)}
+                    className="space-y-4 pt-2"
+                  >
+                    <div className="space-y-2">
+                      <Label>Data</Label>
+                      <Input
+                        type="date"
+                        {...diaryForm.register("date")}
+                        data-testid="input-diary-date"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>O que aconteceu hoje?</Label>
+                      <Textarea
+                        {...diaryForm.register("content")}
+                        className="min-h-[120px]"
+                        data-testid="input-diary-content"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={createDiary.isPending}
+                      data-testid="button-save-diary"
+                    >
+                      {createDiary.isPending
+                        ? "Salvando..."
+                        : "Salvar no Diário"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {diary?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(entry => (
-                <div key={entry.id} className="bg-white p-5 rounded-2xl border border-border shadow-sm" data-testid={`card-diary-${entry.id}`}>
-                  <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
-                    <span className="font-hand text-lg font-bold text-primary">
-                       {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {entry.photoUrls && entry.photoUrls.length > 0 && <ImageIcon className="w-4 h-4 text-muted-foreground" />}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setEditingDiary(entry)}
-                        data-testid={`button-edit-diary-${entry.id}`}
-                      >
-                        <Edit2 className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setDeleteDiaryConfirm(entry)}
-                        data-testid={`button-delete-diary-${entry.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-muted-foreground" />
-                      </Button>
+              {diary
+                ?.slice()
+                .sort(
+                  (a, b) =>
+                    new Date(b.date).getTime() - new Date(a.date).getTime(),
+                )
+                .map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="bg-white p-5 rounded-2xl border border-border shadow-sm"
+                    data-testid={`card-diary-${entry.id}`}
+                  >
+                    <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
+                      <span className="font-hand text-lg font-bold text-primary">
+                        {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {entry.photoUrls && entry.photoUrls.length > 0 && (
+                          <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEditingDiary(entry)}
+                          data-testid={`button-edit-diary-${entry.id}`}
+                        >
+                          <Edit2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setDeleteDiaryConfirm(entry)}
+                          data-testid={`button-delete-diary-${entry.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      </div>
                     </div>
+                    <p className="text-foreground leading-relaxed font-hand text-lg">
+                      {entry.content}
+                    </p>
                   </div>
-                  <p className="text-foreground leading-relaxed font-hand text-lg">{entry.content}</p>
-                </div>
-              ))}
+                ))}
               {(!diary || diary.length === 0) && (
-                 <div className="text-center py-12">
-                   <Book className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                   <p className="text-muted-foreground">O diário está em branco.</p>
-                 </div>
+                <div className="text-center py-12">
+                  <Book className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-muted-foreground">
+                    O diário está em branco.
+                  </p>
+                </div>
               )}
             </div>
           </TabsContent>
         </Tabs>
       </main>
 
-      <Dialog open={!!viewMilestone} onOpenChange={(open) => !open && setViewMilestone(null)}>
+      <Dialog
+        open={!!viewMilestone}
+        onOpenChange={(open) => !open && setViewMilestone(null)}
+      >
         <DialogContent className="rounded-2xl max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
           {viewMilestone && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-xl">{viewMilestone.title}</DialogTitle>
+                <DialogTitle className="text-xl">
+                  {viewMilestone.title}
+                </DialogTitle>
                 <DialogDescription>
-                  {format(parseLocalDate(viewMilestone.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  {format(
+                    parseLocalDate(viewMilestone.date),
+                    "dd 'de' MMMM 'de' yyyy",
+                    { locale: ptBR },
+                  )}
                 </DialogDescription>
               </DialogHeader>
-              
+
               {viewMilestone.photoUrl && (
-                <img 
-                  src={viewMilestone.photoUrl} 
+                <img
+                  src={viewMilestone.photoUrl}
                   alt={viewMilestone.title}
                   className="w-full rounded-xl object-cover max-h-64"
                 />
               )}
-              
-              <p className="text-foreground leading-relaxed">{viewMilestone.description}</p>
+
+              <p className="text-foreground leading-relaxed">
+                {viewMilestone.description}
+              </p>
 
               {/* Social: Like + Comments */}
               <div className="border-t border-border/50 pt-3">
@@ -550,10 +786,10 @@ export default function Memories() {
                   milestoneId={viewMilestone.id}
                 />
               </div>
-              
+
               <DialogFooter className="flex gap-2 sm:gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setEditingMilestone(viewMilestone);
                     setViewMilestone(null);
@@ -562,7 +798,7 @@ export default function Memories() {
                 >
                   <Edit2 className="w-4 h-4 mr-2" /> Editar
                 </Button>
-                <Button 
+                <Button
                   variant="destructive"
                   onClick={() => setDeleteConfirm(viewMilestone)}
                   data-testid="button-delete-milestone"
@@ -575,19 +811,27 @@ export default function Memories() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingMilestone} onOpenChange={(open) => {
-        if (!open) {
-          setEditingMilestone(null);
-          setMilestoneImage(null);
-          editForm.reset();
-        }
-      }}>
+      <Dialog
+        open={!!editingMilestone}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingMilestone(null);
+            setMilestoneImage(null);
+            editForm.reset();
+          }
+        }}
+      >
         <DialogContent className="rounded-2xl max-w-sm mx-auto">
           <DialogHeader>
             <DialogTitle>Editar Marco</DialogTitle>
-            <DialogDescription>Atualize as informações deste momento especial</DialogDescription>
+            <DialogDescription>
+              Atualize as informações deste momento especial
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={editForm.handleSubmit(onSubmitEdit)} className="space-y-4 pt-2">
+          <form
+            onSubmit={editForm.handleSubmit(onSubmitEdit)}
+            className="space-y-4 pt-2"
+          >
             <div className="space-y-2">
               <Label>Data</Label>
               <Input type="date" {...editForm.register("date")} />
@@ -600,14 +844,14 @@ export default function Memories() {
               <Label>Descrição</Label>
               <Textarea {...editForm.register("description")} />
             </div>
-            
+
             <div className="space-y-2">
               <Label>Foto do momento</Label>
               {milestoneImage ? (
                 <div className="relative">
-                  <img 
-                    src={milestoneImage} 
-                    alt="Preview" 
+                  <img
+                    src={milestoneImage}
+                    alt="Preview"
                     className="w-full h-40 object-cover rounded-xl border border-border"
                   />
                   <Button
@@ -630,32 +874,48 @@ export default function Memories() {
                       onClick={openPicker}
                     >
                       <Camera className="w-6 h-6 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Adicionar foto</span>
+                      <span className="text-sm text-muted-foreground">
+                        Adicionar foto
+                      </span>
                     </Button>
                   )}
                 </PhotoPicker>
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={updateMilestone.isPending || isUploadingPhoto}>
-              {isUploadingPhoto ? "Enviando foto..." : updateMilestone.isPending ? "Salvando..." : "Salvar Alterações"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={updateMilestone.isPending || isUploadingPhoto}
+            >
+              {isUploadingPhoto
+                ? "Enviando foto..."
+                : updateMilestone.isPending
+                  ? "Salvando..."
+                  : "Salvar Alterações"}
             </Button>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+      <Dialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+      >
         <DialogContent className="rounded-2xl max-w-sm mx-auto">
           <DialogHeader>
             <DialogTitle>Excluir Marco?</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir "{deleteConfirm?.title}"? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir "{deleteConfirm?.title}"? Esta ação
+              não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
-            <Button 
-              variant="destructive" 
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
               onClick={handleDelete}
               disabled={deleteMilestone.isPending}
               data-testid="button-confirm-delete"
@@ -666,34 +926,57 @@ export default function Memories() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingDiary} onOpenChange={(open) => !open && setEditingDiary(null)}>
+      <Dialog
+        open={!!editingDiary}
+        onOpenChange={(open) => !open && setEditingDiary(null)}
+      >
         <DialogContent className="rounded-2xl max-w-sm mx-auto">
           <DialogHeader>
             <DialogTitle>Editar Registro</DialogTitle>
             <DialogDescription>Altere o conteúdo do diário</DialogDescription>
           </DialogHeader>
-          <form onSubmit={editDiaryForm.handleSubmit(onSubmitEditDiary)} className="space-y-4 pt-2">
+          <form
+            onSubmit={editDiaryForm.handleSubmit(onSubmitEditDiary)}
+            className="space-y-4 pt-2"
+          >
             <div className="space-y-2">
               <Label>Data</Label>
-              <Input type="date" {...editDiaryForm.register("date")} data-testid="input-edit-diary-date" />
+              <Input
+                type="date"
+                {...editDiaryForm.register("date")}
+                data-testid="input-edit-diary-date"
+              />
             </div>
             <div className="space-y-2">
               <Label>O que aconteceu?</Label>
-              <Textarea {...editDiaryForm.register("content")} className="min-h-[120px]" data-testid="input-edit-diary-content" />
+              <Textarea
+                {...editDiaryForm.register("content")}
+                className="min-h-[120px]"
+                data-testid="input-edit-diary-content"
+              />
             </div>
-            <Button type="submit" className="w-full" disabled={updateDiary.isPending} data-testid="button-save-edit-diary">
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={updateDiary.isPending}
+              data-testid="button-save-edit-diary"
+            >
               {updateDiary.isPending ? "Salvando..." : "Salvar Alterações"}
             </Button>
           </form>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteDiaryConfirm} onOpenChange={(open) => !open && setDeleteDiaryConfirm(null)}>
+      <AlertDialog
+        open={!!deleteDiaryConfirm}
+        onOpenChange={(open) => !open && setDeleteDiaryConfirm(null)}
+      >
         <AlertDialogContent className="rounded-2xl max-w-sm mx-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir registro do diário?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir este registro? Esta ação não pode
+              ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
