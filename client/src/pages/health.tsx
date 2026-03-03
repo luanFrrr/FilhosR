@@ -277,7 +277,7 @@ export default function Health() {
               </Dialog>
             </div>
 
-            <div className="space-y-4">
+            <div className="relative border-l-2 border-red-200 ml-4 space-y-8 pb-8">
               {visibleRecords
                 ?.slice()
                 .sort((a, b) => {
@@ -292,83 +292,92 @@ export default function Health() {
                 .map((record) => (
                   <div
                     key={record.id}
-                    className="bg-white p-5 rounded-xl border border-border shadow-sm"
+                    className="relative pl-6"
                     data-testid={`health-record-${record.id}`}
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-md">
-                        {format(parseLocalDate(record.date), "dd MMM yyyy", {
-                          locale: ptBR,
-                        })}
-                      </span>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(record)}
-                          data-testid={`button-edit-health-${record.id}`}
-                        >
-                          <Pencil className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              data-testid={`button-delete-health-${record.id}`}
-                            >
-                              <Trash2 className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="max-w-sm mx-auto">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Excluir registro?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. O registro será
-                                removido permanentemente.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(record)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                data-testid={`button-confirm-delete-${record.id}`}
+                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-red-400 border-4 border-background" />
+                    <span className="text-xs font-bold text-red-500 uppercase tracking-wider block mb-1">
+                      {format(
+                        parseLocalDate(record.date),
+                        "dd 'de' MMMM, yyyy",
+                        { locale: ptBR },
+                      )}
+                    </span>
+                    <div className="bg-white p-4 rounded-xl border border-border shadow-sm">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-display font-bold text-lg text-foreground">
+                          {record.symptoms}
+                        </h4>
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(record)}
+                            data-testid={`button-edit-health-${record.id}`}
+                          >
+                            <Pencil className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                data-testid={`button-delete-health-${record.id}`}
                               >
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="max-w-sm mx-auto">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Excluir registro?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação não pode ser desfeita. O registro
+                                  será removido permanentemente.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(record)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  data-testid={`button-confirm-delete-${record.id}`}
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
+                      {record.medication && (
+                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg">
+                          <Syringe className="w-4 h-4" />
+                          <span>{record.medication}</span>
+                        </div>
+                      )}
+                      {record.notes && (
+                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                          {record.notes}
+                        </p>
+                      )}
                     </div>
-                    <h4 className="font-bold text-foreground text-lg mb-1">
-                      {record.symptoms}
-                    </h4>
-                    {record.medication && (
-                      <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg">
-                        <Syringe className="w-4 h-4" />
-                        <span>{record.medication}</span>
-                      </div>
-                    )}
-                    {record.notes && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {record.notes}
-                      </p>
-                    )}
                   </div>
                 ))}
               {(!visibleRecords || visibleRecords.length === 0) && (
-                <div className="text-center py-12 bg-white rounded-2xl border border-dashed">
-                  <Thermometer className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-muted-foreground">
-                    Nenhum registro de doença.
-                  </p>
-                  <p className="text-muted-foreground text-sm">
-                    Saúde de ferro!
-                  </p>
+                <div className="pl-6">
+                  <div className="text-center py-12 bg-white rounded-2xl border border-dashed">
+                    <Thermometer className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-muted-foreground">
+                      Nenhum registro de doença.
+                    </p>
+                    <p className="text-muted-foreground text-sm">
+                      Saúde de ferro!
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
