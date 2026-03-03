@@ -95,7 +95,7 @@ export interface IStorage {
     id: number,
     data: Partial<InsertHealthRecord>,
   ): Promise<HealthRecord | undefined>;
-  archiveHealthRecord(id: number): Promise<HealthRecord | undefined>;
+  deleteHealthRecord(id: number): Promise<void>;
 
   // Milestones
   getMilestones(childId: number): Promise<Milestone[]>;
@@ -459,20 +459,9 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async archiveHealthRecord(id: number): Promise<HealthRecord | undefined> {
-    const existing = await db
-      .select()
-      .from(healthRecords)
-      .where(eq(healthRecords.id, id));
-    if (!existing.length) return undefined;
-    const record = existing[0];
-    const archivedNotes = record.notes?.startsWith("[ARQUIVADO]")
-      ? record.notes
-      : `[ARQUIVADO] ${record.notes || ""}`;
-    const [updated] = await db
-      .update(healthRecords)
-      .set({ notes: archivedNotes })
-      .where(eq(healthRecords.id, id))
+  async deleteHealthRecord(id: number): Promise<void> {
+    await db.delete(healthRecords).where(eq(healthRecords.id, id));
+  }
       .returning();
     return updated;
   }

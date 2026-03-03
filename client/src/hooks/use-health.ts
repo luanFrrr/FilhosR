@@ -20,7 +20,10 @@ export function useVaccines(childId: number) {
 export function useCreateVaccine() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ childId, ...data }: { childId: number } & Omit<InsertVaccine, "childId">) => {
+    mutationFn: async ({
+      childId,
+      ...data
+    }: { childId: number } & Omit<InsertVaccine, "childId">) => {
       const url = buildUrl(api.vaccines.create.path, { childId });
       const res = await fetch(url, {
         method: "POST",
@@ -31,7 +34,9 @@ export function useCreateVaccine() {
       return api.vaccines.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.vaccines.list.path, variables.childId] });
+      queryClient.invalidateQueries({
+        queryKey: [api.vaccines.list.path, variables.childId],
+      });
     },
   });
 }
@@ -39,7 +44,11 @@ export function useCreateVaccine() {
 export function useUpdateVaccine() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, childId, ...data }: { id: number, childId: number } & Partial<InsertVaccine>) => {
+    mutationFn: async ({
+      id,
+      childId,
+      ...data
+    }: { id: number; childId: number } & Partial<InsertVaccine>) => {
       const url = buildUrl(api.vaccines.update.path, { id });
       const res = await fetch(url, {
         method: "PATCH",
@@ -50,7 +59,9 @@ export function useUpdateVaccine() {
       return api.vaccines.update.responses[200].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.vaccines.list.path, variables.childId] });
+      queryClient.invalidateQueries({
+        queryKey: [api.vaccines.list.path, variables.childId],
+      });
     },
   });
 }
@@ -73,7 +84,10 @@ export function useHealthRecords(childId: number) {
 export function useCreateHealthRecord() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ childId, ...data }: { childId: number } & Omit<InsertHealthRecord, "childId">) => {
+    mutationFn: async ({
+      childId,
+      ...data
+    }: { childId: number } & Omit<InsertHealthRecord, "childId">) => {
       const url = buildUrl(api.health.create.path, { childId });
       const res = await fetch(url, {
         method: "POST",
@@ -84,7 +98,9 @@ export function useCreateHealthRecord() {
       return api.health.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.health.list.path, variables.childId] });
+      queryClient.invalidateQueries({
+        queryKey: [api.health.list.path, variables.childId],
+      });
       queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
@@ -93,7 +109,11 @@ export function useCreateHealthRecord() {
 export function useUpdateHealthRecord() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, childId, ...data }: { id: number; childId: number } & Partial<InsertHealthRecord>) => {
+    mutationFn: async ({
+      id,
+      childId,
+      ...data
+    }: { id: number; childId: number } & Partial<InsertHealthRecord>) => {
       const url = buildUrl(api.health.update.path, { id });
       const res = await fetch(url, {
         method: "PATCH",
@@ -104,25 +124,29 @@ export function useUpdateHealthRecord() {
       return api.health.update.responses[200].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.health.list.path, variables.childId] });
+      queryClient.invalidateQueries({
+        queryKey: [api.health.list.path, variables.childId],
+      });
     },
   });
 }
 
-export function useArchiveHealthRecord() {
+export function useDeleteHealthRecord() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
-      const url = buildUrl(api.health.archive.path, { id });
+      const url = buildUrl(api.health.delete.path, { id });
       const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "DELETE",
+        credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to archive health record");
-      return api.health.archive.responses[200].parse(await res.json());
+      if (!res.ok && res.status !== 204)
+        throw new Error("Failed to delete health record");
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.health.list.path, variables.childId] });
+      queryClient.invalidateQueries({
+        queryKey: [api.health.list.path, variables.childId],
+      });
     },
   });
 }

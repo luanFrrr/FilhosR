@@ -412,7 +412,7 @@ export async function registerRoutes(
     res.json(record);
   });
 
-  app.post(api.health.archive.path, isAuthenticated, async (req, res) => {
+  app.delete(api.health.delete.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
@@ -425,8 +425,8 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const record = await storage.archiveHealthRecord(id);
-    res.json(record);
+    await storage.deleteHealthRecord(id);
+    res.status(204).send();
   });
 
   // Milestones with social counts (likes + comments)

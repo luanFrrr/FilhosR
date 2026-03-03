@@ -215,11 +215,11 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
-    archive: {
-      method: "POST" as const,
-      path: "/api/health/:id/archive",
+    delete: {
+      method: "DELETE" as const,
+      path: "/api/health/:id",
       responses: {
-        200: z.custom<typeof healthRecords.$inferSelect>(),
+        204: z.void(),
         404: errorSchemas.notFound,
       },
     },
