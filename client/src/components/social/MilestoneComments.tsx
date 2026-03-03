@@ -1,9 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, Send, Trash2 } from "lucide-react";
+import { MessageCircle, Send, Trash2, Pencil, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
-import { useComments, useCreateComment, useDeleteComment } from "@/hooks/use-social";
+import {
+  useComments,
+  useCreateComment,
+  useDeleteComment,
+  useUpdateComment,
+} from "@/hooks/use-social";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,13 +19,24 @@ interface MilestoneCommentsProps {
   milestoneId: number;
 }
 
-export function MilestoneComments({ childId, milestoneId }: MilestoneCommentsProps) {
+export function MilestoneComments({
+  childId,
+  milestoneId,
+}: MilestoneCommentsProps) {
   const { user } = useAuth();
-  const { data: comments, isLoading } = useComments(childId, "milestone", milestoneId);
+  const { data: comments, isLoading } = useComments(
+    childId,
+    "milestone",
+    milestoneId,
+  );
   const createComment = useCreateComment();
   const deleteComment = useDeleteComment();
+  const updateComment = useUpdateComment();
   const [text, setText] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +63,36 @@ export function MilestoneComments({ childId, milestoneId }: MilestoneCommentsPro
     });
   };
 
+  const handleStartEdit = (commentId: number, currentText: string) => {
+    setEditingId(commentId);
+    setEditText(currentText);
+    setTimeout(() => editTextareaRef.current?.focus(), 50);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const handleSaveEdit = (commentId: number) => {
+    if (!editText.trim()) return;
+    updateComment.mutate(
+      {
+        commentId,
+        text: editText.trim(),
+        childId,
+        recordType: "milestone",
+        recordId: milestoneId,
+      },
+      {
+        onSuccess: () => {
+          setEditingId(null);
+          setEditText("");
+        },
+      },
+    );
+  };
+
   const formatAuthor = (firstName: string | null, lastName: string | null) => {
     if (firstName && lastName) return `${firstName} ${lastName}`;
     if (firstName) return firstName;
@@ -56,7 +102,9 @@ export function MilestoneComments({ childId, milestoneId }: MilestoneCommentsPro
   const formatTime = (createdAt: string | null) => {
     if (!createdAt) return "";
     try {
-      return format(new Date(createdAt), "dd 'de' MMM 'às' HH:mm", { locale: ptBR });
+      return format(new Date(createdAt), "dd 'de' MMM 'às' HH:mm", {
+        locale: ptBR,
+      });
     } catch {
       return "";
     }
@@ -67,7 +115,8 @@ export function MilestoneComments({ childId, milestoneId }: MilestoneCommentsPro
       <div className="flex items-center gap-2 mb-3">
         <MessageCircle className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm font-semibold text-muted-foreground">
-          Comentários {comments && comments.length > 0 ? `(${comments.length})` : ""}
+          Comentários{" "}
+          {comments && comments.length > 0 ? `(${comments.length})` : ""}
         </span>
       </div>
 
@@ -89,6 +138,7 @@ export function MilestoneComments({ childId, milestoneId }: MilestoneCommentsPro
         <AnimatePresence initial={false}>
           {comments?.map((comment) => {
             const isOwn = comment.userId === user?.id;
+            const isEditing = editingId === comment.id;
             return (
               <motion.div
                 key={comment.id}
@@ -101,22 +151,74 @@ export function MilestoneComments({ childId, milestoneId }: MilestoneCommentsPro
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <span className="text-xs font-semibold text-primary">
-                      {formatAuthor(comment.userFirstName, comment.userLastName)}
+                      {formatAuthor(
+                        comment.userFirstName,
+                        comment.userLastName,
+                      )}
                     </span>
                     <span className="text-xs text-muted-foreground ml-2">
                       {formatTime(comment.createdAt)}
                     </span>
-                    <p className="text-sm text-foreground mt-0.5 break-words">{comment.text}</p>
+                    {isEditing ? (
+                      <div className="mt-1 flex gap-1.5 items-end">
+                        <Textarea
+                          ref={editTextareaRef}
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          rows={1}
+                          className="resize-none text-sm rounded-lg min-h-[32px] py-1.5 flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSaveEdit(comment.id);
+                            }
+                            if (e.key === "Escape") {
+                              handleCancelEdit();
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => handleSaveEdit(comment.id)}
+                          disabled={!editText.trim() || updateComment.isPending}
+                          className="text-primary hover:text-primary/80 shrink-0 disabled:opacity-40"
+                          aria-label="Salvar edição"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="text-muted-foreground hover:text-foreground shrink-0"
+                          aria-label="Cancelar edição"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-foreground mt-0.5 break-words">
+                        {comment.text}
+                      </p>
+                    )}
                   </div>
-                  {isOwn && (
-                    <button
-                      onClick={() => handleDelete(comment.id)}
-                      disabled={deleteComment.isPending}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0 mt-0.5"
-                      aria-label="Excluir comentário"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  {isOwn && !isEditing && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+                      <button
+                        onClick={() =>
+                          handleStartEdit(comment.id, comment.text)
+                        }
+                        className="text-muted-foreground hover:text-primary"
+                        aria-label="Editar comentário"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(comment.id)}
+                        disabled={deleteComment.isPending}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label="Excluir comentário"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </motion.div>

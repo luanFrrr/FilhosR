@@ -77,7 +77,12 @@ export const api = {
       path: "/api/children/with-roles",
       responses: {
         200: z.array(
-          z.custom<typeof children.$inferSelect & { role: string; relationship: string }>(),
+          z.custom<
+            typeof children.$inferSelect & {
+              role: string;
+              relationship: string;
+            }
+          >(),
         ),
       },
     },
@@ -460,14 +465,28 @@ export const api = {
       method: "GET" as const,
       path: "/api/children/:childId/comments",
       responses: {
-        200: z.array(z.custom<typeof activityComments.$inferSelect & { userFirstName: string | null; userLastName: string | null }>()),
+        200: z.array(
+          z.custom<
+            typeof activityComments.$inferSelect & {
+              userFirstName: string | null;
+              userLastName: string | null;
+            }
+          >(),
+        ),
       },
     },
     listByRecord: {
       method: "GET" as const,
       path: "/api/children/:childId/comments/:recordType/:recordId",
       responses: {
-        200: z.array(z.custom<typeof activityComments.$inferSelect & { userFirstName: string | null; userLastName: string | null }>()),
+        200: z.array(
+          z.custom<
+            typeof activityComments.$inferSelect & {
+              userFirstName: string | null;
+              userLastName: string | null;
+            }
+          >(),
+        ),
       },
     },
     create: {
@@ -481,6 +500,18 @@ export const api = {
       responses: {
         201: z.custom<typeof activityComments.$inferSelect>(),
         400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: "PATCH" as const,
+      path: "/api/comments/:id",
+      input: z.object({
+        text: z.string().min(1),
+      }),
+      responses: {
+        200: z.custom<typeof activityComments.$inferSelect>(),
+        403: errorSchemas.forbidden,
+        404: errorSchemas.notFound,
       },
     },
     delete: {

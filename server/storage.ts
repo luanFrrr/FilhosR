@@ -53,7 +53,6 @@ let _susVaccinesCache: SusVaccine[] | null = null;
 let _susVaccinesCacheAt = 0;
 const SUS_CACHE_TTL = 24 * 60 * 60 * 1_000; // 24 horas
 
-
 export interface IStorage {
   hasChildAccessDirect(userId: string, childId: number): Promise<boolean>;
   // Users (OIDC users have string IDs)
@@ -64,7 +63,9 @@ export interface IStorage {
   // Children
   getChild(id: number): Promise<Child | undefined>;
   getChildrenByUserId(userId: string): Promise<Child[]>;
-  getChildrenWithRolesByUserId(userId: string): Promise<Array<Child & { role: string; relationship: string }>>;
+  getChildrenWithRolesByUserId(
+    userId: string,
+  ): Promise<Array<Child & { role: string; relationship: string }>>;
   getCaregiverRole(userId: string, childId: number): Promise<string | null>;
   createChild(child: InsertChild): Promise<Child>;
   updateChild(id: number, child: Partial<InsertChild>): Promise<Child>;
@@ -136,7 +137,11 @@ export interface IStorage {
   deleteVaccineRecord(id: number): Promise<void>;
 
   // Daily Photos
-  getDailyPhotos(childId: number, limit?: number, offset?: number): Promise<DailyPhoto[]>;
+  getDailyPhotos(
+    childId: number,
+    limit?: number,
+    offset?: number,
+  ): Promise<DailyPhoto[]>;
   getDailyPhotoByDate(
     childId: number,
     date: string,
@@ -159,9 +164,7 @@ export interface IStorage {
   getInviteCodeByCode(code: string): Promise<InviteCode | undefined>;
   markInviteCodeUsed(id: number, usedBy: string): Promise<InviteCode>;
   getInviteCodesByChildId(childId: number): Promise<InviteCode[]>;
-  getCaregiversByChildId(
-    childId: number,
-  ): Promise<
+  getCaregiversByChildId(childId: number): Promise<
     Array<{
       id: number;
       userId: string;
@@ -182,15 +185,45 @@ export interface IStorage {
   }): Promise<void>;
 
   // Activity Comments
-  getCommentsByRecord(childId: number, recordType: string, recordId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>>;
-  getCommentsByChild(childId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>>;
+  getCommentsByRecord(
+    childId: number,
+    recordType: string,
+    recordId: number,
+  ): Promise<
+    Array<
+      ActivityComment & {
+        userFirstName: string | null;
+        userLastName: string | null;
+      }
+    >
+  >;
+  getCommentsByChild(
+    childId: number,
+  ): Promise<
+    Array<
+      ActivityComment & {
+        userFirstName: string | null;
+        userLastName: string | null;
+      }
+    >
+  >;
   createComment(comment: InsertActivityComment): Promise<ActivityComment>;
+  updateComment(id: number, text: string): Promise<ActivityComment>;
   deleteComment(id: number): Promise<void>;
 
   // Milestone Likes
-  getMilestoneLikeStatus(milestoneId: number, userId: string): Promise<MilestoneLikeStatus>;
-  toggleMilestoneLike(milestoneId: number, userId: string): Promise<MilestoneLikeStatus>;
-  getMilestonesWithSocialCounts(childId: number, userId: string): Promise<MilestoneWithSocial[]>;
+  getMilestoneLikeStatus(
+    milestoneId: number,
+    userId: string,
+  ): Promise<MilestoneLikeStatus>;
+  toggleMilestoneLike(
+    milestoneId: number,
+    userId: string,
+  ): Promise<MilestoneLikeStatus>;
+  getMilestonesWithSocialCounts(
+    childId: number,
+    userId: string,
+  ): Promise<MilestoneWithSocial[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -222,7 +255,7 @@ export class DatabaseStorage implements IStorage {
 
     // Delete user sessions (sessions table uses JSONB sess column, not a userId column)
     await db.execute(
-      sql`DELETE FROM sessions WHERE sess->>'userId' = ${userId}`
+      sql`DELETE FROM sessions WHERE sess->>'userId' = ${userId}`,
     );
 
     // Delete user record
@@ -245,21 +278,36 @@ export class DatabaseStorage implements IStorage {
     return results.map((r) => r.child);
   }
 
-  async getChildrenWithRolesByUserId(userId: string): Promise<Array<Child & { role: string; relationship: string }>> {
+  async getChildrenWithRolesByUserId(
+    userId: string,
+  ): Promise<Array<Child & { role: string; relationship: string }>> {
     const results = await db
-      .select({ child: children, role: caregivers.role, relationship: caregivers.relationship })
+      .select({
+        child: children,
+        role: caregivers.role,
+        relationship: caregivers.relationship,
+      })
       .from(caregivers)
       .innerJoin(children, eq(caregivers.childId, children.id))
       .where(eq(caregivers.userId, userId));
 
-    return results.map((r) => ({ ...r.child, role: r.role, relationship: r.relationship }));
+    return results.map((r) => ({
+      ...r.child,
+      role: r.role,
+      relationship: r.relationship,
+    }));
   }
 
-  async getCaregiverRole(userId: string, childId: number): Promise<string | null> {
+  async getCaregiverRole(
+    userId: string,
+    childId: number,
+  ): Promise<string | null> {
     const [result] = await db
       .select({ role: caregivers.role })
       .from(caregivers)
-      .where(and(eq(caregivers.userId, userId), eq(caregivers.childId, childId)));
+      .where(
+        and(eq(caregivers.userId, userId), eq(caregivers.childId, childId)),
+      );
 
     return result?.role ?? null;
   }
@@ -791,7 +839,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Daily Photos
-  async getDailyPhotos(childId: number, limit = 30, offset = 0): Promise<DailyPhoto[]> {
+  async getDailyPhotos(
+    childId: number,
+    limit = 30,
+    offset = 0,
+  ): Promise<DailyPhoto[]> {
     return await db
       .select()
       .from(dailyPhotos)
@@ -905,9 +957,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(inviteCodes.childId, childId));
   }
 
-  async getCaregiversByChildId(
-    childId: number,
-  ): Promise<
+  async getCaregiversByChildId(childId: number): Promise<
     Array<{
       id: number;
       userId: string;
@@ -940,8 +990,12 @@ export class DatabaseStorage implements IStorage {
       userId: r.userId,
       relationship: r.relationship,
       role: r.role,
-      userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
-      userLastName: r.profileCustomized ? r.displayLastName : (r.displayLastName || r.userLastName),
+      userFirstName: r.profileCustomized
+        ? r.displayFirstName
+        : r.displayFirstName || r.userFirstName,
+      userLastName: r.profileCustomized
+        ? r.displayLastName
+        : r.displayLastName || r.userLastName,
       userEmail: r.userEmail,
     }));
   }
@@ -981,7 +1035,18 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async getCommentsByRecord(childId: number, recordType: string, recordId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>> {
+  async getCommentsByRecord(
+    childId: number,
+    recordType: string,
+    recordId: number,
+  ): Promise<
+    Array<
+      ActivityComment & {
+        userFirstName: string | null;
+        userLastName: string | null;
+      }
+    >
+  > {
     const results = await db
       .select({
         comment: activityComments,
@@ -1003,12 +1068,25 @@ export class DatabaseStorage implements IStorage {
       .orderBy(activityComments.createdAt); // ORDER BY createdAt ASC — mais antigos primeiro
     return results.map((r) => ({
       ...r.comment,
-      userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
-      userLastName: r.profileCustomized ? r.displayLastName : (r.displayLastName || r.userLastName),
+      userFirstName: r.profileCustomized
+        ? r.displayFirstName
+        : r.displayFirstName || r.userFirstName,
+      userLastName: r.profileCustomized
+        ? r.displayLastName
+        : r.displayLastName || r.userLastName,
     }));
   }
 
-  async getCommentsByChild(childId: number): Promise<Array<ActivityComment & { userFirstName: string | null; userLastName: string | null }>> {
+  async getCommentsByChild(
+    childId: number,
+  ): Promise<
+    Array<
+      ActivityComment & {
+        userFirstName: string | null;
+        userLastName: string | null;
+      }
+    >
+  > {
     const results = await db
       .select({
         comment: activityComments,
@@ -1024,14 +1102,32 @@ export class DatabaseStorage implements IStorage {
       .orderBy(activityComments.createdAt); // ORDER BY createdAt ASC
     return results.map((r) => ({
       ...r.comment,
-      userFirstName: r.profileCustomized ? r.displayFirstName : (r.displayFirstName || r.userFirstName),
-      userLastName: r.profileCustomized ? r.displayLastName : (r.displayLastName || r.userLastName),
+      userFirstName: r.profileCustomized
+        ? r.displayFirstName
+        : r.displayFirstName || r.userFirstName,
+      userLastName: r.profileCustomized
+        ? r.displayLastName
+        : r.displayLastName || r.userLastName,
     }));
   }
 
-  async createComment(comment: InsertActivityComment): Promise<ActivityComment> {
-    const [newComment] = await db.insert(activityComments).values(comment).returning();
+  async createComment(
+    comment: InsertActivityComment,
+  ): Promise<ActivityComment> {
+    const [newComment] = await db
+      .insert(activityComments)
+      .values(comment)
+      .returning();
     return newComment;
+  }
+
+  async updateComment(id: number, text: string): Promise<ActivityComment> {
+    const [updated] = await db
+      .update(activityComments)
+      .set({ text })
+      .where(eq(activityComments.id, id))
+      .returning();
+    return updated;
   }
 
   async deleteComment(id: number): Promise<void> {
@@ -1039,7 +1135,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Milestone Likes
-  async getMilestoneLikeStatus(milestoneId: number, userId: string): Promise<MilestoneLikeStatus> {
+  async getMilestoneLikeStatus(
+    milestoneId: number,
+    userId: string,
+  ): Promise<MilestoneLikeStatus> {
     // 1 query com COUNT + verificação de like do usuário em paralelo
     const [[likeCount], [userLikeRow]] = await Promise.all([
       db
@@ -1049,7 +1148,12 @@ export class DatabaseStorage implements IStorage {
       db
         .select({ id: milestoneLikes.userId })
         .from(milestoneLikes)
-        .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)))
+        .where(
+          and(
+            eq(milestoneLikes.milestoneId, milestoneId),
+            eq(milestoneLikes.userId, userId),
+          ),
+        )
         .limit(1),
     ]);
     return {
@@ -1058,17 +1162,30 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async toggleMilestoneLike(milestoneId: number, userId: string): Promise<MilestoneLikeStatus> {
+  async toggleMilestoneLike(
+    milestoneId: number,
+    userId: string,
+  ): Promise<MilestoneLikeStatus> {
     const existing = await db
       .select()
       .from(milestoneLikes)
-      .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)));
+      .where(
+        and(
+          eq(milestoneLikes.milestoneId, milestoneId),
+          eq(milestoneLikes.userId, userId),
+        ),
+      );
 
     if (existing.length > 0) {
       // Remove like
       await db
         .delete(milestoneLikes)
-        .where(and(eq(milestoneLikes.milestoneId, milestoneId), eq(milestoneLikes.userId, userId)));
+        .where(
+          and(
+            eq(milestoneLikes.milestoneId, milestoneId),
+            eq(milestoneLikes.userId, userId),
+          ),
+        );
     } else {
       // Add like
       await db.insert(milestoneLikes).values({ milestoneId, userId });
@@ -1077,48 +1194,52 @@ export class DatabaseStorage implements IStorage {
     return this.getMilestoneLikeStatus(milestoneId, userId);
   }
 
-  async getMilestonesWithSocialCounts(childId: number, userId: string): Promise<MilestoneWithSocial[]> {
+  async getMilestonesWithSocialCounts(
+    childId: number,
+    userId: string,
+  ): Promise<MilestoneWithSocial[]> {
     // 4 queries paralelas — sem N+1
-    const [allMilestones, likeCounts, commentCounts, userLikes] = await Promise.all([
-      // 1) Marcos ordenados: data mais recente primeiro, desempate por createdAt
-      db
-        .select()
-        .from(milestones)
-        .where(eq(milestones.childId, childId))
-        .orderBy(desc(milestones.date), desc(milestones.createdAt)),
+    const [allMilestones, likeCounts, commentCounts, userLikes] =
+      await Promise.all([
+        // 1) Marcos ordenados: data mais recente primeiro, desempate por createdAt
+        db
+          .select()
+          .from(milestones)
+          .where(eq(milestones.childId, childId))
+          .orderBy(desc(milestones.date), desc(milestones.createdAt)),
 
-      // 2) Total de likes por marco
-      db
-        .select({ milestoneId: milestoneLikes.milestoneId, total: count() })
-        .from(milestoneLikes)
-        .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
-        .where(eq(milestones.childId, childId))
-        .groupBy(milestoneLikes.milestoneId),
+        // 2) Total de likes por marco
+        db
+          .select({ milestoneId: milestoneLikes.milestoneId, total: count() })
+          .from(milestoneLikes)
+          .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
+          .where(eq(milestones.childId, childId))
+          .groupBy(milestoneLikes.milestoneId),
 
-      // 3) Total de comentários por marco
-      db
-        .select({ recordId: activityComments.recordId, total: count() })
-        .from(activityComments)
-        .where(
-          and(
-            eq(activityComments.childId, childId),
-            eq(activityComments.recordType, "milestone"),
+        // 3) Total de comentários por marco
+        db
+          .select({ recordId: activityComments.recordId, total: count() })
+          .from(activityComments)
+          .where(
+            and(
+              eq(activityComments.childId, childId),
+              eq(activityComments.recordType, "milestone"),
+            ),
+          )
+          .groupBy(activityComments.recordId),
+
+        // 4) IDs dos marcos que o usuário atual já curtiu — elimina query por marco
+        db
+          .select({ milestoneId: milestoneLikes.milestoneId })
+          .from(milestoneLikes)
+          .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
+          .where(
+            and(
+              eq(milestones.childId, childId),
+              eq(milestoneLikes.userId, userId),
+            ),
           ),
-        )
-        .groupBy(activityComments.recordId),
-
-      // 4) IDs dos marcos que o usuário atual já curtiu — elimina query por marco
-      db
-        .select({ milestoneId: milestoneLikes.milestoneId })
-        .from(milestoneLikes)
-        .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
-        .where(
-          and(
-            eq(milestones.childId, childId),
-            eq(milestoneLikes.userId, userId),
-          ),
-        ),
-    ]);
+      ]);
 
     const likeMap = new Map(likeCounts.map((r) => [r.milestoneId, r.total]));
     const commentMap = new Map(commentCounts.map((r) => [r.recordId, r.total]));
@@ -1133,11 +1254,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Verifica acesso direto na tabela caregivers (sem buscar todos os filhos)
-  async hasChildAccessDirect(userId: string, childId: number): Promise<boolean> {
+  async hasChildAccessDirect(
+    userId: string,
+    childId: number,
+  ): Promise<boolean> {
     const [row] = await db
       .select({ id: caregivers.id })
       .from(caregivers)
-      .where(and(eq(caregivers.userId, userId), eq(caregivers.childId, childId)))
+      .where(
+        and(eq(caregivers.userId, userId), eq(caregivers.childId, childId)),
+      )
       .limit(1);
     return !!row;
   }

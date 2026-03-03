@@ -35,7 +35,11 @@ type MilestoneWithSocial = {
 // COMMENTS
 // ============================================================
 
-export function useComments(childId: number, recordType: string, recordId: number) {
+export function useComments(
+  childId: number,
+  recordType: string,
+  recordId: number,
+) {
   return useQuery<Comment[]>({
     queryKey: ["comments", childId, recordType, recordId],
     queryFn: async () => {
@@ -115,11 +119,51 @@ export function useCreateComment() {
     onSettled: (_data, _err, variables) => {
       // Sincroniza com o servidor (remove o ID temporário)
       queryClient.invalidateQueries({
-        queryKey: ["comments", variables.childId, variables.recordType, variables.recordId],
+        queryKey: [
+          "comments",
+          variables.childId,
+          variables.recordType,
+          variables.recordId,
+        ],
       });
       // Atualiza o contador de comentários na timeline
       queryClient.invalidateQueries({
         queryKey: ["milestones-social", variables.childId],
+      });
+    },
+  });
+}
+
+export function useUpdateComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      commentId,
+      text,
+    }: {
+      commentId: number;
+      text: string;
+      childId: number;
+      recordType: string;
+      recordId: number;
+    }) => {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error("Erro ao editar comentário");
+      return res.json() as Promise<Comment>;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [
+          "comments",
+          variables.childId,
+          variables.recordType,
+          variables.recordId,
+        ],
       });
     },
   });
@@ -143,11 +187,17 @@ export function useDeleteComment() {
         method: "DELETE",
         credentials: "include",
       });
-      if (!res.ok && res.status !== 204) throw new Error("Erro ao excluir comentário");
+      if (!res.ok && res.status !== 204)
+        throw new Error("Erro ao excluir comentário");
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ["comments", variables.childId, variables.recordType, variables.recordId],
+        queryKey: [
+          "comments",
+          variables.childId,
+          variables.recordType,
+          variables.recordId,
+        ],
       });
       queryClient.invalidateQueries({
         queryKey: ["milestones-social", variables.childId],
@@ -190,8 +240,13 @@ export function useToggleLike(childId: number, milestoneId: number) {
     },
     // Optimistic update: UI responde imediatamente
     onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ["milestone-likes", milestoneId] });
-      const previous = queryClient.getQueryData<LikeStatus>(["milestone-likes", milestoneId]);
+      await queryClient.cancelQueries({
+        queryKey: ["milestone-likes", milestoneId],
+      });
+      const previous = queryClient.getQueryData<LikeStatus>([
+        "milestone-likes",
+        milestoneId,
+      ]);
       if (previous) {
         queryClient.setQueryData<LikeStatus>(["milestone-likes", milestoneId], {
           count: previous.userLiked ? previous.count - 1 : previous.count + 1,
@@ -202,12 +257,19 @@ export function useToggleLike(childId: number, milestoneId: number) {
     },
     onError: (_err, _vars, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(["milestone-likes", milestoneId], context.previous);
+        queryClient.setQueryData(
+          ["milestone-likes", milestoneId],
+          context.previous,
+        );
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["milestone-likes", milestoneId] });
-      queryClient.invalidateQueries({ queryKey: ["milestones-social", childId] });
+      queryClient.invalidateQueries({
+        queryKey: ["milestone-likes", milestoneId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["milestones-social", childId],
+      });
     },
   });
 }

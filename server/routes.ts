@@ -1396,6 +1396,37 @@ export async function registerRoutes(
     }
   });
 
+  // Editar comentário (apenas o autor)
+  app.patch(api.comments.update.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const commentId = Number(req.params.id);
+    if (!commentId || isNaN(commentId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const { text } = api.comments.update.input.parse(req.body);
+
+    const [existingComment] = await db
+      .select()
+      .from(activityComments)
+      .where(drizzleEq(activityComments.id, commentId));
+
+    if (!existingComment) {
+      return res.status(404).json({ message: "Comentário não encontrado" });
+    }
+
+    if (existingComment.userId !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Apenas o autor pode editar o comentário" });
+    }
+
+    const updated = await storage.updateComment(commentId, text);
+    res.json(updated);
+  });
+
   // Deletar comentário (apenas o autor ou cuidador da criança)
   app.delete(api.comments.delete.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
