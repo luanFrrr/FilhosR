@@ -434,7 +434,8 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(milestones)
-      .where(eq(milestones.childId, childId));
+      .where(eq(milestones.childId, childId))
+      .orderBy(desc(milestones.date), desc(milestones.createdAt)); // data DESC, mais recente no topo
   }
 
   async getMilestoneById(id: number): Promise<Milestone | undefined> {
@@ -749,7 +750,8 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(vaccineRecords)
-      .where(eq(vaccineRecords.childId, childId));
+      .where(eq(vaccineRecords.childId, childId))
+      .orderBy(vaccineRecords.applicationDate, desc(vaccineRecords.createdAt)); // por data da aplicação
   }
 
   async getVaccineRecordById(id: number): Promise<VaccineRecord | undefined> {
@@ -1074,27 +1076,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMilestonesWithSocialCounts(childId: number, userId: string): Promise<MilestoneWithSocial[]> {
-    // Busca marcos + contagens em 3 queries planas (sem N+1)
-    const [allMilestones, likeCounts, commentCounts] = await Promise.all([
-      db.select().from(milestones).where(eq(milestones.childId, childId)),
-
-      // Agrupa likes por milestone_id numa única query
+    // 4 queries paralelas — sem N+1
+    const [allMilestones, likeCounts, commentCounts, userLikes] = await Promise.all([
+      // 1) Marcos ordenados: data mais recente primeiro, desempate por createdAt
       db
-        .select({
-          milestoneId: milestoneLikes.milestoneId,
-          total: count(),
-        })
+        .select()
+        .from(milestones)
+        .where(eq(milestones.childId, childId))
+        .orderBy(desc(milestones.date), desc(milestones.createdAt)),
+
+      // 2) Total de likes por marco
+      db
+        .select({ milestoneId: milestoneLikes.milestoneId, total: count() })
         .from(milestoneLikes)
         .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
         .where(eq(milestones.childId, childId))
         .groupBy(milestoneLikes.milestoneId),
 
-      // Agrupa comentários por milestone numa única query
+      // 3) Total de comentários por marco
       db
-        .select({
-          recordId: activityComments.recordId,
-          total: count(),
-        })
+        .select({ recordId: activityComments.recordId, total: count() })
         .from(activityComments)
         .where(
           and(
@@ -1103,16 +1104,29 @@ export class DatabaseStorage implements IStorage {
           ),
         )
         .groupBy(activityComments.recordId),
+
+      // 4) IDs dos marcos que o usuário atual já curtiu — elimina query por marco
+      db
+        .select({ milestoneId: milestoneLikes.milestoneId })
+        .from(milestoneLikes)
+        .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
+        .where(
+          and(
+            eq(milestones.childId, childId),
+            eq(milestoneLikes.userId, userId),
+          ),
+        ),
     ]);
 
-    // Mapas para O(1) lookup
     const likeMap = new Map(likeCounts.map((r) => [r.milestoneId, r.total]));
     const commentMap = new Map(commentCounts.map((r) => [r.recordId, r.total]));
+    const userLikedSet = new Set(userLikes.map((r) => r.milestoneId));
 
     return allMilestones.map((milestone) => ({
       ...milestone,
       likeCount: likeMap.get(milestone.id) ?? 0,
       commentCount: commentMap.get(milestone.id) ?? 0,
+      userLiked: userLikedSet.has(milestone.id),
     }));
   }
 

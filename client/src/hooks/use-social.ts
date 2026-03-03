@@ -18,6 +18,19 @@ type LikeStatus = {
   userLiked: boolean;
 };
 
+type MilestoneWithSocial = {
+  id: number;
+  childId: number;
+  date: string;
+  title: string;
+  description: string | null;
+  photoUrl: string | null;
+  createdAt: string | null;
+  likeCount: number;
+  commentCount: number;
+  userLiked: boolean;
+};
+
 // ============================================================
 // COMMENTS
 // ============================================================
@@ -34,11 +47,14 @@ export function useComments(childId: number, recordType: string, recordId: numbe
       return res.json();
     },
     enabled: !!childId && !!recordId,
+    staleTime: 10_000, // 10s — comentários mudam com pouca frequência
   });
 }
 
 export function useCreateComment() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+
   return useMutation({
     mutationFn: async ({
       childId,
@@ -58,11 +74,52 @@ export function useCreateComment() {
         body: JSON.stringify({ recordType, recordId, text }),
       });
       if (!res.ok) throw new Error("Erro ao criar comentário");
-      return res.json();
+      return res.json() as Promise<Comment>;
     },
-    onSuccess: (_data, variables) => {
+
+    // Optimistic update: adiciona o comentário imediatamente na UI
+    onMutate: async ({ childId, recordType, recordId, text }) => {
+      const queryKey = ["comments", childId, recordType, recordId];
+      await queryClient.cancelQueries({ queryKey });
+
+      const previous = queryClient.getQueryData<Comment[]>(queryKey);
+
+      // Cria versão otimista do comentário
+      const optimisticComment: Comment = {
+        id: -Date.now(), // ID temporário negativo
+        childId,
+        recordType,
+        recordId,
+        userId: user?.id ?? "",
+        text,
+        createdAt: new Date().toISOString(),
+        userFirstName: (user as any)?.firstName ?? null,
+        userLastName: (user as any)?.lastName ?? null,
+      };
+
+      queryClient.setQueryData<Comment[]>(queryKey, (old) => [
+        ...(old ?? []),
+        optimisticComment,
+      ]);
+
+      return { previous, queryKey };
+    },
+
+    onError: (_err, _vars, context) => {
+      // Reverte em caso de erro
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+    },
+
+    onSettled: (_data, _err, variables) => {
+      // Sincroniza com o servidor (remove o ID temporário)
       queryClient.invalidateQueries({
         queryKey: ["comments", variables.childId, variables.recordType, variables.recordId],
+      });
+      // Atualiza o contador de comentários na timeline
+      queryClient.invalidateQueries({
+        queryKey: ["milestones-social", variables.childId],
       });
     },
   });
@@ -92,6 +149,9 @@ export function useDeleteComment() {
       queryClient.invalidateQueries({
         queryKey: ["comments", variables.childId, variables.recordType, variables.recordId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["milestones-social", variables.childId],
+      });
     },
   });
 }
@@ -111,6 +171,7 @@ export function useMilestoneLikes(milestoneId: number) {
       return res.json();
     },
     enabled: !!milestoneId,
+    staleTime: 5_000, // 5s — com Realtime, o dado é invalidado automaticamente
   });
 }
 
@@ -127,7 +188,7 @@ export function useToggleLike(childId: number, milestoneId: number) {
       if (!res.ok) throw new Error("Erro ao reagir ao marco");
       return res.json() as Promise<LikeStatus>;
     },
-    // Otimistic update: muda o UI antes da resposta do servidor
+    // Optimistic update: UI responde imediatamente
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["milestone-likes", milestoneId] });
       const previous = queryClient.getQueryData<LikeStatus>(["milestone-likes", milestoneId]);
@@ -140,40 +201,49 @@ export function useToggleLike(childId: number, milestoneId: number) {
       return { previous };
     },
     onError: (_err, _vars, context) => {
-      // Reverte em caso de erro
       if (context?.previous) {
         queryClient.setQueryData(["milestone-likes", milestoneId], context.previous);
       }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["milestone-likes", milestoneId] });
-      // Invalidar a listagem para atualizar os contadores nos cards
       queryClient.invalidateQueries({ queryKey: ["milestones-social", childId] });
     },
   });
 }
 
-// Hook para buscar milestones com contadores sociais
+// ============================================================
+// MILESTONES COM CONTADORES SOCIAIS
+// ============================================================
+
 export function useMilestonesWithSocial(childId: number) {
-  return useQuery<Array<{
-    id: number;
-    childId: number;
-    date: string;
-    title: string;
-    description: string | null;
-    photoUrl: string | null;
-    createdAt: string | null;
-    likeCount: number;
-    commentCount: number;
-  }>>({
+  const queryClient = useQueryClient();
+
+  return useQuery<MilestoneWithSocial[]>({
     queryKey: ["milestones-social", childId],
     queryFn: async () => {
       const res = await fetch(`/api/children/${childId}/milestones/social`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Erro ao buscar marcos");
-      return res.json();
+      const data: MilestoneWithSocial[] = await res.json();
+
+      // Pré-popula o cache de likes por marco com userLiked já carregado
+      // → elimina roundtrip extra ao abrir o detalhe de qualquer marco
+      data.forEach((milestone) => {
+        queryClient.setQueryData<LikeStatus>(
+          ["milestone-likes", milestone.id],
+          (old) => {
+            // Só sobrescreve se não há dado mais recente no cache
+            if (old !== undefined) return old;
+            return { count: milestone.likeCount, userLiked: milestone.userLiked };
+          },
+        );
+      });
+
+      return data;
     },
     enabled: !!childId,
+    staleTime: 5_000, // 5s — evita refetches desnecessários em troca de abas
   });
 }

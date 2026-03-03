@@ -447,6 +447,7 @@ export type MilestoneLikeStatus = {
 export type MilestoneWithSocial = Milestone & {
   likeCount: number;
   commentCount: number;
+  userLiked: boolean;
 };
 
 // Request Types
