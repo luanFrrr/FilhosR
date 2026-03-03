@@ -278,7 +278,12 @@ export default function Growth() {
           </div>
 
           <div className="space-y-3">
-            {records?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((record) => (
+            {records?.slice().sort((a,b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                if (dateB !== dateA) return dateB - dateA;
+                return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+              }).map((record) => (
               <div key={record.id} data-testid={`growth-record-${record.id}`} className="bg-white p-4 rounded-xl border border-border flex justify-between items-center">
                 <div>
                   <p className="font-bold text-foreground">{format(parseLocalDate(record.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}</p>

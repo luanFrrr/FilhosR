@@ -368,7 +368,30 @@ export async function registerRoutes(
 
     const input = api.health.create.input.parse(req.body);
     const record = await storage.createHealthRecord({ ...input, childId });
+
+    // Responde imediatamente
     res.status(201).json(record);
+
+    // Background: notificações (não bloqueia a resposta)
+    (async () => {
+      try {
+        const [user, child] = await Promise.all([
+          storage.getUser(userId),
+          storage.getChild(childId),
+        ]);
+        const userName = resolveUserName(user);
+        const childName = child?.name || "seu filho(a)";
+        notifyCaregivers(
+          childId,
+          userId,
+          "🤒 Novo registro de saúde",
+          `${userName} registrou um evento de saúde para ${childName}`,
+          "/health",
+        );
+      } catch (err) {
+        console.error("[bg] Erro pós-criação de saúde:", err);
+      }
+    })();
   });
 
   app.patch(api.health.update.path, isAuthenticated, async (req, res) => {
