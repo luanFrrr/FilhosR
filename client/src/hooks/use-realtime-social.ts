@@ -15,7 +15,7 @@ export function useRealtimeSocial(childId: number) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!childId) return;
+    if (!childId || !supabase) return; // Realtime não disponível sem as env vars
 
     // Canal único por criança para evitar subscriptions duplicadas
     const channel = supabase
@@ -83,7 +83,7 @@ export function useRealtimeSocial(childId: number) {
 
     // Cleanup: remove o canal quando o componente desmonta ou childId muda
     return () => {
-      supabase.removeChannel(channel);
+      supabase!.removeChannel(channel);
     };
   }, [childId, queryClient]);
 }
