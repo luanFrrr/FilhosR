@@ -45,8 +45,7 @@ export async function registerRoutes(
     userId: string,
     childId: number,
   ): Promise<boolean> => {
-    const userChildren = await storage.getChildrenByUserId(userId);
-    return userChildren.some((c) => c.id === childId);
+    return storage.hasChildAccessDirect(userId, childId);
   };
 
   // === API ROUTES ===
@@ -62,9 +61,7 @@ export async function registerRoutes(
     }
 
     // Verify user has access to this child
-    const userChildren = await storage.getChildrenByUserId(userId);
-    const hasAccess = userChildren.some((c) => c.id === childId);
-    if (!hasAccess) {
+    if (!(await hasChildAccess(userId, childId))) {
       return res.status(403).json({ message: "Acesso negado" });
     }
 
@@ -651,9 +648,7 @@ export async function registerRoutes(
     const childId = Number(req.params.childId);
 
     // Verify user has access to this child
-    const userChildren = await storage.getChildrenByUserId(userId);
-    const hasAccess = userChildren.some((c) => c.id === childId);
-    if (!hasAccess) {
+    if (!(await hasChildAccess(userId, childId))) {
       return res.status(403).json({ message: "Acesso negado" });
     }
 
@@ -668,9 +663,7 @@ export async function registerRoutes(
     const childId = Number(req.params.childId);
 
     // Verify user has access to this child
-    const userChildren = await storage.getChildrenByUserId(userId);
-    const hasAccess = userChildren.some((c) => c.id === childId);
-    if (!hasAccess) {
+    if (!(await hasChildAccess(userId, childId))) {
       return res.status(403).json({ message: "Acesso negado" });
     }
 
@@ -686,9 +679,7 @@ export async function registerRoutes(
     const childId = Number(req.params.childId);
 
     // Verify user has access to this child
-    const userChildren = await storage.getChildrenByUserId(userId);
-    const hasAccess = userChildren.some((c) => c.id === childId);
-    if (!hasAccess) {
+    if (!(await hasChildAccess(userId, childId))) {
       return res.status(403).json({ message: "Acesso negado" });
     }
 
@@ -747,9 +738,7 @@ export async function registerRoutes(
     }
 
     // Verify user has access to this child
-    const userChildren = await storage.getChildrenByUserId(userId);
-    const hasAccess = userChildren.some((c) => c.id === photo.childId);
-    if (!hasAccess) {
+    if (!(await hasChildAccess(userId, photo.childId))) {
       return res.status(403).json({ message: "Acesso negado" });
     }
 

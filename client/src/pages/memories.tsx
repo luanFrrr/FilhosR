@@ -100,6 +100,8 @@ export default function Memories() {
 
   const onSubmitMilestone = async (data: any) => {
     if (!activeChild) return;
+    // Guard: previne duplo envio durante upload ou mutação
+    if (createMilestone.isPending || isUploadingPhoto) return;
     
     let photoUrl = milestoneImage;
 
@@ -135,6 +137,8 @@ export default function Memories() {
 
   const onSubmitEdit = async (data: any) => {
     if (!activeChild || !editingMilestone) return;
+    // Guard: previne duplo envio durante upload ou mutação
+    if (updateMilestone.isPending || isUploadingPhoto) return;
     
     let photoUrl = milestoneImage;
 
@@ -359,9 +363,9 @@ export default function Memories() {
                        )}
                      </div>
 
-                     <Button type="submit" className="w-full" disabled={createMilestone.isPending} data-testid="button-save-milestone">
-                       {createMilestone.isPending ? "Guardando..." : "Guardar lembrança"}
-                     </Button>
+                      <Button type="submit" className="w-full" disabled={createMilestone.isPending || isUploadingPhoto} data-testid="button-save-milestone">
+                        {isUploadingPhoto ? "Enviando foto..." : createMilestone.isPending ? "Guardando..." : "Guardar lembrança"}
+                      </Button>
                    </form>
                  </DialogContent>
                </Dialog>
@@ -613,8 +617,8 @@ export default function Memories() {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={updateMilestone.isPending}>
-              {updateMilestone.isPending ? "Salvando..." : "Salvar Alterações"}
+            <Button type="submit" className="w-full" disabled={updateMilestone.isPending || isUploadingPhoto}>
+              {isUploadingPhoto ? "Enviando foto..." : updateMilestone.isPending ? "Salvando..." : "Salvar Alterações"}
             </Button>
           </form>
         </DialogContent>

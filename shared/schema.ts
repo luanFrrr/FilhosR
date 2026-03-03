@@ -10,6 +10,7 @@ import {
   jsonb,
   uniqueIndex,
   varchar,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -97,14 +98,20 @@ export const diaryEntries = pgTable("diary_entries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const gamification = pgTable("gamification", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  points: integer("points").default(0),
-  level: text("level").default("Iniciante"),
-  achievements: jsonb("achievements").default([]),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const gamification = pgTable(
+  "gamification",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id").notNull(),
+    points: integer("points").default(0),
+    level: text("level").default("Iniciante"),
+    achievements: jsonb("achievements").default([]),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueChild: uniqueIndex("gamification_child_id_unique").on(table.childId),
+  }),
+);
 
 // Catálogo de vacinas do SUS (PNI)
 export const susVaccines = pgTable("sus_vaccines", {

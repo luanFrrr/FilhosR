@@ -49,6 +49,7 @@ import { db } from "./db";
 import { eq, and, gt, sql, count, desc } from "drizzle-orm";
 
 export interface IStorage {
+  hasChildAccessDirect(userId: string, childId: number): Promise<boolean>;
   // Users (OIDC users have string IDs)
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -533,23 +534,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addPoints(childId: number, points: number): Promise<Gamification> {
-    // Ensure gamification exists for this child
-    await this.initializeGamification(childId);
-
-    const current = await this.getGamification(childId);
-    const newPoints = (current?.points || 0) + points;
-
-    // Simple level logic
-    let level = "Iniciante";
-    if (newPoints > 100) level = "Cuidador Atento";
-    if (newPoints > 500) level = "Mãe/Pai Dedicado";
-    if (newPoints > 1000) level = "Mãe/Pai Coruja";
-    if (newPoints > 2000) level = "Guardião da Infância";
+    // Compute new points and level in a single atomic upsert (no extra SELECTs)
+    const levelExpr = sql<string>`
+      CASE
+        WHEN (COALESCE(points, 0) + ${points}) > 2000 THEN 'Guardião da Infância'
+        WHEN (COALESCE(points, 0) + ${points}) > 1000 THEN 'Mãe/Pai Coruja'
+        WHEN (COALESCE(points, 0) + ${points}) > 500  THEN 'Mãe/Pai Dedicado'
+        WHEN (COALESCE(points, 0) + ${points}) > 100  THEN 'Cuidador Atento'
+        ELSE 'Iniciante'
+      END
+    `;
 
     const [updated] = await db
-      .update(gamification)
-      .set({ points: newPoints, level, updatedAt: new Date() })
-      .where(eq(gamification.childId, childId))
+      .insert(gamification)
+      .values({ childId, points, level: "Iniciante" })
+      .onConflictDoUpdate({
+        target: gamification.childId,
+        set: {
+          points: sql`${gamification.points} + ${points}`,
+          level: levelExpr,
+          updatedAt: new Date(),
+        },
+      })
       .returning();
     return updated;
   }
@@ -771,7 +777,8 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(dailyPhotos)
-      .where(eq(dailyPhotos.childId, childId));
+      .where(eq(dailyPhotos.childId, childId))
+      .orderBy(desc(dailyPhotos.date)); // Mais recentes primeiro
   }
 
   async getDailyPhotoByDate(
@@ -1047,38 +1054,56 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMilestonesWithSocialCounts(childId: number, userId: string): Promise<MilestoneWithSocial[]> {
-    const allMilestones = await db
-      .select()
-      .from(milestones)
-      .where(eq(milestones.childId, childId));
+    // Busca marcos + contagens em 3 queries planas (sem N+1)
+    const [allMilestones, likeCounts, commentCounts] = await Promise.all([
+      db.select().from(milestones).where(eq(milestones.childId, childId)),
 
-    const results: MilestoneWithSocial[] = await Promise.all(
-      allMilestones.map(async (milestone) => {
-        const [likeCount] = await db
-          .select({ count: count() })
-          .from(milestoneLikes)
-          .where(eq(milestoneLikes.milestoneId, milestone.id));
+      // Agrupa likes por milestone_id numa única query
+      db
+        .select({
+          milestoneId: milestoneLikes.milestoneId,
+          total: count(),
+        })
+        .from(milestoneLikes)
+        .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
+        .where(eq(milestones.childId, childId))
+        .groupBy(milestoneLikes.milestoneId),
 
-        const [commentCount] = await db
-          .select({ count: count() })
-          .from(activityComments)
-          .where(
-            and(
-              eq(activityComments.childId, childId),
-              eq(activityComments.recordType, "milestone"),
-              eq(activityComments.recordId, milestone.id),
-            ),
-          );
+      // Agrupa comentários por milestone numa única query
+      db
+        .select({
+          recordId: activityComments.recordId,
+          total: count(),
+        })
+        .from(activityComments)
+        .where(
+          and(
+            eq(activityComments.childId, childId),
+            eq(activityComments.recordType, "milestone"),
+          ),
+        )
+        .groupBy(activityComments.recordId),
+    ]);
 
-        return {
-          ...milestone,
-          likeCount: likeCount?.count ?? 0,
-          commentCount: commentCount?.count ?? 0,
-        };
-      }),
-    );
+    // Mapas para O(1) lookup
+    const likeMap = new Map(likeCounts.map((r) => [r.milestoneId, r.total]));
+    const commentMap = new Map(commentCounts.map((r) => [r.recordId, r.total]));
 
-    return results;
+    return allMilestones.map((milestone) => ({
+      ...milestone,
+      likeCount: likeMap.get(milestone.id) ?? 0,
+      commentCount: commentMap.get(milestone.id) ?? 0,
+    }));
+  }
+
+  // Verifica acesso direto na tabela caregivers (sem buscar todos os filhos)
+  async hasChildAccessDirect(userId: string, childId: number): Promise<boolean> {
+    const [row] = await db
+      .select({ id: caregivers.id })
+      .from(caregivers)
+      .where(and(eq(caregivers.userId, userId), eq(caregivers.childId, childId)))
+      .limit(1);
+    return !!row;
   }
 }
 
