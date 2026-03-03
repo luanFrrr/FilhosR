@@ -233,11 +233,7 @@ export function useMilestonesWithSocial(childId: number) {
       data.forEach((milestone) => {
         queryClient.setQueryData<LikeStatus>(
           ["milestone-likes", milestone.id],
-          (old) => {
-            // Só sobrescreve se não há dado mais recente no cache
-            if (old !== undefined) return old;
-            return { count: milestone.likeCount, userLiked: milestone.userLiked };
-          },
+          { count: milestone.likeCount, userLiked: milestone.userLiked },
         );
       });
 
