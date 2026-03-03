@@ -118,12 +118,10 @@ export default function Memories() {
 
   const onSubmitMilestone = async (data: any) => {
     if (!activeChild) return;
-    // Guard: previne duplo envio durante upload ou mutação
     if (createMilestone.isPending || isUploadingPhoto) return;
-    
+
     let photoUrl = milestoneImage;
 
-    // Se houver um novo arquivo, faz upload para o Supabase
     if (milestoneFile) {
       const uploadedUrl = await upload(milestoneFile, {
         bucket: "milestone-photos",
@@ -134,33 +132,32 @@ export default function Memories() {
       if (uploadedUrl) photoUrl = uploadedUrl;
     }
 
-    // Fix date offset issue by ensuring YYYY-MM-DD
-    const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
-    
-    createMilestone.mutate({ 
-      childId: activeChild.id, 
-      ...data,
-      date,
-      photoUrl
-    }, {
-      onSuccess: () => {
-        setOpenMilestone(false);
-        milestoneForm.reset();
-        setMilestoneImage(null);
-        setMilestoneFile(null);
-        triggerCelebration();
-      }
-    });
+    const date = data.date?.includes('T') ? data.date.split('T')[0] : (data.date || new Date().toISOString().split('T')[0]);
+
+    try {
+      await createMilestone.mutateAsync({
+        childId: activeChild.id,
+        ...data,
+        date,
+        photoUrl,
+      });
+      // Fecha o diálogo e reseta o formulário só após confirmar sucesso
+      setOpenMilestone(false);
+      milestoneForm.reset();
+      setMilestoneImage(null);
+      setMilestoneFile(null);
+      triggerCelebration();
+    } catch {
+      toast({ title: "Erro ao salvar marco", description: "Tente novamente", variant: "destructive" });
+    }
   };
 
   const onSubmitEdit = async (data: any) => {
     if (!activeChild || !editingMilestone) return;
-    // Guard: previne duplo envio durante upload ou mutação
     if (updateMilestone.isPending || isUploadingPhoto) return;
-    
+
     let photoUrl = milestoneImage;
 
-    // Se houver um novo arquivo selecionado na edição
     if (milestoneFile) {
       const uploadedUrl = await upload(milestoneFile, {
         bucket: "milestone-photos",
@@ -171,24 +168,24 @@ export default function Memories() {
       if (uploadedUrl) photoUrl = uploadedUrl;
     }
 
-    // Fix date offset issue
-    const date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
-    
-    updateMilestone.mutate({
-      childId: activeChild.id,
-      milestoneId: editingMilestone.id,
-      ...data,
-      date,
-      photoUrl
-    }, {
-      onSuccess: () => {
-        setEditingMilestone(null);
-        editForm.reset();
-        setMilestoneImage(null);
-        setMilestoneFile(null);
-        toast({ title: "Marco atualizado!" });
-      }
-    });
+    const date = data.date?.includes('T') ? data.date.split('T')[0] : (data.date || new Date().toISOString().split('T')[0]);
+
+    try {
+      await updateMilestone.mutateAsync({
+        childId: activeChild.id,
+        milestoneId: editingMilestone.id,
+        ...data,
+        date,
+        photoUrl,
+      });
+      setEditingMilestone(null);
+      editForm.reset();
+      setMilestoneImage(null);
+      setMilestoneFile(null);
+      toast({ title: "Marco atualizado!" });
+    } catch {
+      toast({ title: "Erro ao atualizar marco", description: "Tente novamente", variant: "destructive" });
+    }
   };
 
   const handleDelete = () => {
@@ -390,7 +387,12 @@ export default function Memories() {
             </div>
 
             <div className="relative border-l-2 border-primary/20 ml-4 space-y-8 pb-8">
-             {milestones?.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((milestone) => {
+             {milestones?.slice().sort((a, b) => {
+               const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+               if (dateDiff !== 0) return dateDiff;
+               // Mesmo dia: o mais recentemente criado fica em cima
+               return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+             }).map((milestone) => {
                const social = milestonesWithSocial?.find(m => m.id === milestone.id);
                return (
                  <div 
