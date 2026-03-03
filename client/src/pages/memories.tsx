@@ -23,6 +23,7 @@ import { LikeButton } from "@/components/social/LikeButton";
 import { MilestoneComments } from "@/components/social/MilestoneComments";
 import { useMilestonesWithSocial } from "@/hooks/use-social";
 import { useUpload } from "@/hooks/use-upload";
+import { useRealtimeSocial } from "@/hooks/use-realtime-social";
 
 const celebrationMessages = [
   { title: "Que momento especial!", subtitle: "Cada conquista é um tesouro para guardar no coração" },
@@ -78,6 +79,9 @@ export default function Memories() {
 
   const { upload, isUploading: isUploadingPhoto } = useUpload();
   const [milestoneFile, setMilestoneFile] = useState<File | null>(null);
+
+  // Realtime: atualiza likes e comentários de todos os cuidadores ao vivo
+  useRealtimeSocial(activeChild?.id || 0);
 
   const handleImageFile = async (file: File) => {
     if (file.size > 15 * 1024 * 1024) {
