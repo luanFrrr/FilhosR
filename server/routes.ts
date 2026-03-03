@@ -1439,6 +1439,28 @@ export async function registerRoutes(
 
     const status = await storage.toggleMilestoneLike(milestoneId, userId);
     res.json(status);
+
+    if (status.userLiked) {
+      (async () => {
+        try {
+          const [user, child] = await Promise.all([
+            storage.getUser(userId),
+            storage.getChild(milestone.childId),
+          ]);
+          const userName = resolveUserName(user);
+          const childName = child?.name || "seu filho(a)";
+          notifyCaregivers(
+            milestone.childId,
+            userId,
+            "❤️ Novo coraçãozinho!",
+            `${userName} amou o marco "${milestone.title}" de ${childName}`,
+            `/memories?tab=milestones&id=${milestone.id}`,
+          );
+        } catch (err) {
+          console.error("[bg] Erro pós-like:", err);
+        }
+      })();
+    }
   });
 
   // === PERFIL DO USUÁRIO ===
