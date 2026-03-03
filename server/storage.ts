@@ -46,7 +46,7 @@ import {
   type MilestoneWithSocial,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql, count } from "drizzle-orm";
+import { eq, and, gt, sql, count, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Users (OIDC users have string IDs)
@@ -471,7 +471,8 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(diaryEntries)
-      .where(eq(diaryEntries.childId, childId));
+      .where(eq(diaryEntries.childId, childId))
+      .orderBy(desc(diaryEntries.date), desc(diaryEntries.createdAt));
   }
 
   async getDiaryEntryById(id: number): Promise<DiaryEntry | undefined> {
