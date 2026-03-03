@@ -145,10 +145,27 @@ export default function Memories() {
 
   // Deep link: abre o marco específico quando vindo de uma notificação
   useEffect(() => {
-    if (!idParam || !milestones) return;
-    const target = milestones.find((m) => m.id === Number(idParam));
-    if (target) setViewMilestone(target);
-  }, [idParam, milestones]);
+    if (!idParam) return;
+    if (tabParam === "milestones" && milestones) {
+      const target = milestones.find((m) => m.id === Number(idParam));
+      if (target) setViewMilestone(target);
+    }
+    if (tabParam === "diary" && diary) {
+      // Scroll até a entry do diário destacada
+      setTimeout(() => {
+        const el = document.querySelector(`[data-diary-id="${idParam}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+          setTimeout(
+            () =>
+              el.classList.remove("ring-2", "ring-primary", "ring-offset-2"),
+            3000,
+          );
+        }
+      }, 300);
+    }
+  }, [idParam, tabParam, milestones, diary]);
 
   const milestoneForm = useForm();
   const editForm = useForm();
@@ -692,7 +709,8 @@ export default function Memories() {
                 .map((entry) => (
                   <div
                     key={entry.id}
-                    className="bg-white p-5 rounded-2xl border border-border shadow-sm"
+                    className="bg-white p-5 rounded-2xl border border-border shadow-sm transition-all duration-300"
+                    data-diary-id={entry.id}
                     data-testid={`card-diary-${entry.id}`}
                   >
                     <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">

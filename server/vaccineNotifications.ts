@@ -1,7 +1,13 @@
 import webpush from "web-push";
 import { storage } from "./storage";
 import { db } from "./db";
-import { children, caregivers, vaccineRecords, susVaccines, pushSubscriptions } from "@shared/schema";
+import {
+  children,
+  caregivers,
+  vaccineRecords,
+  susVaccines,
+  pushSubscriptions,
+} from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
@@ -60,11 +66,16 @@ function parseAgeToMonths(ageRange: string): number[] {
 function getChildAgeMonths(birthDate: string): number {
   const birth = new Date(birthDate);
   const now = new Date();
-  return (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  return (
+    (now.getFullYear() - birth.getFullYear()) * 12 +
+    (now.getMonth() - birth.getMonth())
+  );
 }
 
 function getDoseLabel(vaccine: any, ageMonths: number): string {
-  const doses = vaccine.recommendedDoses.split(",").map((d: string) => d.trim());
+  const doses = vaccine.recommendedDoses
+    .split(",")
+    .map((d: string) => d.trim());
   const ages = parseAgeToMonths(vaccine.ageRange || "");
   if (doses.length === 1) return doses[0];
   const sortedAges = [...ages].sort((a, b) => a - b);
@@ -73,15 +84,30 @@ function getDoseLabel(vaccine: any, ageMonths: number): string {
   return doses[0];
 }
 
-function isDoseRecorded(records: any[], vaccineId: number, dose: string): boolean {
-  return records.some(rec => {
+function isDoseRecorded(
+  records: any[],
+  vaccineId: number,
+  dose: string,
+): boolean {
+  return records.some((rec) => {
     if (rec.susVaccineId !== vaccineId) return false;
     const recDose = rec.dose.toLowerCase().trim();
     const expDose = dose.toLowerCase().trim();
-    if (recDose === expDose || recDose.includes(expDose) || expDose.includes(recDose)) return true;
-    const birthPatterns = ["dose ao nascer", "ao nascer", "dose única", "1ª dose", "1a dose"];
-    const recBirth = birthPatterns.some(p => recDose.includes(p));
-    const expBirth = birthPatterns.some(p => expDose.includes(p));
+    if (
+      recDose === expDose ||
+      recDose.includes(expDose) ||
+      expDose.includes(recDose)
+    )
+      return true;
+    const birthPatterns = [
+      "dose ao nascer",
+      "ao nascer",
+      "dose única",
+      "1ª dose",
+      "1a dose",
+    ];
+    const recBirth = birthPatterns.some((p) => recDose.includes(p));
+    const expBirth = birthPatterns.some((p) => expDose.includes(p));
     if (recBirth && expBirth) return true;
     return false;
   });
@@ -102,7 +128,7 @@ async function getVaccineReminders(): Promise<Map<string, VaccineReminder[]>> {
   const vaccines = await storage.getSusVaccines();
 
   const allSubs = await storage.getAllPushSubscriptions();
-  const uniqueUserIds = [...new Set(allSubs.map(s => s.userId))];
+  const uniqueUserIds = [...new Set(allSubs.map((s) => s.userId))];
   const userReminders = new Map<string, VaccineReminder[]>();
 
   for (const userId of uniqueUserIds) {
@@ -152,29 +178,29 @@ async function getVaccineReminders(): Promise<Map<string, VaccineReminder[]>> {
 function buildNotificationPayload(reminders: VaccineReminder[]): any {
   if (reminders.length === 0) return null;
 
-  const overdueCount = reminders.filter(r => r.type === "overdue").length;
-  const dueCount = reminders.filter(r => r.type === "due").length;
-  const upcomingCount = reminders.filter(r => r.type === "upcoming").length;
+  const overdueCount = reminders.filter((r) => r.type === "overdue").length;
+  const dueCount = reminders.filter((r) => r.type === "due").length;
+  const upcomingCount = reminders.filter((r) => r.type === "upcoming").length;
 
   let title = "💉 Lembrete de Vacinas";
   let body = "";
 
   if (overdueCount > 0) {
-    const first = reminders.find(r => r.type === "overdue")!;
+    const first = reminders.find((r) => r.type === "overdue")!;
     title = "⚠️ Vacina em atraso!";
     body = `${first.childName}: ${first.vaccineName} (${first.dose}) está em atraso.`;
     if (overdueCount > 1) {
       body += ` E mais ${overdueCount - 1} vacina(s) pendente(s).`;
     }
   } else if (dueCount > 0) {
-    const first = reminders.find(r => r.type === "due")!;
+    const first = reminders.find((r) => r.type === "due")!;
     title = "💉 Vacina na hora certa!";
     body = `${first.childName}: é hora da ${first.vaccineName} (${first.dose}).`;
     if (dueCount > 1) {
       body += ` E mais ${dueCount - 1} vacina(s) para este mês.`;
     }
   } else if (upcomingCount > 0) {
-    const first = reminders.find(r => r.type === "upcoming")!;
+    const first = reminders.find((r) => r.type === "upcoming")!;
     body = `${first.childName}: ${first.vaccineName} (${first.dose}) está chegando!`;
     if (upcomingCount > 1) {
       body += ` E mais ${upcomingCount - 1} vacina(s) próximas.`;
@@ -187,7 +213,7 @@ function buildNotificationPayload(reminders: VaccineReminder[]): any {
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-72x72.png",
     tag: "vaccine-reminder",
-    data: { url: "/cartao-vacinas" },
+    data: { url: "/vaccines" },
   };
 }
 
@@ -214,15 +240,20 @@ export async function sendVaccineNotifications(): Promise<number> {
               endpoint: sub.endpoint,
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             },
-            JSON.stringify(payload)
+            JSON.stringify(payload),
           );
           sentCount++;
         } catch (error: any) {
           if (error.statusCode === 404 || error.statusCode === 410) {
             await storage.deletePushSubscription(sub.endpoint);
-            console.log(`[notifications] Removed expired subscription for user ${userId}`);
+            console.log(
+              `[notifications] Removed expired subscription for user ${userId}`,
+            );
           } else {
-            console.error(`[notifications] Failed to send to user ${userId}:`, error.message);
+            console.error(
+              `[notifications] Failed to send to user ${userId}:`,
+              error.message,
+            );
           }
         }
       }
@@ -231,7 +262,10 @@ export async function sendVaccineNotifications(): Promise<number> {
     console.log(`[notifications] Sent ${sentCount} vaccine reminders`);
     return sentCount;
   } catch (error) {
-    console.error("[notifications] Error sending vaccine notifications:", error);
+    console.error(
+      "[notifications] Error sending vaccine notifications:",
+      error,
+    );
     return 0;
   }
 }
@@ -243,7 +277,7 @@ export async function notifyCaregivers(
   senderId: string,
   title: string,
   body: string,
-  url: string = "/"
+  url: string = "/",
 ): Promise<void> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
 
@@ -253,13 +287,15 @@ export async function notifyCaregivers(
 
     // Get all caregivers for this child
     const caregiversList = await storage.getCaregiversByChildId(childId);
-    
+
     // Filter out the sender and get unique user IDs
-    const recipientIds = [...new Set(
-      caregiversList
-        .filter(c => c.userId !== senderId)
-        .map(c => c.userId)
-    )];
+    const recipientIds = [
+      ...new Set(
+        caregiversList
+          .filter((c) => c.userId !== senderId)
+          .map((c) => c.userId),
+      ),
+    ];
 
     for (const userId of recipientIds) {
       const subs = await storage.getPushSubscriptionsByUserId(userId);
@@ -269,7 +305,7 @@ export async function notifyCaregivers(
         icon: "/icons/icon-192x192.png",
         badge: "/icons/icon-72x72.png",
         tag: `activity-${childId}`,
-        data: { url }
+        data: { url },
       });
 
       for (const sub of subs) {
@@ -279,7 +315,7 @@ export async function notifyCaregivers(
               endpoint: sub.endpoint,
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             },
-            payload
+            payload,
           );
         } catch (error: any) {
           if (error.statusCode === 404 || error.statusCode === 410) {
@@ -289,17 +325,24 @@ export async function notifyCaregivers(
       }
     }
   } catch (error) {
-    console.error("[notifications] Error sending activity notification:", error);
+    console.error(
+      "[notifications] Error sending activity notification:",
+      error,
+    );
   }
 }
 
 export function startVaccineNotificationScheduler(): void {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.log("[notifications] VAPID keys not configured, scheduler not started");
+    console.log(
+      "[notifications] VAPID keys not configured, scheduler not started",
+    );
     return;
   }
 
-  console.log("[notifications] Vaccine notification scheduler started (daily at 9:00 AM BRT)");
+  console.log(
+    "[notifications] Vaccine notification scheduler started (daily at 9:00 AM BRT)",
+  );
 
   const checkAndSend = () => {
     const now = new Date();

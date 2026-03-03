@@ -437,7 +437,7 @@ export async function registerRoutes(
           userId,
           "✨ Novo marco registrado!",
           `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
-          `/memorias?tab=milestones&id=${record.id}`,
+          `/memories?tab=milestones&id=${record.id}`,
         );
       } catch (err) {
         console.error("[bg] Erro pós-criação de marco:", err);
@@ -524,7 +524,7 @@ export async function registerRoutes(
           userId,
           "📖 Nova nota no diário",
           `${userName} escreveu uma nova nota no diário do ${childName}`,
-          "/memorias?tab=diary",
+          `/memories?tab=diary&id=${record.id}`,
         );
       } catch (err) {
         console.error("[bg] Erro pós-criação de diário:", err);
@@ -626,7 +626,7 @@ export async function registerRoutes(
             userId,
             "💉 Nova vacina registrada",
             `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`,
-            "/cartao-vacinas",
+            "/vaccines",
           );
         } catch (err) {
           console.error("[bg] Erro pós-criação de vacina:", err);
@@ -780,7 +780,7 @@ export async function registerRoutes(
             userId,
             "📸 Nova Foto do Dia!",
             `${userName} adicionou a foto do dia do ${childName}`,
-            "/fotos-diarias",
+            "/daily-photos",
           );
         } catch (err) {
           console.error("[bg] Erro pós-criação de foto:", err);
@@ -1233,12 +1233,10 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
     if (role === "owner") {
-      return res
-        .status(403)
-        .json({
-          message:
-            "O responsável principal não pode sair. Exclua a criança se desejar.",
-        });
+      return res.status(403).json({
+        message:
+          "O responsável principal não pode sair. Exclua a criança se desejar.",
+      });
     }
 
     await storage.removeCaregiverByUserId(childId, userId);
@@ -1350,7 +1348,7 @@ export async function registerRoutes(
             userId,
             "💬 Novo comentário",
             `${userName} comentou em um marco de ${childName}`,
-            `/memorias?tab=milestones&id=${comment.recordId}`,
+            `/memories?tab=milestones&id=${comment.recordId}`,
           );
         } catch (err) {
           console.error("[bg] Erro pós-criação de comentário:", err);
