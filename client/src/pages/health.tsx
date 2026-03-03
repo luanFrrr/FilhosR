@@ -14,13 +14,16 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { parseLocalDate } from "@/lib/utils";
 import { useVaccineRecords } from "@/hooks/use-vaccines";
 import type { HealthRecord } from "@shared/schema";
 
 export default function Health() {
   const { activeChild } = useChildContext();
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const tabParam = searchParams.get("tab") || "vaccines";
   const { data: sickRecords } = useHealthRecords(activeChild?.id || 0);
   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
   const createSickRecord = useCreateHealthRecord();
@@ -111,7 +114,7 @@ export default function Health() {
       <Header title="Saúde" showChildSelector={false} />
 
       <main className="max-w-md mx-auto px-4 py-6">
-        <Tabs defaultValue="vaccines" className="w-full">
+        <Tabs defaultValue={tabParam} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
             <TabsTrigger value="vaccines" className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold">
               <Syringe className="w-4 h-4 mr-2" /> Vacinas

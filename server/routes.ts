@@ -386,7 +386,7 @@ export async function registerRoutes(
           userId,
           "🤒 Novo registro de saúde",
           `${userName} registrou um evento de saúde para ${childName}`,
-          "/health",
+          "/health?tab=history",
         );
       } catch (err) {
         console.error("[bg] Erro pós-criação de saúde:", err);
