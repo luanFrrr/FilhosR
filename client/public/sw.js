@@ -1,4 +1,4 @@
-const CACHE_NAME = "filhos-v4";
+const CACHE_NAME = "filhos-v5";
 const STATIC_ASSETS = ["/manifest.json"];
 
 self.addEventListener("install", (event) => {
