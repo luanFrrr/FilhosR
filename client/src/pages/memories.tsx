@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useSearch } from "wouter";
+import { useState, useEffect, useRef } from "react";
+import { useSearch, useLocation } from "wouter";
 import { useChildContext } from "@/hooks/use-child-context";
 import {
   useMilestones,
@@ -150,16 +150,25 @@ export default function Memories() {
   const idParam = searchParams.get("id");
 
   const [activeTab, setActiveTab] = useState(tabParam);
+  const [, setLocation] = useLocation();
+  const deepLinkHandled = useRef<string | null>(null);
 
   // Deep link: abre o marco específico quando vindo de uma notificação
   useEffect(() => {
     if (!idParam) return;
+    if (deepLinkHandled.current === idParam) return;
+
     if (tabParam === "milestones" && milestones) {
       const target = milestones.find((m) => m.id === Number(idParam));
-      if (target) setViewMilestone(target);
+      if (target) {
+        deepLinkHandled.current = idParam;
+        setViewMilestone(target);
+        setLocation("/memories?tab=milestones", { replace: true });
+      }
     }
     if (tabParam === "diary" && allDiaryEntries.length > 0) {
-      // Scroll até a entry do diário destacada
+      deepLinkHandled.current = idParam;
+      setLocation("/memories?tab=diary", { replace: true });
       setTimeout(() => {
         const el = document.querySelector(`[data-diary-id="${idParam}"]`);
         if (el) {
