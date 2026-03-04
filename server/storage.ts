@@ -664,7 +664,7 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getSusVaccines();
 
     // Versão do calendário - incrementar quando atualizar a lista
-    const CALENDAR_VERSION = 2; // PNI 2025 atualizado
+    const CALENDAR_VERSION = 3; // Forçar atualização para esquema COVID 3 doses
 
     // Verifica se precisa atualizar (20 vacinas na versão 2)
     if (existing.length === 20) return;
