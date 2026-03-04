@@ -63,23 +63,6 @@ function parseAgeToMonths(ageRange: string): number[] {
   return Array.from(new Set(months)).sort((a, b) => a - b);
 }
 
-function getExpectedDoseCount(vaccine: SusVaccine): number {
-  const doses = vaccine.recommendedDoses;
-  const parts = doses.split(",").map(d => d.trim()).filter(Boolean);
-
-  if (doses.toLowerCase().includes("dose única") || doses.toLowerCase().includes("dose anual")) {
-    return 1;
-  }
-
-  const doseNumbers = doses.match(/\d+ª?\s*dose/gi);
-  const reforcos = doses.match(/reforço|reforco/gi);
-  const count = (doseNumbers?.length || 0) + (reforcos?.length || 0);
-
-  if (count > 0) return count;
-
-  return parts.length || 1;
-}
-
 export function getExpectedVaccinesForAge(
   susVaccines: SusVaccine[],
   childAgeMonths: number
@@ -89,13 +72,9 @@ export function getExpectedVaccinesForAge(
   for (const vaccine of susVaccines) {
     const ages = parseAgeToMonths(vaccine.ageRange || "");
     const recommendedDoses = vaccine.recommendedDoses.split(",").map(d => d.trim());
-    const totalExpected = getExpectedDoseCount(vaccine);
-
     const dueAges = ages.filter(a => a <= childAgeMonths);
 
-    const dueCount = Math.min(dueAges.length, totalExpected);
-
-    for (let i = 0; i < dueCount; i++) {
+    for (let i = 0; i < dueAges.length; i++) {
       expected.push({
         vaccineId: vaccine.id,
         vaccineName: vaccine.name,
