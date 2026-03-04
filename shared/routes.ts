@@ -35,6 +35,9 @@ export const errorSchemas = {
   notFound: z.object({
     message: z.string(),
   }),
+  forbidden: z.object({
+    message: z.string(),
+  }),
   internal: z.object({
     message: z.string(),
   }),

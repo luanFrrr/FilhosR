@@ -1,6 +1,8 @@
 import webpush from "web-push";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, pool } from "./db";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import {
   children,
   caregivers,
@@ -8,7 +10,23 @@ import {
   susVaccines,
   pushSubscriptions,
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
+import * as schema from "@shared/schema";
+
+// ─── Pool dedicado para o scheduler (1 conexão, não compete com APIs) ────────
+const schedulerPool = new pg.Pool({
+  connectionString:
+    process.env.SUPABASE_POOLER_URL ||
+    process.env.SUPABASE_DATABASE_URL ||
+    process.env.DATABASE_URL,
+  max: 1,
+  idleTimeoutMillis: 60_000,
+  connectionTimeoutMillis: 15_000,
+  ...(process.env.SUPABASE_POOLER_URL || process.env.SUPABASE_DATABASE_URL
+    ? { ssl: { rejectUnauthorized: false } }
+    : {}),
+});
+const schedulerDb = drizzle(schedulerPool, { schema });
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
@@ -121,43 +139,101 @@ interface VaccineReminder {
 }
 
 async function getVaccineReminders(): Promise<Map<string, VaccineReminder[]>> {
+  // ── Query 1: Vacinas SUS (cacheada 24h, ~0 custo) ──
   const allSusVaccines = await storage.getSusVaccines();
   if (allSusVaccines.length === 0) {
     await storage.initializeSusVaccines();
   }
   const vaccines = await storage.getSusVaccines();
 
-  const allSubs = await storage.getAllPushSubscriptions();
-  const uniqueUserIds = [...new Set(allSubs.map((s) => s.userId))];
+  // ── Query 2 (unificada e deduplicada) ──
+  // Subquery com DISTINCT elimina múltiplos devices (push_subscriptions combinatórios)
+  // antes do JOIN, protegendo contra explosões se um usuário tiver muitos celulares logados.
+  const uniquePushUsers = schedulerDb
+    .selectDistinct({ userId: pushSubscriptions.userId })
+    .from(pushSubscriptions)
+    .as("ps");
+
+  const rows = await schedulerDb
+    .select({
+      userId: caregivers.userId,
+      childId: children.id,
+      childName: children.name,
+      birthDate: children.birthDate,
+      susVaccineId: vaccineRecords.susVaccineId,
+      dose: vaccineRecords.dose,
+    })
+    .from(uniquePushUsers)
+    .innerJoin(caregivers, eq(caregivers.userId, uniquePushUsers.userId))
+    .innerJoin(children, eq(children.id, caregivers.childId))
+    .leftJoin(vaccineRecords, eq(vaccineRecords.childId, children.id));
+
+  if (rows.length === 0) {
+    return new Map();
+  }
+
+  // ── Agrupar em memória (1 passagem sobre os resultados) ──
+  // Estrutura: userId → childId → { name, birthDate, records[] }
+  const userChildMap = new Map<
+    string,
+    Map<number, {
+      name: string;
+      birthDate: string;
+      records: { susVaccineId: number; dose: string }[];
+    }>
+  >();
+
+  for (const row of rows) {
+    if (!userChildMap.has(row.userId)) {
+      userChildMap.set(row.userId, new Map());
+    }
+    const childMap = userChildMap.get(row.userId)!;
+
+    if (!childMap.has(row.childId)) {
+      childMap.set(row.childId, {
+        name: row.childName,
+        birthDate: row.birthDate,
+        records: [],
+      });
+    }
+
+    // LEFT JOIN: vaccine_records pode ser NULL se a criança não tem registros
+    if (row.susVaccineId !== null && row.dose !== null) {
+      childMap.get(row.childId)!.records.push({
+        susVaccineId: row.susVaccineId,
+        dose: row.dose,
+      });
+    }
+  }
+
+  // ── Processar tudo em memória (zero queries adicionais) ──
   const userReminders = new Map<string, VaccineReminder[]>();
 
-  for (const userId of uniqueUserIds) {
-    const userChildren = await storage.getChildrenByUserId(userId);
+  for (const [userId, childMap] of userChildMap) {
     const reminders: VaccineReminder[] = [];
 
-    for (const child of userChildren) {
-      const ageMonths = getChildAgeMonths(child.birthDate);
-      const records = await storage.getVaccineRecords(child.id);
+    for (const [, childInfo] of childMap) {
+      const ageMonths = getChildAgeMonths(childInfo.birthDate);
 
       for (const vaccine of vaccines) {
         const ages = parseAgeToMonths(vaccine.ageRange || "");
 
         for (const expectedAge of ages) {
           const dose = getDoseLabel(vaccine, expectedAge);
-          if (isDoseRecorded(records, vaccine.id, dose)) continue;
+          if (isDoseRecorded(childInfo.records, vaccine.id, dose)) continue;
 
           const monthsDiff = expectedAge - ageMonths;
 
           if (monthsDiff >= 0 && monthsDiff <= 1) {
             reminders.push({
-              childName: child.name,
+              childName: childInfo.name,
               vaccineName: vaccine.name,
               dose,
               type: monthsDiff === 0 ? "due" : "upcoming",
             });
           } else if (monthsDiff < 0 && monthsDiff >= -2) {
             reminders.push({
-              childName: child.name,
+              childName: childInfo.name,
               vaccineName: vaccine.name,
               dose,
               type: "overdue",
@@ -217,6 +293,17 @@ function buildNotificationPayload(reminders: VaccineReminder[]): any {
   };
 }
 
+// ── Enviar pushes em batches de concorrência limitada ──
+async function sendInBatches(
+  tasks: (() => Promise<void>)[],
+  concurrency: number,
+): Promise<void> {
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const batch = tasks.slice(i, i + concurrency);
+    await Promise.allSettled(batch.map((fn) => fn()));
+  }
+}
+
 export async function sendVaccineNotifications(): Promise<number> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     console.log("[notifications] VAPID keys not configured, skipping");
@@ -225,40 +312,62 @@ export async function sendVaccineNotifications(): Promise<number> {
 
   try {
     const userReminders = await getVaccineReminders();
+    if (userReminders.size === 0) return 0;
+
+    // ── Buscar TODAS as push subscriptions dos users com reminders em 1 query ──
+    const userIds = [...userReminders.keys()];
+    const allSubs = await schedulerDb
+      .select()
+      .from(pushSubscriptions)
+      .where(inArray(pushSubscriptions.userId, userIds));
+
+    // Agrupar subs por userId
+    const subsByUser = new Map<string, typeof allSubs>();
+    for (const sub of allSubs) {
+      if (!subsByUser.has(sub.userId)) subsByUser.set(sub.userId, []);
+      subsByUser.get(sub.userId)!.push(sub);
+    }
+
+    // ── Montar lista de envios e executar em batches de 10 ──
     let sentCount = 0;
+    const tasks: (() => Promise<void>)[] = [];
 
     for (const [userId, reminders] of userReminders) {
       const payload = buildNotificationPayload(reminders);
       if (!payload) continue;
 
-      const subs = await storage.getPushSubscriptionsByUserId(userId);
-
+      const subs = subsByUser.get(userId) || [];
       for (const sub of subs) {
-        try {
-          await webpush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth },
-            },
-            JSON.stringify(payload),
-          );
-          sentCount++;
-        } catch (error: any) {
-          if (error.statusCode === 404 || error.statusCode === 410) {
-            await storage.deletePushSubscription(sub.endpoint);
-            console.log(
-              `[notifications] Removed expired subscription for user ${userId}`,
+        tasks.push(async () => {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              },
+              JSON.stringify(payload),
             );
-          } else {
-            console.error(
-              `[notifications] Failed to send to user ${userId}:`,
-              error.message,
-            );
+            sentCount++;
+          } catch (error: any) {
+            if (error.statusCode === 404 || error.statusCode === 410) {
+              await schedulerDb
+                .delete(pushSubscriptions)
+                .where(eq(pushSubscriptions.endpoint, sub.endpoint));
+              console.log(
+                `[notifications] Removed expired subscription for user ${userId}`,
+              );
+            } else {
+              console.error(
+                `[notifications] Failed to send to user ${userId}:`,
+                error.message,
+              );
+            }
           }
-        }
+        });
       }
     }
 
+    await sendInBatches(tasks, 10);
     console.log(`[notifications] Sent ${sentCount} vaccine reminders`);
     return sentCount;
   } catch (error) {

@@ -327,16 +327,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteChild(id: number): Promise<void> {
-    await db.delete(caregivers).where(eq(caregivers.childId, id));
-    await db.delete(growthRecords).where(eq(growthRecords.childId, id));
-    await db.delete(vaccines).where(eq(vaccines.childId, id));
-    await db.delete(healthRecords).where(eq(healthRecords.childId, id));
-    await db.delete(milestones).where(eq(milestones.childId, id));
-    await db.delete(diaryEntries).where(eq(diaryEntries.childId, id));
-    await db.delete(vaccineRecords).where(eq(vaccineRecords.childId, id));
-    await db.delete(dailyPhotos).where(eq(dailyPhotos.childId, id));
-    await db.delete(gamification).where(eq(gamification.childId, id));
-    await db.delete(children).where(eq(children.id, id));
+    await db.transaction(async (tx) => {
+      // 1. Deletar likes de milestones (dependem dos IDs de milestones desta criança)
+      await tx.execute(
+        sql`DELETE FROM milestone_likes WHERE milestone_id IN (SELECT id FROM milestones WHERE child_id = ${id})`,
+      );
+
+      // 2. Deletar comentários de atividade
+      await tx.delete(activityComments).where(eq(activityComments.childId, id));
+
+      // 3. Deletar códigos de convite
+      await tx.delete(inviteCodes).where(eq(inviteCodes.childId, id));
+
+      // 4. Deletar cuidadores
+      await tx.delete(caregivers).where(eq(caregivers.childId, id));
+
+      // 5. Deletar registros de dados da criança
+      await tx.delete(growthRecords).where(eq(growthRecords.childId, id));
+      await tx.delete(vaccines).where(eq(vaccines.childId, id));
+      await tx.delete(healthRecords).where(eq(healthRecords.childId, id));
+      await tx.delete(milestones).where(eq(milestones.childId, id));
+      await tx.delete(diaryEntries).where(eq(diaryEntries.childId, id));
+      await tx.delete(vaccineRecords).where(eq(vaccineRecords.childId, id));
+      await tx.delete(dailyPhotos).where(eq(dailyPhotos.childId, id));
+
+      // 6. Deletar gamificação
+      await tx.delete(gamification).where(eq(gamification.childId, id));
+
+      // 7. Deletar a criança
+      await tx.delete(children).where(eq(children.id, id));
+    });
+    // Se qualquer DELETE falhar, ROLLBACK automático — nenhum dado órfão
   }
 
   // Growth

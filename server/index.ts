@@ -7,20 +7,7 @@ import { createServer } from "http";
 const app = express();
 const httpServer = createServer(app);
 
-declare module "http" {
-  interface IncomingMessage {
-    rawBody: unknown;
-  }
-}
-
-app.use(
-  express.json({
-    limit: '10mb',
-    verify: (req, _res, buf) => {
-      req.rawBody = buf;
-    },
-  }),
-);
+app.use(express.json({ limit: '10mb' }));
 
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
@@ -38,11 +25,12 @@ export function log(message: string, source = "express") {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let capturedJsonResponse: string | undefined = undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
+    // Apenas preview para logging — não armazenar o objeto inteiro
+    capturedJsonResponse = JSON.stringify(bodyJson).substring(0, 200);
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
@@ -51,7 +39,7 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        logLine += ` :: ${capturedJsonResponse}`;
       }
 
       log(logLine);

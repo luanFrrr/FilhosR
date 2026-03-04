@@ -18,6 +18,48 @@ import {
   notifyCaregivers,
 } from "./vaccineNotifications";
 import { uploadToStorage, type UploadBucket } from "./supabaseStorage";
+import rateLimit from "express-rate-limit";
+
+// ─── Rate Limiters ────────────────────────────────────────────────────────────
+// Global: 100 requests por IP por janela de 15 minutos
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Muitas requisições. Tente novamente em alguns minutos." },
+  keyGenerator: (req) => {
+    // Usa X-Forwarded-For se atrás de proxy, senão IP direto
+    return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+  },
+});
+
+// Auth: 10 tentativas por IP por 15 minutos (proteção contra brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Muitas tentativas de login. Tente novamente em 15 minutos." },
+});
+
+// Upload: 20 uploads por IP por 15 minutos
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Limite de uploads atingido. Tente novamente em alguns minutos." },
+});
+
+// Push test: 5 por IP por 15 minutos (evita spam de notificações)
+const pushTestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Limite de notificações de teste atingido." },
+});
 
 const resolveUserName = (user: any) => {
   if (!user) return "Alguém";
@@ -44,6 +86,10 @@ export async function registerRoutes(
   // === SETUP AUTHENTICATION ===
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  // === RATE LIMITING ===
+  app.use("/api/", globalLimiter);
+  app.use("/api/login", authLimiter);
 
   // === HELPER: Get userId from OIDC claims ===
   const getUserId = (req: any): string | null => {
@@ -624,8 +670,8 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  // SUS Vaccines Catalog (public)
-  app.get(api.susVaccines.list.path, async (req, res) => {
+  // SUS Vaccines Catalog (requer autenticação)
+  app.get(api.susVaccines.list.path, isAuthenticated, async (req, res) => {
     // Initialize vaccines if not present
     await storage.initializeSusVaccines();
     const vaccines = await storage.getSusVaccines();
@@ -1012,7 +1058,7 @@ export async function registerRoutes(
     res.json({ subscribed: subs.length > 0, count: subs.length });
   });
 
-  app.post("/api/push/test", isAuthenticated, async (req, res) => {
+  app.post("/api/push/test", pushTestLimiter, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
@@ -1619,7 +1665,7 @@ export async function registerRoutes(
   // === UPLOAD UNIVERSAL DE FOTO (Supabase Storage) ===
   // Aceita: { base64, mimeType, bucket, path }
   // buckets permitidos: child-photos, milestone-photos, daily-photos
-  app.post("/api/upload", isAuthenticated, async (req: any, res) => {
+  app.post("/api/upload", uploadLimiter, isAuthenticated, async (req: any, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
