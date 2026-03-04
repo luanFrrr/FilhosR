@@ -68,6 +68,10 @@ export function usePushNotifications() {
       }
 
       const vapidRes = await fetch("/api/push/vapid-key");
+      if (!vapidRes.ok) {
+        setIsLoading(false);
+        return;
+      }
       const { publicKey } = await vapidRes.json();
 
       if (!publicKey) {

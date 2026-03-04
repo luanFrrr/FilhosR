@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -10,25 +10,24 @@ const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 horas
 export function NotificationPermissionBanner() {
   const { isSubscribed, isSupported, subscribe, isLoading } = usePushNotifications();
   const [visible, setVisible] = useState(false);
+  const hasAttemptedAutoSubscribe = useRef(false);
 
   useEffect(() => {
     if (!isSupported || isLoading) return;
-    // Se já está inscrito, não mostrar
     if (isSubscribed) return;
-    // Se a permissão já foi explicitamente negada no browser, não mostrar
     if (Notification.permission === "denied") return;
-    // Se já foi dispensado recentemente (snoozed)
     const dismissedAt = localStorage.getItem(DISMISSED_KEY);
     if (dismissedAt) {
       const elapsed = Date.now() - Number(dismissedAt);
       if (elapsed < SNOOZE_DURATION_MS) return;
     }
-    // Se permissão já foi concedida mas não está inscrito (ex: reinstalou), auto-subscribe
     if (Notification.permission === "granted") {
-      subscribe();
+      if (!hasAttemptedAutoSubscribe.current) {
+        hasAttemptedAutoSubscribe.current = true;
+        subscribe();
+      }
       return;
     }
-    // Mostrar o banner (permissão == "default" — nunca foi perguntado)
     const timer = setTimeout(() => setVisible(true), 1500);
     return () => clearTimeout(timer);
   }, [isSupported, isSubscribed, isLoading, subscribe]);

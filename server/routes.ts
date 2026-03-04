@@ -21,17 +21,14 @@ import { uploadToStorage, type UploadBucket } from "./supabaseStorage";
 import rateLimit from "express-rate-limit";
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
-// Global: 100 requests por IP por janela de 15 minutos
+// Global: 300 requests por IP por janela de 15 minutos
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Muitas requisições. Tente novamente em alguns minutos." },
-  keyGenerator: (req) => {
-    // Usa X-Forwarded-For se atrás de proxy, senão IP direto
-    return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
-  },
+  validate: { xForwardedForHeader: false },
 });
 
 // Auth: 10 tentativas por IP por 15 minutos (proteção contra brute force)
@@ -86,6 +83,11 @@ export async function registerRoutes(
   // === SETUP AUTHENTICATION ===
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  // === VAPID KEY (antes do rate limiter — endpoint leve, string fixa) ===
+  app.get("/api/push/vapid-key", (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || "" });
+  });
 
   // === RATE LIMITING ===
   app.use("/api/", globalLimiter);
@@ -1016,10 +1018,7 @@ export async function registerRoutes(
 </html>`);
   });
 
-  // Push Notifications
-  app.get("/api/push/vapid-key", (req, res) => {
-    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || "" });
-  });
+  // Push Notifications (vapid-key já registrado acima, antes do rate limiter)
 
   app.post("/api/push/subscribe", isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
