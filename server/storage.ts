@@ -664,13 +664,28 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getSusVaccines();
 
     // Versão do calendário - incrementar quando atualizar a lista
-    const CALENDAR_VERSION = 3; // Forçar atualização para esquema COVID 3 doses
+    const CALENDAR_VERSION = 3;
 
-    // Verifica se precisa atualizar (20 vacinas na versão 2)
+    // Versão 3: COVID corrigida para 3 doses (6, 7, 9 meses)
+    const covidVaccine = existing.find(v => v.name === "COVID-19 Infantil");
+    if (covidVaccine && covidVaccine.ageRange !== "6, 7, 9 meses") {
+      await db.update(susVaccines)
+        .set({
+          recommendedDoses: "1ª dose, 2ª dose, 3ª dose",
+          ageRange: "6, 7, 9 meses",
+        })
+        .where(eq(susVaccines.id, covidVaccine.id));
+      _susVaccinesCache = null;
+      _susVaccinesCacheAt = 0;
+      console.log("[sus] COVID-19 Infantil atualizada para 3 doses (6, 7, 9 meses)");
+    }
+
     if (existing.length === 20) return;
 
     // Limpa vacinas antigas para reinicializar com lista atualizada
     if (existing.length > 0) {
+      _susVaccinesCache = null;
+      _susVaccinesCacheAt = 0;
       await db.delete(susVaccines);
     }
 
