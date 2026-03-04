@@ -186,6 +186,7 @@ export function useDeleteDiaryEntry() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.diary.list.path, variables.childId] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
 }

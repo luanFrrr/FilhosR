@@ -581,7 +581,8 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const deleted = await storage.deleteMilestone(milestoneId);
+    await storage.deleteMilestone(milestoneId);
+    await storage.addPoints(existing.childId, -20);
     res.status(204).send();
   });
 
@@ -672,6 +673,7 @@ export async function registerRoutes(
     }
 
     await storage.deleteDiaryEntry(entryId);
+    await storage.addPoints(entry.childId, -5);
     res.status(204).send();
   });
 
@@ -926,6 +928,7 @@ export async function registerRoutes(
     }
 
     await storage.deleteDailyPhoto(id);
+    await storage.addPoints(photo.childId, -5);
     res.status(204).end();
   });
 

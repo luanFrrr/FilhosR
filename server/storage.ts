@@ -620,8 +620,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addPoints(childId: number, points: number): Promise<Gamification> {
-    // Compute new points and level in a single atomic upsert (no extra SELECTs)
-    const newPoints = sql`COALESCE(${gamification.points}, 0) + ${points}`;
+    const newPoints = sql`GREATEST(COALESCE(${gamification.points}, 0) + ${points}, 0)`;
 
     const levelExpr = sql<string>`
       CASE
@@ -635,11 +634,11 @@ export class DatabaseStorage implements IStorage {
 
     const [updated] = await db
       .insert(gamification)
-      .values({ childId, points, level: "Iniciante" })
+      .values({ childId, points: Math.max(points, 0), level: "Iniciante" })
       .onConflictDoUpdate({
         target: gamification.childId,
         set: {
-          points: sql`${gamification.points} + ${points}`,
+          points: sql`GREATEST(${gamification.points} + ${points}, 0)`,
           level: levelExpr,
           updatedAt: new Date(),
         },
