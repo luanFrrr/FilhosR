@@ -112,7 +112,15 @@ export default function Memories() {
   const { data: milestonesWithSocial } = useMilestonesWithSocial(
     activeChild?.id || 0,
   );
-  const { data: diaryPage } = useDiary(activeChild?.id || 0);
+  const { 
+    data: diaryPages, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage 
+  } = useDiary(activeChild?.id || 0);
+  
+  // Flatten diary pages into a single array for rendering
+  const allDiaryEntries = diaryPages?.pages.flatMap((p) => p.data) || [];
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
   const deleteMilestone = useDeleteMilestone();
@@ -150,7 +158,7 @@ export default function Memories() {
       const target = milestones.find((m) => m.id === Number(idParam));
       if (target) setViewMilestone(target);
     }
-    if (tabParam === "diary" && diaryPage?.data) {
+    if (tabParam === "diary" && allDiaryEntries.length > 0) {
       // Scroll até a entry do diário destacada
       setTimeout(() => {
         const el = document.querySelector(`[data-diary-id="${idParam}"]`);
@@ -165,7 +173,7 @@ export default function Memories() {
         }
       }, 300);
     }
-  }, [idParam, tabParam, milestones, diaryPage]);
+  }, [idParam, tabParam, milestones, allDiaryEntries]);
 
   const milestoneForm = useForm();
   const editForm = useForm();
@@ -700,7 +708,7 @@ export default function Memories() {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {diaryPage?.data
+              {allDiaryEntries
                 ?.slice()
                 .sort(
                   (a, b) =>
@@ -746,12 +754,25 @@ export default function Memories() {
                     </p>
                   </div>
                 ))}
-              {(!diaryPage?.data || diaryPage.data.length === 0) && (
+              {allDiaryEntries.length === 0 && (
                 <div className="text-center py-12">
                   <Book className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-muted-foreground">
                     O diário está em branco.
                   </p>
+                </div>
+              )}
+              
+              {hasNextPage && (
+                <div className="mt-8 flex justify-center">
+                  <Button 
+                    variant="outline" 
+                    className="rounded-full px-8 py-6 font-semibold"
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                  >
+                    {isFetchingNextPage ? "Carregando..." : "Carregar mais antigas"}
+                  </Button>
                 </div>
               )}
             </div>

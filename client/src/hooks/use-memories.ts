@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertMilestone, InsertDiaryEntry } from "@shared/schema";
 
@@ -99,15 +99,21 @@ export function useDeleteMilestone() {
 // DIARY
 // ──────────────────────────────────────────────────────────────
 
-export function useDiary(childId: number) {
-  return useQuery({
+export function useDiary(childId: number, pageSize = 30) {
+  return useInfiniteQuery({
     queryKey: [api.diary.list.path, childId],
-    queryFn: async () => {
-      const url = buildUrl(api.diary.list.path, { childId });
+    queryFn: async ({ pageParam = 1 }) => {
+      // Append query string values for page and pageSize
+      const url = `${buildUrl(api.diary.list.path, { childId })}?page=${pageParam}&pageSize=${pageSize}`;
       const res = await fetch(url, FETCH_OPTS);
       if (!res.ok) throw new Error("Erro ao buscar diário");
       return api.diary.list.responses[200].parse(await res.json());
     },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.hasMore) return lastPage.page + 1;
+      return undefined;
+    },
+    initialPageParam: 1,
     enabled: !!childId,
     staleTime: 5_000,
   });
