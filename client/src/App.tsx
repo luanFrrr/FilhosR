@@ -12,7 +12,6 @@ import { NotificationPermissionBanner } from "@/components/notifications/Notific
 
 // Pages
 import Dashboard from "@/pages/dashboard";
-import Growth from "@/pages/growth";
 import Health from "@/pages/health";
 import Memories from "@/pages/memories";
 import Onboarding from "@/pages/onboarding";
@@ -23,6 +22,14 @@ import Landing from "@/pages/landing";
 import Privacy from "@/pages/privacy";
 import DeleteAccount from "@/pages/delete-account";
 import NotFound from "@/pages/not-found";
+
+function GrowthRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation("/health?tab=growth");
+  }, [setLocation]);
+  return null;
+}
 
 function AuthenticatedRouter() {
   const [location, setLocation] = useLocation();
@@ -45,7 +52,7 @@ function AuthenticatedRouter() {
       <NotificationPermissionBanner />
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/growth" component={Growth} />
+        <Route path="/growth" component={GrowthRedirect} />
         <Route path="/health" component={Health} />
         <Route path="/memories" component={Memories} />
         <Route path="/settings" component={Settings} />

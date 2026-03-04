@@ -230,7 +230,7 @@ export async function registerRoutes(
           userId,
           "📏 Novo registro de crescimento",
           `${userName} registrou peso/altura do ${childName}`,
-          "/growth",
+          "/health?tab=growth",
         );
       } catch (err) {
         console.error("[bg] Erro pós-criação de crescimento:", err);
