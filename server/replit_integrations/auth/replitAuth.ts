@@ -41,7 +41,8 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
+      sameSite: "lax",
       maxAge: sessionTtl,
     },
   });
@@ -199,6 +200,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     updateUserSession(user, tokenResponse);
     return next();
   } catch (error) {
+    req.session.destroy(() => {});
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
