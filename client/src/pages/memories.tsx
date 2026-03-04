@@ -574,19 +574,7 @@ export default function Memories() {
             </div>
 
             <div className="relative border-l-2 border-primary/20 ml-4 space-y-8 pb-8">
-              {milestones
-                ?.slice()
-                .sort((a, b) => {
-                  const dateDiff =
-                    new Date(b.date).getTime() - new Date(a.date).getTime();
-                  if (dateDiff !== 0) return dateDiff;
-                  // Mesmo dia: o mais recentemente criado fica em cima
-                  return (
-                    new Date(b.createdAt ?? 0).getTime() -
-                    new Date(a.createdAt ?? 0).getTime()
-                  );
-                })
-                .map((milestone) => {
+              {milestones?.map((milestone) => {
                   const social = milestonesWithSocial?.find(
                     (m) => m.id === milestone.id,
                   );
@@ -708,13 +696,7 @@ export default function Memories() {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {allDiaryEntries
-                ?.slice()
-                .sort(
-                  (a, b) =>
-                    new Date(b.date).getTime() - new Date(a.date).getTime(),
-                )
-                .map((entry) => (
+              {allDiaryEntries?.map((entry) => (
                   <div
                     key={entry.id}
                     className="bg-white p-5 rounded-2xl border border-border shadow-sm transition-all duration-300"
