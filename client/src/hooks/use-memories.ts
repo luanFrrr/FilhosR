@@ -91,6 +91,7 @@ export function useDeleteMilestone() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.milestones.list.path, variables.childId] });
       queryClient.invalidateQueries({ queryKey: ["milestones-social", variables.childId] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
     },
   });
 }
