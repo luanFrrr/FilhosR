@@ -11,39 +11,73 @@ function parseAgeToMonths(ageRange: string): number[] {
   const months: number[] = [];
   if (!ageRange) return months;
 
-  // Casos especiais de nascimento
   if (ageRange.includes("Ao nascer") || ageRange.includes("primeiras 24h")) {
     months.push(0);
   }
 
-  // Captura padrões como "2, 4, 6 meses" ou "12 meses" ou "9 meses"
-  const allNumbers = ageRange.match(/\d+/g);
-  if (allNumbers) {
-    allNumbers.forEach(numStr => {
-      const num = parseInt(numStr);
-      if (ageRange.toLowerCase().includes(`${num} anos`) || ageRange.toLowerCase().includes(`${num} ano`)) {
-        if (num <= 18) months.push(num * 12);
-      } else if (ageRange.toLowerCase().includes("mês") || ageRange.toLowerCase().includes("meses") || ageRange.toLowerCase().includes("m")) {
-        // Evita pegar números que não se referem a meses se houver ambiguidade
-        months.push(num);
-      } else if (num > 0 && num <= 15) { 
-        // Fallback para números soltos em contexto de idade (comum no PNI)
-        months.push(num);
-      }
-    });
+  const explicit = ageRange.match(/(\d+)\s*meses?/gi);
+  if (explicit) {
+    for (const m of explicit) {
+      const n = parseInt(m.match(/\d+/)![0]);
+      if (n > 0) months.push(n);
+    }
   }
 
-  // Regras específicas para COVID e Influenza que podem ter textos variados
-  if (ageRange.includes("COVID") || ageRange.includes("6 meses a 4 anos")) {
-    [6, 7, 9].forEach(m => { if (!months.includes(m)) months.push(m); });
+  const explicitSingle = ageRange.match(/(\d+)\s*mês/gi);
+  if (explicitSingle) {
+    for (const m of explicitSingle) {
+      const n = parseInt(m.match(/\d+/)![0]);
+      if (n > 0 && !months.includes(n)) months.push(n);
+    }
+  }
+
+  const commaMonths = ageRange.match(/(\d+(?:\s*,\s*\d+)+)\s*meses/i);
+  if (commaMonths) {
+    const nums = commaMonths[1].split(",").map(s => parseInt(s.trim()));
+    nums.forEach(n => { if (n > 0 && !months.includes(n)) months.push(n); });
+  }
+
+  const yearPatterns = ageRange.match(/(\d+)\s*anos?/gi);
+  if (yearPatterns) {
+    for (const m of yearPatterns) {
+      const n = parseInt(m.match(/\d+/)![0]);
+      if (n > 0 && n <= 18) months.push(n * 12);
+    }
+  }
+
+  const rangeYears = ageRange.match(/(\d+)\s*-\s*(\d+)\s*anos/gi);
+  if (rangeYears) {
+    for (const m of rangeYears) {
+      const nums = m.match(/\d+/g)!;
+      const startYear = parseInt(nums[0]);
+      if (startYear > 0 && startYear <= 18) {
+        if (!months.includes(startYear * 12)) months.push(startYear * 12);
+      }
+    }
+  }
+
+  if (ageRange.includes("reforço 12")) {
+    if (!months.includes(12)) months.push(12);
   }
 
   return Array.from(new Set(months)).sort((a, b) => a - b);
 }
 
-function getRequiredDosesCount(vaccine: SusVaccine, childAgeMonths: number): number {
-  const ages = parseAgeToMonths(vaccine.ageRange || "");
-  return ages.filter(age => age <= childAgeMonths).length;
+function getExpectedDoseCount(vaccine: SusVaccine): number {
+  const doses = vaccine.recommendedDoses;
+  const parts = doses.split(",").map(d => d.trim()).filter(Boolean);
+
+  if (doses.toLowerCase().includes("dose única") || doses.toLowerCase().includes("dose anual")) {
+    return 1;
+  }
+
+  const doseNumbers = doses.match(/\d+ª?\s*dose/gi);
+  const reforcos = doses.match(/reforço|reforco/gi);
+  const count = (doseNumbers?.length || 0) + (reforcos?.length || 0);
+
+  if (count > 0) return count;
+
+  return parts.length || 1;
 }
 
 export function getExpectedVaccinesForAge(
@@ -51,23 +85,26 @@ export function getExpectedVaccinesForAge(
   childAgeMonths: number
 ): VaccineExpectation[] {
   const expected: VaccineExpectation[] = [];
-  
+
   for (const vaccine of susVaccines) {
     const ages = parseAgeToMonths(vaccine.ageRange || "");
     const recommendedDoses = vaccine.recommendedDoses.split(",").map(d => d.trim());
-    
-    ages.forEach((age, index) => {
-      if (age <= childAgeMonths) {
-        expected.push({
-          vaccineId: vaccine.id,
-          vaccineName: vaccine.name,
-          dose: recommendedDoses[index] || recommendedDoses[recommendedDoses.length - 1] || "Dose",
-          expectedMonths: age,
-        });
-      }
-    });
+    const totalExpected = getExpectedDoseCount(vaccine);
+
+    const dueAges = ages.filter(a => a <= childAgeMonths);
+
+    const dueCount = Math.min(dueAges.length, totalExpected);
+
+    for (let i = 0; i < dueCount; i++) {
+      expected.push({
+        vaccineId: vaccine.id,
+        vaccineName: vaccine.name,
+        dose: recommendedDoses[i] || recommendedDoses[recommendedDoses.length - 1] || "Dose",
+        expectedMonths: dueAges[i],
+      });
+    }
   }
-  
+
   return expected;
 }
 
@@ -81,21 +118,17 @@ export function getPendingVaccines(
   for (const vaccine of susVaccines) {
     const expectedDoses = getExpectedVaccinesForAge([vaccine], childAgeMonths);
     const userRecords = vaccineRecords.filter(r => r.susVaccineId === vaccine.id);
-    
-    // Lógica simplificada: Se o usuário tem menos registros do que o esperado para a idade,
-    // marcamos as doses que faltam.
+
     if (userRecords.length < expectedDoses.length) {
-      // Adiciona as doses excedentes que o usuário ainda não tem
       const missingCount = expectedDoses.length - userRecords.length;
       const missingDoses = expectedDoses.slice(expectedDoses.length - missingCount);
       pending.push(...missingDoses);
     }
   }
-  
+
   return pending;
 }
 
-// Get pending doses grouped by vaccine for display
 export function getPendingDosesByVaccine(
   susVaccines: SusVaccine[],
   vaccineRecords: VaccineRecord[],
@@ -103,13 +136,13 @@ export function getPendingDosesByVaccine(
 ): Map<number, VaccineExpectation[]> {
   const pending = getPendingVaccines(susVaccines, vaccineRecords, childAgeMonths);
   const byVaccine = new Map<number, VaccineExpectation[]>();
-  
+
   for (const exp of pending) {
     const existing = byVaccine.get(exp.vaccineId) || [];
     existing.push(exp);
     byVaccine.set(exp.vaccineId, existing);
   }
-  
+
   return byVaccine;
 }
 
@@ -117,13 +150,13 @@ export function getVaccineStatus(
   susVaccines: SusVaccine[],
   vaccineRecords: VaccineRecord[],
   childAgeMonths: number
-): { 
-  status: "upToDate" | "pending"; 
+): {
+  status: "upToDate" | "pending";
   pendingCount: number;
   pendingVaccines: VaccineExpectation[];
 } {
   const pending = getPendingVaccines(susVaccines, vaccineRecords, childAgeMonths);
-  
+
   return {
     status: pending.length === 0 ? "upToDate" : "pending",
     pendingCount: pending.length,
