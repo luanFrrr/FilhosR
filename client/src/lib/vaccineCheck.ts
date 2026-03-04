@@ -36,6 +36,13 @@ function parseAgeToMonths(ageRange: string): number[] {
   if (ageRange.includes("15 meses")) {
     if (!months.includes(15)) months.push(15);
   }
+
+  if (ageRange.includes("COVID") || ageRange.includes("6 meses a 4 anos")) {
+    // COVID scheme is complex, but starts at 6 months
+    if (!months.includes(6)) months.push(6);
+    if (!months.includes(7)) months.push(7);
+    if (!months.includes(9)) months.push(9);
+  }
   
   const yearMatches = ageRange.match(/(\d+)\s*anos?/gi);
   if (yearMatches) {
