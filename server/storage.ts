@@ -799,12 +799,12 @@ export class DatabaseStorage implements IStorage {
         ageRange: "4 anos",
       },
 
-      // COVID-19 (6 meses a 4 anos)
+      // COVID-19 (6 meses a 4 anos — esquema Pfizer pediátrica: 3 doses)
       {
         name: "COVID-19 Infantil",
         diseasesPrevented: "COVID-19",
-        recommendedDoses: "Esquema conforme vacina pediátrica",
-        ageRange: "6 meses a 4 anos",
+        recommendedDoses: "1ª dose, 2ª dose, 3ª dose",
+        ageRange: "6, 7, 9 meses",
       },
 
       // 9-14 anos (Pré-adolescentes)
