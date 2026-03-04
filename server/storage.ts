@@ -108,7 +108,11 @@ export interface IStorage {
   deleteMilestone(id: number): Promise<boolean>;
 
   // Diary
-  getDiaryEntries(childId: number): Promise<DiaryEntry[]>;
+  getDiaryEntries(
+    childId: number,
+    page?: number,
+    pageSize?: number,
+  ): Promise<{ data: DiaryEntry[]; total: number; page: number; pageSize: number; hasMore: boolean }>;
   getDiaryEntryById(id: number): Promise<DiaryEntry | undefined>;
   createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
   updateDiaryEntry(
@@ -365,7 +369,8 @@ export class DatabaseStorage implements IStorage {
     const records = await db
       .select()
       .from(growthRecords)
-      .where(eq(growthRecords.childId, childId));
+      .where(eq(growthRecords.childId, childId))
+      .limit(500);
     return records.filter((r) => !r.notes?.startsWith("[ARCHIVED]"));
   }
 
@@ -416,7 +421,8 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(vaccines)
-      .where(eq(vaccines.childId, childId));
+      .where(eq(vaccines.childId, childId))
+      .limit(200);
   }
 
   async getVaccineById(id: number): Promise<Vaccine | undefined> {
@@ -449,7 +455,8 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(healthRecords)
-      .where(eq(healthRecords.childId, childId));
+      .where(eq(healthRecords.childId, childId))
+      .limit(500);
   }
 
   async getHealthRecordById(id: number): Promise<HealthRecord | undefined> {
@@ -490,7 +497,8 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(milestones)
       .where(eq(milestones.childId, childId))
-      .orderBy(desc(milestones.date), desc(milestones.createdAt)); // data DESC, mais recente no topo
+      .orderBy(desc(milestones.date), desc(milestones.createdAt))
+      .limit(200);
   }
 
   async getMilestoneById(id: number): Promise<Milestone | undefined> {
@@ -529,13 +537,29 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  // Diary
-  async getDiaryEntries(childId: number): Promise<DiaryEntry[]> {
-    return await db
-      .select()
-      .from(diaryEntries)
-      .where(eq(diaryEntries.childId, childId))
-      .orderBy(desc(diaryEntries.date), desc(diaryEntries.createdAt));
+  // Diary — paginação completa
+  async getDiaryEntries(
+    childId: number,
+    page = 1,
+    pageSize = 30,
+  ): Promise<{ data: DiaryEntry[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
+    const safePage = Math.max(1, page);
+    const safeSize = Math.min(Math.max(1, pageSize), 100); // max 100 por página
+    const offset = (safePage - 1) * safeSize;
+
+    const [[countResult], data] = await Promise.all([
+      db.select({ total: count() }).from(diaryEntries).where(eq(diaryEntries.childId, childId)),
+      db
+        .select()
+        .from(diaryEntries)
+        .where(eq(diaryEntries.childId, childId))
+        .orderBy(desc(diaryEntries.date), desc(diaryEntries.createdAt))
+        .limit(safeSize)
+        .offset(offset),
+    ]);
+
+    const total = countResult?.total ?? 0;
+    return { data, total, page: safePage, pageSize: safeSize, hasMore: offset + data.length < total };
   }
 
   async getDiaryEntryById(id: number): Promise<DiaryEntry | undefined> {
@@ -808,7 +832,8 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(vaccineRecords)
       .where(eq(vaccineRecords.childId, childId))
-      .orderBy(vaccineRecords.applicationDate, desc(vaccineRecords.createdAt)); // por data da aplicação
+      .orderBy(vaccineRecords.applicationDate, desc(vaccineRecords.createdAt))
+      .limit(200);
   }
 
   async getVaccineRecordById(id: number): Promise<VaccineRecord | undefined> {
@@ -961,7 +986,8 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(inviteCodes)
-      .where(eq(inviteCodes.childId, childId));
+      .where(eq(inviteCodes.childId, childId))
+      .limit(50);
   }
 
   async getCaregiversByChildId(childId: number): Promise<
@@ -1072,7 +1098,8 @@ export class DatabaseStorage implements IStorage {
           eq(activityComments.recordId, recordId),
         ),
       )
-      .orderBy(activityComments.createdAt); // ORDER BY createdAt ASC — mais antigos primeiro
+      .orderBy(activityComments.createdAt) // ORDER BY createdAt ASC — mais antigos primeiro
+      .limit(200);
     return results.map((r) => ({
       ...r.comment,
       userFirstName: r.profileCustomized
@@ -1106,7 +1133,8 @@ export class DatabaseStorage implements IStorage {
       .from(activityComments)
       .leftJoin(users, eq(activityComments.userId, users.id))
       .where(eq(activityComments.childId, childId))
-      .orderBy(activityComments.createdAt); // ORDER BY createdAt ASC
+      .orderBy(activityComments.createdAt) // ORDER BY createdAt ASC
+      .limit(500);
     return results.map((r) => ({
       ...r.comment,
       userFirstName: r.profileCustomized
@@ -1213,7 +1241,8 @@ export class DatabaseStorage implements IStorage {
           .select()
           .from(milestones)
           .where(eq(milestones.childId, childId))
-          .orderBy(desc(milestones.date), desc(milestones.createdAt)),
+          .orderBy(desc(milestones.date), desc(milestones.createdAt))
+          .limit(200),
 
         // 2) Total de likes por marco
         db

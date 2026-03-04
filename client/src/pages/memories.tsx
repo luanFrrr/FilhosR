@@ -112,7 +112,7 @@ export default function Memories() {
   const { data: milestonesWithSocial } = useMilestonesWithSocial(
     activeChild?.id || 0,
   );
-  const { data: diary } = useDiary(activeChild?.id || 0);
+  const { data: diaryPage } = useDiary(activeChild?.id || 0);
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
   const deleteMilestone = useDeleteMilestone();
@@ -150,7 +150,7 @@ export default function Memories() {
       const target = milestones.find((m) => m.id === Number(idParam));
       if (target) setViewMilestone(target);
     }
-    if (tabParam === "diary" && diary) {
+    if (tabParam === "diary" && diaryPage?.data) {
       // Scroll até a entry do diário destacada
       setTimeout(() => {
         const el = document.querySelector(`[data-diary-id="${idParam}"]`);
@@ -165,7 +165,7 @@ export default function Memories() {
         }
       }, 300);
     }
-  }, [idParam, tabParam, milestones, diary]);
+  }, [idParam, tabParam, milestones, diaryPage]);
 
   const milestoneForm = useForm();
   const editForm = useForm();
@@ -700,7 +700,7 @@ export default function Memories() {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {diary
+              {diaryPage?.data
                 ?.slice()
                 .sort(
                   (a, b) =>
@@ -746,7 +746,7 @@ export default function Memories() {
                     </p>
                   </div>
                 ))}
-              {(!diary || diary.length === 0) && (
+              {(!diaryPage?.data || diaryPage.data.length === 0) && (
                 <div className="text-center py-12">
                   <Book className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-muted-foreground">

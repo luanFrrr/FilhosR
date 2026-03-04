@@ -593,8 +593,11 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const records = await storage.getDiaryEntries(childId);
-    res.json(records);
+    const page = Number(req.query.page) || 1;
+    const pageSize = Number(req.query.pageSize) || 30;
+
+    const records = await storage.getDiaryEntries(childId, page, pageSize);
+    res.json(records); // records agora é um objeto com .data, .total, etc
   });
 
   app.post(api.diary.create.path, isAuthenticated, async (req, res) => {

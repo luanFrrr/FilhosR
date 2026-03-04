@@ -271,7 +271,13 @@ export const api = {
       method: "GET" as const,
       path: "/api/children/:childId/diary",
       responses: {
-        200: z.array(z.custom<typeof diaryEntries.$inferSelect>()),
+        200: z.object({
+          data: z.array(z.custom<typeof diaryEntries.$inferSelect>()),
+          total: z.number(),
+          page: z.number(),
+          pageSize: z.number(),
+          hasMore: z.boolean(),
+        }),
       },
     },
     create: {
