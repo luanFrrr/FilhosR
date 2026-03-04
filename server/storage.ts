@@ -462,9 +462,6 @@ export class DatabaseStorage implements IStorage {
   async deleteHealthRecord(id: number): Promise<void> {
     await db.delete(healthRecords).where(eq(healthRecords.id, id));
   }
-      .returning();
-    return updated;
-  }
 
   // Milestones
   async getMilestones(childId: number): Promise<Milestone[]> {
