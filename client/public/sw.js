@@ -1,11 +1,12 @@
-const CACHE_NAME = "filhos-v6";
+const CACHE_NAME = "filhos-v7";
+const IMAGE_CACHE_NAME = "filhos-images-v1";
+const MAX_IMAGE_CACHE_ENTRIES = 200;
 const STATIC_ASSETS = ["/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       await cache.addAll(STATIC_ASSETS);
-      // Cache index.html para fallback de navegação offline
       try {
         const res = await fetch("/");
         if (res.ok) await cache.put("/__index_fallback__", res.clone());
@@ -16,11 +17,12 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
+  const keepCaches = [CACHE_NAME, IMAGE_CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => !keepCaches.includes(name))
           .map((name) => caches.delete(name)),
       );
     }),
@@ -28,8 +30,63 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+function isSupabaseImageUrl(url) {
+  return (
+    url.includes(".supabase.co/storage/v1/object/public/") ||
+    url.includes(".supabase.co/storage/v1/render/image/public/")
+  );
+}
+
+async function trimImageCache() {
+  const cache = await caches.open(IMAGE_CACHE_NAME);
+  const keys = await cache.keys();
+  if (keys.length > MAX_IMAGE_CACHE_ENTRIES) {
+    const toDelete = keys.length - MAX_IMAGE_CACHE_ENTRIES;
+    for (let i = 0; i < toDelete; i++) {
+      await cache.delete(keys[i]);
+    }
+  }
+}
+
+const PLACEHOLDER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="#e5e7eb"/></svg>';
+
+async function handleSupabaseImage(request) {
+  const cache = await caches.open(IMAGE_CACHE_NAME);
+  const cachedResponse = await cache.match(request);
+
+  if (cachedResponse) {
+    fetch(request).then(async (response) => {
+      if (response.ok) {
+        await cache.put(request, response.clone());
+        trimImageCache();
+      }
+    }).catch(() => {});
+    return cachedResponse;
+  }
+
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      await cache.put(request, response.clone());
+      trimImageCache();
+    }
+    return response;
+  } catch (_) {
+    return new Response(PLACEHOLDER_SVG, {
+      status: 200,
+      headers: { "Content-Type": "image/svg+xml" },
+    });
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
+    return;
+  }
+
+  if (isSupabaseImageUrl(event.request.url)) {
+    event.respondWith(handleSupabaseImage(event.request));
     return;
   }
 
@@ -53,7 +110,6 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Atualiza o cache do index.html a cada navegação bem-sucedida
           if (response.ok) {
             const clone = response.clone();
             caches
@@ -63,7 +119,6 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => {
-          // Fallback: retorna index.html do cache para evitar tela branca
           return caches.match("/__index_fallback__").then((cached) => {
             return (
               cached ||
@@ -140,14 +195,12 @@ self.addEventListener("notificationclick", (event) => {
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        // Se já existe uma janela aberta, usa postMessage para navegar sem reload
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
             client.postMessage({ type: "NAVIGATE", url: urlPath });
             return client.focus();
           }
         }
-        // Senão, abre uma nova janela
         return clients.openWindow(urlToOpen);
       }),
   );

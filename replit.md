@@ -91,6 +91,8 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **Owner-only Delete**: Only the caregiver with role "owner" can delete a child (backend enforced via `getCaregiverRole`). Delete button hidden in Settings for non-owners. New endpoint `/api/children/with-roles` returns children with user's role. Hook: `useChildrenWithRoles`.
 - **Caregiver Invite UI**: Enhanced visibility for invite actions. "Convidar cuidador" is now a prominent button in Settings. Dashboard empty state features a large, high-contrast "Usar Código de Convite" button for better accessibility.
 - **Service Worker Cache Fix**: Bumped cache to v3, removed root HTML from static cache, added navigation bypass to always fetch fresh HTML.
+- **Service Worker Image Cache (v7)**: Dedicated `filhos-images-v1` cache for all Supabase Storage images (both `/object/public/` and `/render/image/public/` URLs). Uses stale-while-revalidate strategy for instant image loading with background refresh. Max 200 entries with automatic eviction of oldest entries. Offline fallback serves a gray SVG placeholder. General cache restricted to same-origin (`basic` type) responses only.
+- **Supabase Image Transformations**: `getTransformedImageUrl()` in `client/src/lib/imageUtils.ts` converts Supabase Storage URLs to use the render/image API for on-the-fly resizing. Used in Header (100px avatars), Memories feed (400px thumbnails), Daily Photos (800px main + 120px thumbnails), Vaccine Card (200px proof photos), and Settings (child photos). Full-resolution originals are used for fullscreen/modal views.
 
 ## External Dependencies
 
