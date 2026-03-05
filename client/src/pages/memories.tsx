@@ -605,9 +605,10 @@ export default function Memories() {
                       <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
                         {milestone.photoUrl && (
                           <img
-                            src={getTransformedImageUrl(milestone.photoUrl, { width: 400, height: 320, resize: 'cover' })}
+                            src={getTransformedImageUrl(milestone.photoUrl, { width: 400, resize: "cover" })}
                             alt={milestone.title}
                             className="w-full h-32 object-cover rounded-lg mb-3"
+                            loading="lazy"
                           />
                         )}
                         <h3 className="font-display font-bold text-lg mb-2">

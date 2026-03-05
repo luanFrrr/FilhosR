@@ -42,7 +42,9 @@ import {
 } from "lucide-react";
 import { InviteCodeDialog } from "@/components/invite/invite-code-dialog";
 import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
-import { compressImage } from "@/lib/imageUtils";
+import { compressImage, getTransformedImageUrl } from "@/lib/imageUtils";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useUpload } from "@/hooks/use-upload";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getZodiacSign } from "@/lib/zodiac";
@@ -78,6 +80,7 @@ import {
 import { PhotoView } from "@/components/ui/photo-view";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function CaregiversList({ childId, isOwner, onRemove }: {
   childId: number;
@@ -466,7 +469,7 @@ export default function Settings() {
                     <PhotoView src={child.photoUrl || null} alt={child.name}>
                       {child.photoUrl ? (
                         <img
-                          src={child.photoUrl}
+                          src={getTransformedImageUrl(child.photoUrl, { width: 150, resize: "cover" })}
                           alt={child.name}
                           className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
                         />

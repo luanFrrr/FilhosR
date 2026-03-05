@@ -291,7 +291,7 @@ export default function DailyPhotos() {
                       alt={`Foto do dia ${format(parseISO(sortedPhotos[currentIndex]?.date), "d 'de' MMMM", { locale: ptBR })}`}
                     >
                       <img
-                        src={getTransformedImageUrl(sortedPhotos[currentIndex]?.photoUrl, { width: 800, height: 800, resize: 'contain' })}
+                        src={sortedPhotos[currentIndex]?.photoUrl}
                         alt=""
                         className="w-full h-full object-cover cursor-pointer"
                         data-testid={`img-daily-photo-${currentIndex}`}
@@ -359,11 +359,14 @@ export default function DailyPhotos() {
                         }`}
                         data-testid={`button-thumbnail-${index}`}
                       >
-                        <img
-                          src={getTransformedImageUrl(photo.photoUrl, { width: 120, height: 120, resize: 'cover' })}
-                          alt=""
-                          className="w-full h-full object-cover rounded-lg"
-                        />
+                        <div className="bg-white rounded-lg border border-border overflow-hidden shadow-sm group-hover:shadow-md transition-all w-full h-full">
+                          <img
+                            src={getTransformedImageUrl(photo.photoUrl, { width: 400, resize: "cover" })}
+                            alt={`Foto do dia ${new Date(photo.date).toLocaleDateString()}`}
+                            className="w-full aspect-square object-cover"
+                            loading="lazy"
+                          />
+                        </div>
                         {isNewest && (
                           <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold shadow">
                             ★

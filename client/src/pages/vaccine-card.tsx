@@ -87,7 +87,7 @@ export default function VaccineCard() {
       form.reset({
         susVaccineId: String(editingRecord.susVaccineId),
         dose: editingRecord.dose,
-        applicationDate: editingRecord.applicationDate,
+        applicationDate: editingRecord.applicationDate || "",
         applicationPlace: editingRecord.applicationPlace || "",
         notes: editingRecord.notes || "",
       });
@@ -643,7 +643,7 @@ export default function VaccineCard() {
                   {photoUrls.map((url, index) => (
                     <div key={`saved-${index}`} className="relative">
                       <img 
-                        src={url} 
+                        src={getTransformedImageUrl(url, { width: 150, resize: "cover" })} 
                         alt={`Foto salva ${index + 1}`} 
                         className="w-20 h-20 object-cover rounded-lg border shadow-sm"
                       />
@@ -775,7 +775,7 @@ export default function VaccineCard() {
                           className="block"
                         >
                           <img 
-                            src={url} 
+                            src={getTransformedImageUrl(url, { width: 400, resize: "cover" })} 
                             alt={`Comprovante ${index + 1}`} 
                             className="w-24 h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity"
                           />
