@@ -124,6 +124,7 @@ export interface IStorage {
   // Gamification
   getGamification(childId: number): Promise<Gamification | undefined>;
   addPoints(childId: number, points: number): Promise<Gamification>;
+  adjustPoints(childId: number, delta: number): Promise<Gamification>;
   initializeGamification(childId: number): Promise<Gamification>;
 
   // SUS Vaccines
@@ -639,6 +640,35 @@ export class DatabaseStorage implements IStorage {
         target: gamification.childId,
         set: {
           points: sql`GREATEST(${gamification.points} + ${points}, 0)`,
+          level: levelExpr,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return updated;
+  }
+
+  async adjustPoints(childId: number, delta: number): Promise<Gamification> {
+    // Atomic upsert with clamping to 0 to prevent negative points
+    const adjustedPoints = sql`GREATEST(0, COALESCE(${gamification.points}, 0) + ${delta})`;
+
+    const levelExpr = sql<string>`
+      CASE
+        WHEN (${adjustedPoints}) > 2000 THEN 'Guardião da Infância'
+        WHEN (${adjustedPoints}) > 1000 THEN 'Mãe/Pai Coruja'
+        WHEN (${adjustedPoints}) > 500  THEN 'Mãe/Pai Dedicado'
+        WHEN (${adjustedPoints}) > 100  THEN 'Cuidador Atento'
+        ELSE 'Iniciante'
+      END
+    `;
+
+    const [updated] = await db
+      .insert(gamification)
+      .values({ childId, points: Math.max(0, delta), level: "Iniciante" })
+      .onConflictDoUpdate({
+        target: gamification.childId,
+        set: {
+          points: adjustedPoints,
           level: levelExpr,
           updatedAt: new Date(),
         },
