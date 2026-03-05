@@ -114,18 +114,15 @@ export interface IStorage {
     pageSize?: number,
   ): Promise<{ data: DiaryEntry[]; total: number; page: number; pageSize: number; hasMore: boolean }>;
   getDiaryEntryById(id: number): Promise<DiaryEntry | undefined>;
-  createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry>;
+  createDiaryEntry(entry: InsertDiaryEntry, tx?: any): Promise<DiaryEntry>;
   updateDiaryEntry(
     id: number,
     data: Partial<InsertDiaryEntry>,
   ): Promise<DiaryEntry | undefined>;
-  deleteDiaryEntry(id: number): Promise<boolean>;
+  deleteDiaryEntry(id: number, tx?: any): Promise<boolean>;
 
   // Gamification
   getGamification(childId: number): Promise<Gamification | undefined>;
-  addPoints(childId: number, points: number): Promise<Gamification>;
-  adjustPoints(childId: number, delta: number): Promise<Gamification>;
-  initializeGamification(childId: number): Promise<Gamification>;
 
   // SUS Vaccines
   getSusVaccines(): Promise<SusVaccine[]>;
@@ -134,12 +131,12 @@ export interface IStorage {
   // Vaccine Records
   getVaccineRecords(childId: number): Promise<VaccineRecord[]>;
   getVaccineRecordById(id: number): Promise<VaccineRecord | undefined>;
-  createVaccineRecord(record: InsertVaccineRecord): Promise<VaccineRecord>;
+  createVaccineRecord(record: InsertVaccineRecord, tx?: any): Promise<VaccineRecord>;
   updateVaccineRecord(
     id: number,
     record: Partial<InsertVaccineRecord>,
   ): Promise<VaccineRecord>;
-  deleteVaccineRecord(id: number): Promise<void>;
+  deleteVaccineRecord(id: number, tx?: any): Promise<void>;
 
   // Daily Photos
   getDailyPhotos(
@@ -152,8 +149,8 @@ export interface IStorage {
     date: string,
   ): Promise<DailyPhoto | undefined>;
   getDailyPhotoById(id: number): Promise<DailyPhoto | undefined>;
-  createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto>;
-  deleteDailyPhoto(id: number): Promise<void>;
+  createDailyPhoto(photo: InsertDailyPhoto, tx?: any): Promise<DailyPhoto>;
+  deleteDailyPhoto(id: number, tx?: any): Promise<void>;
 
   // Push Subscriptions
   getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]>;
@@ -571,8 +568,9 @@ export class DatabaseStorage implements IStorage {
     return record;
   }
 
-  async createDiaryEntry(entry: InsertDiaryEntry): Promise<DiaryEntry> {
-    const [newEntry] = await db.insert(diaryEntries).values(entry).returning();
+  async createDiaryEntry(entry: InsertDiaryEntry, tx?: any): Promise<DiaryEntry> {
+    const ex = tx ?? db;
+    const [newEntry] = await ex.insert(diaryEntries).values(entry).returning();
     return newEntry;
   }
 
@@ -588,8 +586,9 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async deleteDiaryEntry(id: number): Promise<boolean> {
-    const result = await db
+  async deleteDiaryEntry(id: number, tx?: any): Promise<boolean> {
+    const ex = tx ?? db;
+    const result = await ex
       .delete(diaryEntries)
       .where(eq(diaryEntries.id, id))
       .returning();
@@ -603,78 +602,6 @@ export class DatabaseStorage implements IStorage {
       .from(gamification)
       .where(eq(gamification.childId, childId));
     return g;
-  }
-
-  async initializeGamification(childId: number): Promise<Gamification> {
-    const existing = await this.getGamification(childId);
-    if (existing) return existing;
-
-    const [created] = await db
-      .insert(gamification)
-      .values({
-        childId,
-        points: 0,
-        level: "Iniciante",
-      })
-      .returning();
-    return created;
-  }
-
-  async addPoints(childId: number, points: number): Promise<Gamification> {
-    const newPoints = sql`GREATEST(COALESCE(${gamification.points}, 0) + ${points}, 0)`;
-
-    const levelExpr = sql<string>`
-      CASE
-        WHEN (${newPoints}) > 2000 THEN 'Guardião da Infância'
-        WHEN (${newPoints}) > 1000 THEN 'Mãe/Pai Coruja'
-        WHEN (${newPoints}) > 500  THEN 'Mãe/Pai Dedicado'
-        WHEN (${newPoints}) > 100  THEN 'Cuidador Atento'
-        ELSE 'Iniciante'
-      END
-    `;
-
-    const [updated] = await db
-      .insert(gamification)
-      .values({ childId, points: Math.max(points, 0), level: "Iniciante" })
-      .onConflictDoUpdate({
-        target: gamification.childId,
-        set: {
-          points: sql`GREATEST(${gamification.points} + ${points}, 0)`,
-          level: levelExpr,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return updated;
-  }
-
-  async adjustPoints(childId: number, delta: number): Promise<Gamification> {
-    // Atomic upsert with clamping to 0 to prevent negative points
-    const adjustedPoints = sql`GREATEST(0, COALESCE(${gamification.points}, 0) + ${delta})`;
-
-    const levelExpr = sql<string>`
-      CASE
-        WHEN (${adjustedPoints}) > 2000 THEN 'Guardião da Infância'
-        WHEN (${adjustedPoints}) > 1000 THEN 'Mãe/Pai Coruja'
-        WHEN (${adjustedPoints}) > 500  THEN 'Mãe/Pai Dedicado'
-        WHEN (${adjustedPoints}) > 100  THEN 'Cuidador Atento'
-        ELSE 'Iniciante'
-      END
-    `;
-
-    const [updated] = await db
-      .insert(gamification)
-      .values({ childId, points: Math.max(0, delta), level: "Iniciante" })
-      .onConflictDoUpdate({
-        target: gamification.childId,
-        set: {
-          points: adjustedPoints,
-          level: levelExpr,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return updated;
   }
 
   // SUS Vaccines
@@ -794,8 +721,10 @@ export class DatabaseStorage implements IStorage {
 
   async createVaccineRecord(
     record: InsertVaccineRecord,
+    tx?: any,
   ): Promise<VaccineRecord> {
-    const [newRecord] = await db
+    const ex = tx ?? db;
+    const [newRecord] = await ex
       .insert(vaccineRecords)
       .values(record)
       .returning();
@@ -814,8 +743,9 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async deleteVaccineRecord(id: number): Promise<void> {
-    await db.delete(vaccineRecords).where(eq(vaccineRecords.id, id));
+  async deleteVaccineRecord(id: number, tx?: any): Promise<void> {
+    const ex = tx ?? db;
+    await ex.delete(vaccineRecords).where(eq(vaccineRecords.id, id));
   }
 
   // Daily Photos
@@ -852,13 +782,15 @@ export class DatabaseStorage implements IStorage {
     return photo;
   }
 
-  async createDailyPhoto(photo: InsertDailyPhoto): Promise<DailyPhoto> {
-    const [newPhoto] = await db.insert(dailyPhotos).values(photo).returning();
+  async createDailyPhoto(photo: InsertDailyPhoto, tx?: any): Promise<DailyPhoto> {
+    const ex = tx ?? db;
+    const [newPhoto] = await ex.insert(dailyPhotos).values(photo).returning();
     return newPhoto;
   }
 
-  async deleteDailyPhoto(id: number): Promise<void> {
-    await db.delete(dailyPhotos).where(eq(dailyPhotos.id, id));
+  async deleteDailyPhoto(id: number, tx?: any): Promise<void> {
+    const ex = tx ?? db;
+    await ex.delete(dailyPhotos).where(eq(dailyPhotos.id, id));
   }
 
   async getPushSubscriptionsByUserId(

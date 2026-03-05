@@ -113,6 +113,30 @@ export const gamification = pgTable(
   }),
 );
 
+// Log de eventos de pontuação — fonte de verdade; gamification.points é cache
+export const gamificationEvents = pgTable(
+  "gamification_events",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id").notNull(),
+    delta: integer("delta").notNull(),
+    reason: text("reason").notNull(),
+    recordType: text("record_type").notNull(),
+    recordId: integer("record_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    // Idempotência: mesmo evento não pode ser inserido duas vezes
+    idempotency: uniqueIndex("gamification_events_idempotency").on(
+      table.recordType,
+      table.recordId,
+      table.reason,
+    ),
+    // Índice para SUM(delta) de auditoria e histórico por criança
+    childIdx: index("idx_gamification_events_child").on(table.childId),
+  }),
+);
+
 // Catálogo de vacinas do SUS (PNI)
 export const susVaccines = pgTable("sus_vaccines", {
   id: serial("id").primaryKey(),
@@ -263,6 +287,13 @@ export const gamificationRelations = relations(gamification, ({ one }) => ({
   }),
 }));
 
+export const gamificationEventsRelations = relations(gamificationEvents, ({ one }) => ({
+  child: one(children, {
+    fields: [gamificationEvents.childId],
+    references: [children.id],
+  }),
+}));
+
 export const susVaccinesRelations = relations(susVaccines, ({ many }) => ({
   records: many(vaccineRecords),
 }));
@@ -407,6 +438,7 @@ export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type InsertDiaryEntry = z.infer<typeof insertDiaryEntrySchema>;
 
 export type Gamification = typeof gamification.$inferSelect;
+export type GamificationEvent = typeof gamificationEvents.$inferSelect;
 
 export type SusVaccine = typeof susVaccines.$inferSelect;
 export type InsertSusVaccine = z.infer<typeof insertSusVaccineSchema>;

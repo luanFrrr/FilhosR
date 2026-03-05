@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { caregivers, activityComments } from "@shared/schema";
 import { db } from "./db";
-import { eq as drizzleEq } from "drizzle-orm";
+import { eq as drizzleEq, sql } from "drizzle-orm";
 import {
   setupAuth,
   registerAuthRoutes,
@@ -19,6 +19,7 @@ import {
 } from "./vaccineNotifications";
 import { uploadToStorage, type UploadBucket } from "./supabaseStorage";
 import rateLimit from "express-rate-limit";
+import { recordPoints } from "./gamificationHelper";
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
 // Global: 300 requests por IP por janela de 15 minutos
@@ -155,42 +156,35 @@ export async function registerRoutes(
 
     try {
       const input = api.children.create.input.parse(req.body);
-      const child = await storage.createChild(input);
 
-      // Link to current user as Owner
-      await db.insert(caregivers).values({
-        childId: child.id,
-        userId: userId,
-        relationship: "parent", // Default
-        role: "owner",
-      });
+      let child: any;
+      await db.transaction(async (tx) => {
+        // 1. Criar a criança
+        child = await storage.createChild(input);
 
-      // Create initial growth record if measurements provided
-      const hasWeight =
-        input.initialWeight && parseFloat(String(input.initialWeight)) > 0;
-      const hasHeight =
-        input.initialHeight && parseFloat(String(input.initialHeight)) > 0;
-      const hasHead =
-        input.initialHeadCircumference &&
-        parseFloat(String(input.initialHeadCircumference)) > 0;
-
-      if (hasWeight || hasHeight || hasHead) {
-        const growthData: any = {
+        // 2. Vincular como owner
+        await tx.insert(caregivers).values({
           childId: child.id,
-          date: child.birthDate, // Use birth date as the date for initial measurements
-          notes: "Medidas ao nascer",
-        };
+          userId,
+          relationship: "parent",
+          role: "owner",
+        });
 
-        if (hasWeight) growthData.weight = String(input.initialWeight);
-        if (hasHeight) growthData.height = String(input.initialHeight);
-        if (hasHead)
-          growthData.headCircumference = String(input.initialHeadCircumference);
+        // 3. Medidas ao nascer (opcional)
+        const hasWeight = input.initialWeight && parseFloat(String(input.initialWeight)) > 0;
+        const hasHeight = input.initialHeight && parseFloat(String(input.initialHeight)) > 0;
+        const hasHead   = input.initialHeadCircumference && parseFloat(String(input.initialHeadCircumference)) > 0;
+        if (hasWeight || hasHeight || hasHead) {
+          const growthData: any = { childId: child.id, date: child.birthDate, notes: "Medidas ao nascer" };
+          if (hasWeight) growthData.weight = String(input.initialWeight);
+          if (hasHeight) growthData.height = String(input.initialHeight);
+          if (hasHead)   growthData.headCircumference = String(input.initialHeadCircumference);
+          await storage.createGrowthRecord(growthData);
+        }
 
-        await storage.createGrowthRecord(growthData);
-      }
-
-      // Gamification points - initialize for new child
-      await storage.addPoints(child.id, 50);
+        // 4. Gamificação — 50 pontos por cadastrar uma criança
+        await recordPoints(tx, child.id, 50, 'child_create', 'child', child.id);
+      });
 
       res.status(201).json(child);
     } catch (err) {
@@ -258,15 +252,19 @@ export async function registerRoutes(
     }
 
     const input = api.growth.create.input.parse(req.body);
-    const record = await storage.createGrowthRecord({ ...input, childId });
+
+    let record: any;
+    await db.transaction(async (tx) => {
+      record = await storage.createGrowthRecord({ ...input, childId });
+      await recordPoints(tx, childId, 10, 'growth_create', 'growth_record', record.id);
+    });
 
     // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: gamificação + notificações (não bloqueia a resposta)
+    // Background: notificações (pontos já persistidos na transação)
     (async () => {
       try {
-        await storage.addPoints(childId, 10);
         const [user, child] = await Promise.all([
           storage.getUser(userId),
           storage.getChild(childId),
@@ -274,8 +272,7 @@ export async function registerRoutes(
         const userName = resolveUserName(user);
         const childName = child?.name || "seu filho(a)";
         notifyCaregivers(
-          childId,
-          userId,
+          childId, userId,
           "📏 Novo registro de crescimento",
           `${userName} registrou peso/altura do ${childName}`,
           "/health?tab=growth",
@@ -317,7 +314,11 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const record = await storage.archiveGrowthRecord(id);
+    let record: any;
+    await db.transaction(async (tx) => {
+      record = await storage.archiveGrowthRecord(id);
+      await recordPoints(tx, existing.childId, -10, 'growth_archive', 'growth_record', id);
+    });
     res.json(record);
   });
 
@@ -345,15 +346,19 @@ export async function registerRoutes(
     }
 
     const input = api.vaccines.create.input.parse(req.body);
-    const record = await storage.createVaccine({ ...input, childId });
+
+    let record: any;
+    await db.transaction(async (tx) => {
+      record = await storage.createVaccine({ ...input, childId });
+      await recordPoints(tx, childId, 10, 'vaccine_create', 'vaccine', record.id);
+    });
 
     // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: gamificação + notificações (não bloqueia a resposta)
+    // Background: notificações
     (async () => {
       try {
-        await storage.addPoints(childId, 10);
         const [user, child] = await Promise.all([
           storage.getUser(userId),
           storage.getChild(childId),
@@ -361,8 +366,7 @@ export async function registerRoutes(
         const userName = resolveUserName(user);
         const childName = child?.name || "seu filho(a)";
         notifyCaregivers(
-          childId,
-          userId,
+          childId, userId,
           "💉 Nova vacina adicionada",
           `${userName} adicionou a vacina "${record.name}" para o ${childName}`,
           "/vaccines",
@@ -522,15 +526,19 @@ export async function registerRoutes(
     }
 
     const input = api.milestones.create.input.parse(req.body);
-    const record = await storage.createMilestone({ ...input, childId });
 
-    // Responde imediatamente — operações secundárias rodam em background
+    let record: any;
+    await db.transaction(async (tx) => {
+      record = await storage.createMilestone({ ...input, childId });
+      await recordPoints(tx, childId, 20, 'milestone_create', 'milestone', record.id);
+    });
+
+    // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: gamificação + notificações (não bloqueia a resposta)
+    // Background: notificações
     (async () => {
       try {
-        await storage.addPoints(childId, 20);
         const [user, child] = await Promise.all([
           storage.getUser(userId),
           storage.getChild(childId),
@@ -538,8 +546,7 @@ export async function registerRoutes(
         const userName = resolveUserName(user);
         const childName = child?.name || "seu filho(a)";
         notifyCaregivers(
-          childId,
-          userId,
+          childId, userId,
           "✨ Novo marco registrado!",
           `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
           `/memories?tab=milestones&id=${record.id}`,
@@ -581,18 +588,11 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    await storage.deleteMilestone(milestoneId);
-    await storage.addPoints(existing.childId, -20);
+    await db.transaction(async (tx) => {
+      await storage.deleteMilestone(milestoneId);
+      await recordPoints(tx, existing.childId, -20, 'milestone_delete', 'milestone', milestoneId);
+    });
     res.status(204).send();
-
-    // Background: reverter pontos de gamificação (não bloqueia a resposta)
-    (async () => {
-      try {
-        await storage.adjustPoints(existing.childId, -20);
-      } catch (err) {
-        console.error("[bg] Erro ao reverter pontos de marco:", err);
-      }
-    })();
   });
 
   // Diary
@@ -622,15 +622,19 @@ export async function registerRoutes(
     }
 
     const input = api.diary.create.input.parse(req.body);
-    const record = await storage.createDiaryEntry({ ...input, childId });
 
-    // Responde imediatamente — operações secundárias rodam em background
+    let record: any;
+    await db.transaction(async (tx) => {
+      record = await storage.createDiaryEntry({ ...input, childId }, tx);
+      await recordPoints(tx, childId, 5, 'diary_create', 'diary_entry', record.id);
+    });
+
+    // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: gamificação + notificações (não bloqueia a resposta)
+    // Background: notificações
     (async () => {
       try {
-        await storage.addPoints(childId, 5);
         const [user, child] = await Promise.all([
           storage.getUser(userId),
           storage.getChild(childId),
@@ -638,8 +642,7 @@ export async function registerRoutes(
         const userName = resolveUserName(user);
         const childName = child?.name || "seu filho(a)";
         notifyCaregivers(
-          childId,
-          userId,
+          childId, userId,
           "📖 Nova nota no diário",
           `${userName} escreveu uma nova nota no diário do ${childName}`,
           `/memories?tab=diary&id=${record.id}`,
@@ -681,18 +684,11 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    await storage.deleteDiaryEntry(entryId);
-    await storage.addPoints(entry.childId, -5);
+    await db.transaction(async (tx) => {
+      await storage.deleteDiaryEntry(entryId, tx);
+      await recordPoints(tx, entry.childId, -5, 'diary_delete', 'diary_entry', entryId);
+    });
     res.status(204).send();
-
-    // Background: reverter pontos de gamificação (não bloqueia a resposta)
-    (async () => {
-      try {
-        await storage.adjustPoints(entry.childId, -5);
-      } catch (err) {
-        console.error("[bg] Erro ao reverter pontos de diário:", err);
-      }
-    })();
   });
 
   // SUS Vaccines Catalog (requer autenticação)
@@ -730,15 +726,19 @@ export async function registerRoutes(
       }
 
       const input = api.vaccineRecords.create.input.parse(req.body);
-      const record = await storage.createVaccineRecord({ ...input, childId });
 
-      // Responde imediatamente — operações secundárias rodam em background
+      let record: any;
+      await db.transaction(async (tx) => {
+        record = await storage.createVaccineRecord({ ...input, childId }, tx);
+        await recordPoints(tx, childId, 15, 'vaccine_record_create', 'vaccine_record', record.id);
+      });
+
+      // Responde imediatamente
       res.status(201).json(record);
 
-      // Background: gamificação + notificações (não bloqueia a resposta)
+      // Background: notificações
       (async () => {
         try {
-          await storage.addPoints(childId, 15);
           const [user, child, allVaccines] = await Promise.all([
             storage.getUser(userId),
             storage.getChild(childId),
@@ -746,12 +746,9 @@ export async function registerRoutes(
           ]);
           const userName = resolveUserName(user);
           const childName = child?.name || "seu filho(a)";
-          const susVaccine = allVaccines.find(
-            (v) => v.id === record.susVaccineId,
-          );
+          const susVaccine = allVaccines.find((v) => v.id === record.susVaccineId);
           notifyCaregivers(
-            childId,
-            userId,
+            childId, userId,
             "💉 Nova vacina registrada",
             `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`,
             "/vaccines",
@@ -805,17 +802,11 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Acesso negado" });
       }
 
-      await storage.deleteVaccineRecord(id);
+      await db.transaction(async (tx) => {
+        await storage.deleteVaccineRecord(id, tx);
+        await recordPoints(tx, existing.childId, -15, 'vaccine_record_delete', 'vaccine_record', id);
+      });
       res.status(204).end();
-
-      // Background: reverter pontos de gamificação (não bloqueia a resposta)
-      (async () => {
-        try {
-          await storage.adjustPoints(existing.childId, -15);
-        } catch (err) {
-          console.error("[bg] Erro ao reverter pontos de vacina:", err);
-        }
-      })();
     },
   );
 
@@ -897,15 +888,18 @@ export async function registerRoutes(
     }
 
     try {
-      const photo = await storage.createDailyPhoto({ ...input, childId });
+      let photo: any;
+      await db.transaction(async (tx) => {
+        photo = await storage.createDailyPhoto({ ...input, childId }, tx);
+        await recordPoints(tx, childId, 5, 'daily_photo_create', 'daily_photo', photo.id);
+      });
 
       // Responde imediatamente
       res.status(201).json(photo);
 
-      // Background: gamificação + notificações (não bloqueia a resposta)
+      // Background: notificações
       (async () => {
         try {
-          await storage.addPoints(childId, 5);
           const [user, child] = await Promise.all([
             storage.getUser(userId),
             storage.getChild(childId),
@@ -913,8 +907,7 @@ export async function registerRoutes(
           const userName = resolveUserName(user);
           const childName = child?.name || "seu filho(a)";
           notifyCaregivers(
-            childId,
-            userId,
+            childId, userId,
             "📸 Nova Foto do Dia!",
             `${userName} adicionou a foto do dia do ${childName}`,
             "/daily-photos",
@@ -954,18 +947,37 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    await storage.deleteDailyPhoto(id);
-    await storage.addPoints(photo.childId, -5);
+    await db.transaction(async (tx) => {
+      await storage.deleteDailyPhoto(id, tx);
+      await recordPoints(tx, photo.childId, -5, 'daily_photo_delete', 'daily_photo', id);
+    });
     res.status(204).end();
+  });
 
-    // Background: reverter pontos de gamificação (não bloqueia a resposta)
-    (async () => {
-      try {
-        await storage.adjustPoints(photo.childId, -5);
-      } catch (err) {
-        console.error("[bg] Erro ao reverter pontos de foto:", err);
-      }
-    })();
+  // Admin: verifica consistência entre gamification.points e SUM(events)
+  app.get("/admin/gamification/verify/:childId", isAuthenticated, async (req, res) => {
+    const childId = Number(req.params.childId);
+    if (!childId || isNaN(childId)) {
+      return res.status(400).json({ message: "childId inválido" });
+    }
+    try {
+      const [consistencyRow] = (await db.execute(
+        sql`SELECT verify_gamification(${childId}) AS consistent`
+      ) as unknown) as any[];
+      const [eventsRow] = (await db.execute(
+        sql`SELECT COALESCE(SUM(delta), 0) AS real_sum FROM gamification_events WHERE child_id = ${childId}`
+      ) as unknown) as any[];
+      const cached = await storage.getGamification(childId);
+      res.json({
+        childId,
+        consistent: consistencyRow?.consistent ?? null,
+        cachedPoints: cached?.points ?? 0,
+        realSum: Number(eventsRow?.real_sum ?? 0),
+      });
+    } catch (err) {
+      console.error("[admin] verify_gamification error:", err);
+      res.status(500).json({ message: "Erro ao verificar gamificação" });
+    }
   });
 
   app.get("/.well-known/assetlinks.json", (_req, res) => {
