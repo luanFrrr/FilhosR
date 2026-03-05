@@ -13,6 +13,7 @@ import {
 import { Link } from "wouter";
 
 import { PhotoView } from "@/components/ui/photo-view";
+import { getTransformedImageUrl } from "@/lib/imageUtils";
 
 export function Header({ title, showChildSelector = true }: { title?: string, showChildSelector?: boolean }) {
   const { activeChild, setActiveChildId } = useChildContext();
@@ -32,7 +33,7 @@ export function Header({ title, showChildSelector = true }: { title?: string, sh
                 <PhotoView src={activeChild?.photoUrl || null} alt={activeChild?.name}>
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-primary overflow-hidden">
                     {activeChild?.photoUrl ? (
-                      <img src={activeChild.photoUrl} alt={activeChild.name} className="w-full h-full object-cover" />
+                      <img src={getTransformedImageUrl(activeChild.photoUrl, { width: 100, resize: "cover" })} alt={activeChild.name} className="w-full h-full object-cover" />
                     ) : (
                       <Baby className="w-5 h-5" />
                     )}
@@ -56,7 +57,7 @@ export function Header({ title, showChildSelector = true }: { title?: string, sh
                     <div className="flex items-center gap-3">
                        {child.photoUrl ? (
                          <img 
-                           src={child.photoUrl} 
+                           src={getTransformedImageUrl(child.photoUrl, { width: 100, resize: "cover" })} 
                            alt={child.name}
                            className="w-6 h-6 rounded-full object-cover"
                          />

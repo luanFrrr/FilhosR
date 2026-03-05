@@ -14,7 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image, Heart, Star, Sparkles, AlertTriangle } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
-import { compressImage } from "@/lib/imageUtils";
+import { compressImage, getTransformedImageUrl } from "@/lib/imageUtils";
 import { cn, parseLocalDate } from "@/lib/utils";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import { motion, AnimatePresence } from "framer-motion";
@@ -87,7 +87,7 @@ export default function VaccineCard() {
       form.reset({
         susVaccineId: String(editingRecord.susVaccineId),
         dose: editingRecord.dose,
-        applicationDate: editingRecord.applicationDate,
+        applicationDate: editingRecord.applicationDate || "",
         applicationPlace: editingRecord.applicationPlace || "",
         notes: editingRecord.notes || "",
       });
@@ -643,7 +643,7 @@ export default function VaccineCard() {
                   {photoUrls.map((url, index) => (
                     <div key={`saved-${index}`} className="relative">
                       <img 
-                        src={url} 
+                        src={getTransformedImageUrl(url, { width: 150, resize: "cover" })} 
                         alt={`Foto salva ${index + 1}`} 
                         className="w-20 h-20 object-cover rounded-lg border shadow-sm"
                       />
@@ -775,7 +775,7 @@ export default function VaccineCard() {
                           className="block"
                         >
                           <img 
-                            src={url} 
+                            src={getTransformedImageUrl(url, { width: 400, resize: "cover" })} 
                             alt={`Comprovante ${index + 1}`} 
                             className="w-24 h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity"
                           />

@@ -13,6 +13,7 @@ import { PhotoView } from "@/components/ui/photo-view";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import { X } from "lucide-react";
 import { useUpload } from "@/hooks/use-upload";
+import { getTransformedImageUrl } from "@/lib/imageUtils";
 
 const MENSAGENS_MOMENTO = [
   "Esse momento não volta. Ainda bem que você guardou.",
@@ -358,11 +359,14 @@ export default function DailyPhotos() {
                         }`}
                         data-testid={`button-thumbnail-${index}`}
                       >
-                        <img
-                          src={photo.photoUrl}
-                          alt=""
-                          className="w-full h-full object-cover rounded-lg"
-                        />
+                        <div className="bg-white rounded-lg border border-border overflow-hidden shadow-sm group-hover:shadow-md transition-all w-full h-full">
+                          <img
+                            src={getTransformedImageUrl(photo.photoUrl, { width: 400, resize: "cover" })}
+                            alt={`Foto do dia ${new Date(photo.date).toLocaleDateString()}`}
+                            className="w-full aspect-square object-cover"
+                            loading="lazy"
+                          />
+                        </div>
                         {isNewest && (
                           <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold shadow">
                             ★
