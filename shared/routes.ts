@@ -174,9 +174,16 @@ export const api = {
     create: {
       method: "POST" as const,
       path: "/api/children/:childId/vaccines",
-      input: insertVaccineSchema.omit({ childId: true }),
+      input: insertVaccineSchema.omit({ childId: true }).extend({
+        // Campos opcionais para auto-criar doses na carteira vacinal
+        autoCreateDoses: z.number().int().min(1).max(10).optional(),
+        susVaccineId: z.number().int().optional(),
+      }),
       responses: {
-        201: z.custom<typeof vaccines.$inferSelect>(),
+        201: z.object({
+          vaccine: z.custom<typeof vaccines.$inferSelect>(),
+          dosesCreated: z.array(z.custom<typeof vaccineRecords.$inferSelect>()),
+        }),
         400: errorSchemas.validation,
       },
     },

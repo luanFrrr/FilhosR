@@ -345,16 +345,43 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
+    const DOSE_LABELS = [
+      "1ª dose","2ª dose","3ª dose","4ª dose","5ª dose",
+      "6ª dose","7ª dose","8ª dose","9ª dose","10ª dose",
+    ];
+
     const input = api.vaccines.create.input.parse(req.body);
 
-    let record: any;
+    let vaccine: any;
+    const createdDoses: any[] = [];
+
     await db.transaction(async (tx) => {
-      record = await storage.createVaccine({ ...input, childId });
-      await recordPoints(tx, childId, 10, 'vaccine_create', 'vaccine', record.id);
+      // 1. Criar vacina na agenda
+      vaccine = await storage.createVaccine({ ...input, childId });
+
+      // 2. Auto-criar doses pendentes na carteira (sem applicationDate = pendente)
+      if (input.autoCreateDoses && input.susVaccineId) {
+        for (let i = 0; i < input.autoCreateDoses; i++) {
+          const dose = await storage.createVaccineRecord(
+            {
+              childId,
+              susVaccineId: input.susVaccineId,
+              dose: DOSE_LABELS[i] ?? `${i + 1}ª dose`,
+              applicationDate: null, // pendente — preenchida ao aplicar
+              notes: null,
+            } as any,
+            tx,
+          );
+          if (dose) createdDoses.push(dose); // null = conflito ignorado (idempotente)
+        }
+      }
+
+      // 3. Gamificação — atômica com o restante
+      await recordPoints(tx, childId, 10, 'vaccine_create', 'vaccine', vaccine.id);
     });
 
     // Responde imediatamente
-    res.status(201).json(record);
+    res.status(201).json({ vaccine, dosesCreated: createdDoses });
 
     // Background: notificações
     (async () => {
@@ -365,10 +392,11 @@ export async function registerRoutes(
         ]);
         const userName = resolveUserName(user);
         const childName = child?.name || "seu filho(a)";
+        const dosesInfo = createdDoses.length > 0 ? ` (${createdDoses.length} dose(s) criadas)` : "";
         notifyCaregivers(
           childId, userId,
           "💉 Nova vacina adicionada",
-          `${userName} adicionou a vacina "${record.name}" para o ${childName}`,
+          `${userName} adicionou a vacina "${vaccine.name}" para o ${childName}${dosesInfo}`,
           "/vaccines",
         );
       } catch (err) {

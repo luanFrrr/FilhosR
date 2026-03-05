@@ -200,12 +200,17 @@ export const vaccineRecords = pgTable("vaccine_records", {
   childId: integer("child_id").notNull(),
   susVaccineId: integer("sus_vaccine_id").notNull(),
   dose: text("dose").notNull(), // Ex: "1ª dose", "2ª dose", "Reforço"
-  applicationDate: date("application_date").notNull(),
+  applicationDate: date("application_date"), // nullable = dose pendente (ainda não aplicada)
   applicationPlace: text("application_place"),
   notes: text("notes"),
   photoUrls: text("photo_urls").array(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+},
+(table) => ({
+  // Garante que a mesma dose de uma vacina não seja inserida duas vezes para a mesma criança
+  idempotency: uniqueIndex("vaccine_records_idempotency")
+    .on(table.childId, table.susVaccineId, table.dose),
+}));
 
 // === RELATIONS ===
 

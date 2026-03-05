@@ -131,7 +131,7 @@ export interface IStorage {
   // Vaccine Records
   getVaccineRecords(childId: number): Promise<VaccineRecord[]>;
   getVaccineRecordById(id: number): Promise<VaccineRecord | undefined>;
-  createVaccineRecord(record: InsertVaccineRecord, tx?: any): Promise<VaccineRecord>;
+  createVaccineRecord(record: InsertVaccineRecord, tx?: any): Promise<VaccineRecord | null>;
   updateVaccineRecord(
     id: number,
     record: Partial<InsertVaccineRecord>,
@@ -722,13 +722,14 @@ export class DatabaseStorage implements IStorage {
   async createVaccineRecord(
     record: InsertVaccineRecord,
     tx?: any,
-  ): Promise<VaccineRecord> {
+  ): Promise<VaccineRecord | null> {
     const ex = tx ?? db;
     const [newRecord] = await ex
       .insert(vaccineRecords)
       .values(record)
+      .onConflictDoNothing() // idempotente: ignora se (child_id, sus_vaccine_id, dose) já existe
       .returning();
-    return newRecord;
+    return newRecord ?? null;
   }
 
   async updateVaccineRecord(

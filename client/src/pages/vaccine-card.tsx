@@ -67,6 +67,10 @@ export default function VaccineCard() {
   const [selectedVaccine, setSelectedVaccine] = useState<SusVaccine | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationVaccine, setCelebrationVaccine] = useState<string>("");
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchDoses, setBatchDoses] = useState("2");
+
+  const DOSE_LABELS = ["1ª dose","2ª dose","3ª dose","4ª dose","5ª dose","6ª dose"];
 
   const form = useForm({
     defaultValues: {
@@ -123,6 +127,8 @@ export default function VaccineCard() {
     setPhotoUrls([]);
     setNewPhotoFiles([]);
     setSelectedVaccine(null);
+    setBatchMode(false);
+    setBatchDoses("2");
     setFormOpen(true);
   };
 
@@ -167,42 +173,35 @@ export default function VaccineCard() {
     try {
       let currentPhotos = [...photoUrls];
 
-      // 1. Upload das novas fotos para o Supabase
+      // Upload das novas fotos para o Supabase
       if (newPhotoFiles.length > 0) {
-        const uploadPromises = newPhotoFiles.map(file => 
-          upload(file, {
-            bucket: "vaccine-photos",
-            path: `${activeChild.id}/vaccine-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`,
-            maxSize: 1200,
-            quality: 0.8,
-          })
+        const uploadedUrls = await Promise.all(
+          newPhotoFiles.map(file =>
+            upload(file, {
+              bucket: "vaccine-photos",
+              path: `${activeChild.id}/vaccine-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`,
+              maxSize: 1200,
+              quality: 0.8,
+            })
+          )
         );
-        
-        const uploadedUrls = await Promise.all(uploadPromises);
-        const validUrls = uploadedUrls.filter((url): url is string => !!url);
-        currentPhotos = [...currentPhotos, ...validUrls];
-      }
-
-      const payload = {
-        susVaccineId: parseInt(data.susVaccineId),
-        dose: data.dose,
-        applicationDate: data.applicationDate,
-        applicationPlace: data.applicationPlace || null,
-        notes: data.notes || null,
-        photoUrls: currentPhotos.length > 0 ? currentPhotos : null,
-      };
-
-      // Ensure we send YYYY-MM-DD format
-      if (payload.applicationDate.includes('T')) {
-        payload.applicationDate = payload.applicationDate.split('T')[0];
+        currentPhotos = [...currentPhotos, ...uploadedUrls.filter((url): url is string => !!url)];
       }
 
       if (formMode === "edit" && editingRecord) {
-        updateRecord.mutate({
-          id: editingRecord.id,
-          childId: activeChild.id,
-          ...payload,
-        }, {
+        // Modo edição — igual ao anterior
+        const payload = {
+          susVaccineId: parseInt(data.susVaccineId),
+          dose: data.dose,
+          applicationDate: data.applicationDate,
+          applicationPlace: data.applicationPlace || null,
+          notes: data.notes || null,
+          photoUrls: currentPhotos.length > 0 ? currentPhotos : null,
+        };
+        if (payload.applicationDate?.includes('T')) {
+          payload.applicationDate = payload.applicationDate.split('T')[0];
+        }
+        updateRecord.mutate({ id: editingRecord.id, childId: activeChild.id, ...payload }, {
           onSuccess: () => {
             setFormOpen(false);
             form.reset();
@@ -212,16 +211,54 @@ export default function VaccineCard() {
             setEditingRecord(null);
             toast({ title: "Vacina atualizada!" });
           },
-          onError: () => {
-            toast({ title: "Erro ao atualizar", variant: "destructive" });
-          }
+          onError: () => toast({ title: "Erro ao atualizar", variant: "destructive" }),
         });
-      } else {
+
+      } else if (batchMode) {
+        // Modo batch — criar N doses pendentes sem data de aplicação
+        const count = parseInt(batchDoses);
+        const susVaccineId = parseInt(data.susVaccineId);
         const vaccineName = selectedVaccine?.name || "Vacina";
-        createRecord.mutate({
-          childId: activeChild.id,
-          ...payload,
-        }, {
+        let created = 0;
+
+        for (let i = 0; i < count; i++) {
+          await new Promise<void>((resolve, reject) => {
+            createRecord.mutate({
+              childId: activeChild.id,
+              susVaccineId,
+              dose: DOSE_LABELS[i] ?? `${i + 1}ª dose`,
+              applicationDate: null as any, // pendente — preenchida quando aplicar
+              notes: null,
+              photoUrls: null,
+            }, {
+              onSuccess: () => { created++; resolve(); },
+              onError: reject,
+            });
+          });
+        }
+
+        setFormOpen(false);
+        form.reset();
+        setSelectedVaccine(null);
+        setBatchMode(false);
+        setCelebrationVaccine(`${vaccineName} (${created} dose${created > 1 ? 's' : ''} criadas)`);
+        setShowCelebration(true);
+
+      } else {
+        // Modo criação simples — igual ao anterior
+        const payload = {
+          susVaccineId: parseInt(data.susVaccineId),
+          dose: data.dose,
+          applicationDate: data.applicationDate,
+          applicationPlace: data.applicationPlace || null,
+          notes: data.notes || null,
+          photoUrls: currentPhotos.length > 0 ? currentPhotos : null,
+        };
+        if (payload.applicationDate?.includes('T')) {
+          payload.applicationDate = payload.applicationDate.split('T')[0];
+        }
+        const vaccineName = selectedVaccine?.name || "Vacina";
+        createRecord.mutate({ childId: activeChild.id, ...payload }, {
           onSuccess: () => {
             setFormOpen(false);
             form.reset();
@@ -231,9 +268,7 @@ export default function VaccineCard() {
             setCelebrationVaccine(vaccineName);
             setShowCelebration(true);
           },
-          onError: () => {
-            toast({ title: "Erro ao registrar", variant: "destructive" });
-          }
+          onError: () => toast({ title: "Erro ao registrar", variant: "destructive" }),
         });
       }
     } catch (error: any) {
@@ -404,7 +439,9 @@ export default function VaccineCard() {
                               <span className="font-medium">{record.dose}</span>
                               <span className="text-muted-foreground">-</span>
                               <span className="text-muted-foreground">
-                                {format(parseLocalDate(record.applicationDate), "dd/MM/yyyy")}
+                                {record.applicationDate
+                                  ? format(parseLocalDate(record.applicationDate), "dd/MM/yyyy")
+                                  : <span className="text-amber-500 font-medium">Pendente</span>}
                               </span>
                               {record.photoUrls && record.photoUrls.length > 0 && (
                                 <Camera className="w-3 h-3 text-muted-foreground ml-auto" />
@@ -492,12 +529,58 @@ export default function VaccineCard() {
               )}
             </div>
 
+            {/* Batch mode toggle — apenas no modo criação */}
+            {formMode === "create" && (
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">Criar doses automaticamente</p>
+                    <p className="text-xs text-blue-600 mt-0.5">Cria as doses como pendentes — preencha a data quando aplicar</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={batchMode}
+                    onClick={() => setBatchMode(v => !v)}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      batchMode ? "bg-blue-600" : "bg-gray-200"
+                    )}
+                  >
+                    <span className={cn(
+                      "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                      batchMode ? "translate-x-6" : "translate-x-1"
+                    )} />
+                  </button>
+                </div>
+
+                {batchMode && (
+                  <div className="mt-3 space-y-1">
+                    <Label className="text-blue-800">Número de doses</Label>
+                    <Select value={batchDoses} onValueChange={setBatchDoses}>
+                      <SelectTrigger className="bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 dose (Dose única)</SelectItem>
+                        <SelectItem value="2">2 doses (1ª + 2ª)</SelectItem>
+                        <SelectItem value="3">3 doses (1ª + 2ª + 3ª)</SelectItem>
+                        <SelectItem value="4">4 doses (1ª + 2ª + 3ª + 4ª)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Campo Dose — oculto no batch mode */}
+            {!batchMode && (
             <div className="space-y-2">
               <Label>Dose</Label>
               <Controller
                 name="dose"
                 control={form.control}
-                rules={{ required: true }}
+                rules={{ required: !batchMode }}
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger data-testid="select-dose">
@@ -512,15 +595,19 @@ export default function VaccineCard() {
                 )}
               />
             </div>
+            )}
 
+            {/* Data de Aplicação — oculta no batch mode (doses são criadas como pendentes) */}
+            {!batchMode && (
             <div className="space-y-2">
               <Label>Data de Aplicação</Label>
               <Input 
                 type="date" 
-                {...form.register("applicationDate", { required: true })} 
+                {...form.register("applicationDate", { required: !batchMode })} 
                 data-testid="input-application-date"
               />
             </div>
+            )}
 
             <div className="space-y-2">
               <Label>Local de Aplicação (opcional)</Label>
@@ -645,7 +732,9 @@ export default function VaccineCard() {
                   
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-4 h-4" />
-                    <span>Aplicada em {format(parseLocalDate(detailRecord.applicationDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+                    {detailRecord.applicationDate
+                      ? <span>Aplicada em {format(parseLocalDate(detailRecord.applicationDate), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+                      : <span className="text-amber-500 font-medium">Dose pendente — ainda não aplicada</span>}
                   </div>
 
                   {detailRecord.applicationPlace && (
