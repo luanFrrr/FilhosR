@@ -583,6 +583,15 @@ export async function registerRoutes(
 
     const deleted = await storage.deleteMilestone(milestoneId);
     res.status(204).send();
+
+    // Background: reverter pontos de gamificação (não bloqueia a resposta)
+    (async () => {
+      try {
+        await storage.adjustPoints(existing.childId, -20);
+      } catch (err) {
+        console.error("[bg] Erro ao reverter pontos de marco:", err);
+      }
+    })();
   });
 
   // Diary
@@ -673,6 +682,15 @@ export async function registerRoutes(
 
     await storage.deleteDiaryEntry(entryId);
     res.status(204).send();
+
+    // Background: reverter pontos de gamificação (não bloqueia a resposta)
+    (async () => {
+      try {
+        await storage.adjustPoints(entry.childId, -5);
+      } catch (err) {
+        console.error("[bg] Erro ao reverter pontos de diário:", err);
+      }
+    })();
   });
 
   // SUS Vaccines Catalog (requer autenticação)
@@ -787,6 +805,15 @@ export async function registerRoutes(
 
       await storage.deleteVaccineRecord(id);
       res.status(204).end();
+
+      // Background: reverter pontos de gamificação (não bloqueia a resposta)
+      (async () => {
+        try {
+          await storage.adjustPoints(existing.childId, -15);
+        } catch (err) {
+          console.error("[bg] Erro ao reverter pontos de vacina:", err);
+        }
+      })();
     },
   );
 
@@ -927,6 +954,15 @@ export async function registerRoutes(
 
     await storage.deleteDailyPhoto(id);
     res.status(204).end();
+
+    // Background: reverter pontos de gamificação (não bloqueia a resposta)
+    (async () => {
+      try {
+        await storage.adjustPoints(photo.childId, -5);
+      } catch (err) {
+        console.error("[bg] Erro ao reverter pontos de foto:", err);
+      }
+    })();
   });
 
   app.get("/.well-known/assetlinks.json", (_req, res) => {
