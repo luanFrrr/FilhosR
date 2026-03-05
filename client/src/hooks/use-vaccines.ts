@@ -48,7 +48,11 @@ export function useCreateVaccineRecord() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to create vaccine record");
+      if (!res.ok) {
+        // Propaga a mensagem amigável do servidor (ex: 409 dose duplicada)
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Erro ao registrar vacina");
+      }
       return res.json();
     },
     onSuccess: (_, variables) => {

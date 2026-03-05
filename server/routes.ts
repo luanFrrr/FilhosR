@@ -758,6 +758,15 @@ export async function registerRoutes(
       let record: any;
       await db.transaction(async (tx) => {
         record = await storage.createVaccineRecord({ ...input, childId }, tx);
+
+        if (!record) {
+          // Conflito de constraint única (child_id, sus_vaccine_id, dose)
+          return res.status(409).json({
+            message: "Essa dose já foi registrada",
+            detail: "Já existe um registro para essa dose desta vacina nesta criança. Edite o registro existente se precisar corrigir alguma informação.",
+          });
+        }
+
         await recordPoints(tx, childId, 15, 'vaccine_record_create', 'vaccine_record', record.id);
       });
 

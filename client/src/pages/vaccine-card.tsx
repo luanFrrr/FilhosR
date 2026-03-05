@@ -221,20 +221,26 @@ export default function VaccineCard() {
         const vaccineName = selectedVaccine?.name || "Vacina";
         let created = 0;
 
-        for (let i = 0; i < count; i++) {
-          await new Promise<void>((resolve, reject) => {
-            createRecord.mutate({
-              childId: activeChild.id,
-              susVaccineId,
-              dose: DOSE_LABELS[i] ?? `${i + 1}ª dose`,
-              applicationDate: null as any, // pendente — preenchida quando aplicar
-              notes: null,
-              photoUrls: null,
-            }, {
-              onSuccess: () => { created++; resolve(); },
-              onError: reject,
-            });
-          });
+        const doseRequests = Array.from({ length: count }, (_, i) =>
+          createRecord.mutateAsync({
+            childId: activeChild.id,
+            susVaccineId,
+            dose: DOSE_LABELS[i] ?? `${i + 1}ª dose`,
+            applicationDate: null as any,
+            notes: null,
+            photoUrls: null,
+          })
+        );
+
+        const results = await Promise.allSettled(doseRequests);
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            created++;
+          } else if (!result.reason?.message?.includes("já foi registrada")) {
+            throw result.reason; // erro inesperado — relança
+          }
+          // duplicata → ignora silenciosamente
         }
 
         setFormOpen(false);
@@ -245,7 +251,7 @@ export default function VaccineCard() {
         setShowCelebration(true);
 
       } else {
-        // Modo criação simples — igual ao anterior
+        // Modo criação simples — usa mutateAsync para estar dentro do try/catch
         const payload = {
           susVaccineId: parseInt(data.susVaccineId),
           dose: data.dose,
@@ -258,23 +264,19 @@ export default function VaccineCard() {
           payload.applicationDate = payload.applicationDate.split('T')[0];
         }
         const vaccineName = selectedVaccine?.name || "Vacina";
-        createRecord.mutate({ childId: activeChild.id, ...payload }, {
-          onSuccess: () => {
-            setFormOpen(false);
-            form.reset();
-            setPhotoUrls([]);
-            setNewPhotoFiles([]);
-            setSelectedVaccine(null);
-            setCelebrationVaccine(vaccineName);
-            setShowCelebration(true);
-          },
-          onError: () => toast({ title: "Erro ao registrar", variant: "destructive" }),
-        });
+        await createRecord.mutateAsync({ childId: activeChild.id, ...payload });
+        setFormOpen(false);
+        form.reset();
+        setPhotoUrls([]);
+        setNewPhotoFiles([]);
+        setSelectedVaccine(null);
+        setCelebrationVaccine(vaccineName);
+        setShowCelebration(true);
       }
     } catch (error: any) {
       toast({
-        title: "Erro no upload",
-        description: error.message || "Não foi possível enviar as fotos.",
+        title: "Erro ao salvar",
+        description: error.message || "Não foi possível concluir o registro.",
         variant: "destructive",
       });
     } finally {
@@ -477,8 +479,10 @@ export default function VaccineCard() {
         if (!isOpen) {
           form.reset();
           setPhotoUrls([]);
+          setNewPhotoFiles([]);
           setSelectedVaccine(null);
           setEditingRecord(null);
+          setBatchMode(false);
         }
       }}>
         <DialogContent className="rounded-2xl max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
@@ -609,6 +613,8 @@ export default function VaccineCard() {
             </div>
             )}
 
+            {/* Local de Aplicação — ocultado no batch mode pois não se aplica a doses pendentes */}
+            {!batchMode && (
             <div className="space-y-2">
               <Label>Local de Aplicação (opcional)</Label>
               <Input 
@@ -617,6 +623,7 @@ export default function VaccineCard() {
                 data-testid="input-application-place"
               />
             </div>
+            )}
 
             <div className="space-y-2">
               <Label>Observações (opcional)</Label>
@@ -702,10 +709,10 @@ export default function VaccineCard() {
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={isPending}
+              disabled={isPending || isUploading || isUploadingToStorage}
               data-testid="button-save-vaccine"
             >
-              {isPending ? "Salvando..." : formMode === "edit" ? "Salvar Alterações" : "Registrar Vacina"}
+              {isUploading || isUploadingToStorage ? "Enviando fotos..." : isPending ? "Salvando..." : formMode === "edit" ? "Salvar Alterações" : batchMode ? "Criar Doses" : "Registrar Vacina"}
             </Button>
           </form>
         </DialogContent>
@@ -872,7 +879,7 @@ export default function VaccineCard() {
                 </h2>
                 
                 <p className="text-green-600 font-medium mb-3">
-                  {celebrationVaccine} registrada com sucesso!
+                  {celebrationVaccine.includes("dose") ? celebrationVaccine : `${celebrationVaccine} registrada com sucesso!`}
                 </p>
 
                 <div className="bg-white/70 rounded-xl p-4 mb-4">
