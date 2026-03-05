@@ -14,7 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { Syringe, Plus, Check, Camera, X, ChevronRight, Shield, Edit2, Trash2, MapPin, Calendar, FileText, Image, Heart, Star, Sparkles, AlertTriangle } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
-import { compressImage } from "@/lib/imageUtils";
+import { compressImage, getTransformedImageUrl } from "@/lib/imageUtils";
 import { cn, parseLocalDate } from "@/lib/utils";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import { motion, AnimatePresence } from "framer-motion";

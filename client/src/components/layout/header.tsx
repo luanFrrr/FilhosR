@@ -1,5 +1,6 @@
 import { useChildContext } from "@/hooks/use-child-context";
 import { useChildren } from "@/hooks/use-children";
+import { getTransformedImageUrl } from "@/lib/imageUtils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Baby, ChevronDown } from "lucide-react";
@@ -32,7 +33,7 @@ export function Header({ title, showChildSelector = true }: { title?: string, sh
                 <PhotoView src={activeChild?.photoUrl || null} alt={activeChild?.name}>
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-primary overflow-hidden">
                     {activeChild?.photoUrl ? (
-                      <img src={activeChild.photoUrl} alt={activeChild.name} className="w-full h-full object-cover" />
+                      <img src={getTransformedImageUrl(activeChild.photoUrl, { width: 100, height: 100, resize: 'cover' })} alt={activeChild.name} className="w-full h-full object-cover" />
                     ) : (
                       <Baby className="w-5 h-5" />
                     )}
@@ -56,7 +57,7 @@ export function Header({ title, showChildSelector = true }: { title?: string, sh
                     <div className="flex items-center gap-3">
                        {child.photoUrl ? (
                          <img 
-                           src={child.photoUrl} 
+                           src={getTransformedImageUrl(child.photoUrl, { width: 60, height: 60, resize: 'cover' })} 
                            alt={child.name}
                            className="w-6 h-6 rounded-full object-cover"
                          />

@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
-import { compressImage } from "@/lib/imageUtils";
+import { compressImage, getTransformedImageUrl } from "@/lib/imageUtils";
 import { parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhotoPicker } from "@/components/ui/photo-picker";
@@ -605,7 +605,7 @@ export default function Memories() {
                       <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
                         {milestone.photoUrl && (
                           <img
-                            src={milestone.photoUrl}
+                            src={getTransformedImageUrl(milestone.photoUrl, { width: 400, height: 320, resize: 'cover' })}
                             alt={milestone.title}
                             className="w-full h-32 object-cover rounded-lg mb-3"
                           />

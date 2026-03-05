@@ -1,0 +1,47 @@
+o que acha?
+
+Otimização de Imagens com Supabase Image Transformations
+Este plano descreve como vamos refatorar o frontend do aplicativo para aproveitar as Transformações de Imagem Nativas do Supabase, garantindo que feeds como "Memórias" e "Fotos do Dia" carreguem miniaturas leves em vez das imagens completas, economizando banda e melhorando a fluidez da aplicação.
+
+O que será feito
+O Supabase Storage possui um recurso embutido que permite redimensionar, cortar e comprimir imagens 'on-the-fly' (em tempo real) apenas passando parâmetros na URL. Por exemplo, uma URL https://.../storage/v1/object/public/bucket/foto.jpg pode ser transformada em https://.../storage/v1/object/render/image/public/bucket/foto.jpg?width=400&resize=cover.
+
+Vamos criar um utilitário no frontend para gerar essas URLs otimizadas e aplicá-lo nos locais onde listamos muitas imagens de uma vez.
+
+Mudanças Propostas
+1. 
+client/src/lib/imageUtils.ts
+ (ou novo arquivo utils para Supabase)
+Vamos adicionar uma função auxiliar para gerar a URL transformada.
+
+[MODIFY] 
+client/src/lib/imageUtils.ts
+Criar a função getTransformedImageUrl(originalUrl: string, options: { width?: number; height?: number; resize?: 'cover' | 'contain' | 'fill' })
+Essa função vai identificar se a URL é do Supabase Storage e, se for, vai injetar o /render/image/public/ e adicionar os parâmetros da query string (ex: ?width=400&resize=cover).
+2. Telas de Feed / Listagem
+Vamos aplicar a função getTransformedImageUrl nas listagens para carregar miniaturas. Quando o usuário abrir a foto em tela cheia (modal/dialog), usaremos a URL original.
+
+[MODIFY] 
+client/src/pages/memories.tsx
+Nas listagens de Milestone e DiaryEntry, onde carregamos milestone.photoUrl ou entry.photoUrls, aplicaremos a transformação para gerar thumbnails (ex: 400x400 ou width 600) para o feed principal.
+No modal de visualização (viewMilestone), continuaremos usando a imagem original.
+[MODIFY] 
+client/src/pages/daily-photos.tsx
+Na grid/timeline principal de fotos do dia.
+Na exibição "Em destaque", podemos usar uma resolução um pouco maior (ex: 800px), mas ainda otimizada, e ao abrir o visualizador de fotos em tela cheia na galeria, usar a original.
+[MODIFY] 
+client/src/pages/vaccine-card.tsx
+Nas miniaturas pequenas que aparecem na lista de comprovantes anexados.
+[MODIFY] 
+client/src/components/layout/header.tsx
+No avatar da criança ativo no header, que é um ícone pequeno. Transformaremos a URL para width=100&height=100&resize=cover garantindo que não baixe fotos de 1MB só para um ícone de 40px no canto do app.
+Plano de Verificação
+Testes Manuais Fáceis
+Inicie a aplicação localmente.
+Verifique o Header: Observe se a foto de perfil da criança no topo esquerdo carrega e se o layout não quebrou. Inspecione o elemento da imagem no network do navegador e verifique se a URL chamada contém ?width=100.
+Verifique a página Memórias: Role pelo feed. As fotos dos marcos e diários devem aparecer normalmente (cortadas de forma agradável). Novamente, inspecionando no Network, deverá ver as URLs com ?width=... e com a aba "Size" (Tamanho) muito menor que o arquivo original.
+Verifique o Clique/Tela Cheia: Clique em um marco que contenha foto e garanta que o modal exibe a imagem original em alta qualidade.
+Verifique Fotos do Dia: Teste a timeline de fotos do dia da mesma maneira.
+NOTE
+
+O recurso de Image Transformations do Supabase já está ativo por padrão no plano Pro. No plano Free, ele também funciona e gera cache inteligente, mas tem limites de concorrência. Independentemente do plano, a sintaxe da URL é suportada e trará benefícios imediatos no dispositivo do usuário.
