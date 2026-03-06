@@ -138,13 +138,13 @@ export default function Memories() {
   const { data: milestonesWithSocial } = useMilestonesWithSocial(
     activeChild?.id || 0,
   );
-  const { 
-    data: diaryPages, 
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage 
+  const {
+    data: diaryPages,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
   } = useDiary(activeChild?.id || 0);
-  
+
   // Flatten diary pages into a single array for rendering
   const allDiaryEntries = diaryPages?.pages.flatMap((p) => p.data) || [];
   const createMilestone = useCreateMilestone();
@@ -251,7 +251,7 @@ export default function Memories() {
   const triggerCelebration = (moodEmoji?: string | null) => {
     const isSensitive = moodEmoji && SENSITIVE_EMOJIS.includes(moodEmoji);
     const pool = isSensitive ? empatheticMessages : celebrationMessages;
-    
+
     const msg = pool[Math.floor(Math.random() * pool.length)];
     setCelebrationMsg(msg);
     setShowCelebration(true);
@@ -377,7 +377,10 @@ export default function Memories() {
         onSuccess: (record) => {
           setOpenDiary(false);
           diaryForm.reset();
-          toast({ title: "Diário salvo!", description: "Sua memória foi guardada com carinho." });
+          toast({
+            title: "Diário salvo!",
+            description: "Sua memória foi guardada com carinho.",
+          });
           triggerCelebration(record.moodEmoji);
         },
         onError: () => {
@@ -479,20 +482,20 @@ export default function Memories() {
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
             <TabsTrigger
               value="milestones"
-              className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
+              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
             >
               <Star className="w-4 h-4 mr-2" /> Marcos
             </TabsTrigger>
             <TabsTrigger
               value="diary"
-              className="py-2.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
+              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
             >
               <Book className="w-4 h-4 mr-2" /> Diário
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="milestones">
-            <div className="bg-gradient-to-r from-primary/10 via-pink-100/50 to-purple-100/50 rounded-2xl p-4 mb-6 border border-primary/10">
+            <div className="bg-gradient-to-r from-primary/10 via-pink-500/10 to-purple-500/10 rounded-2xl p-4 mb-6 border border-primary/10">
               <p className="text-center text-sm text-muted-foreground italic font-hand">
                 "Esses momentos passam rápido. Ainda bem que você guardou."
               </p>
@@ -612,65 +615,69 @@ export default function Memories() {
 
             <div className="relative border-l-2 border-primary/20 ml-4 space-y-8 pb-8">
               {milestones?.map((milestone) => {
-                  const social = milestonesWithSocial?.find(
-                    (m) => m.id === milestone.id,
-                  );
-                  return (
-                    <div
-                      key={milestone.id}
-                      className="relative pl-6 cursor-pointer group"
-                      onClick={() => setViewMilestone(milestone)}
-                      data-testid={`milestone-item-${milestone.id}`}
-                    >
-                      <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
-                      <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">
-                        {format(
-                          parseLocalDate(milestone.date),
-                          "dd 'de' MMMM, yyyy",
-                          { locale: ptBR },
+                const social = milestonesWithSocial?.find(
+                  (m) => m.id === milestone.id,
+                );
+                return (
+                  <div
+                    key={milestone.id}
+                    className="relative pl-6 cursor-pointer group"
+                    onClick={() => setViewMilestone(milestone)}
+                    data-testid={`milestone-item-${milestone.id}`}
+                  >
+                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">
+                      {format(
+                        parseLocalDate(milestone.date),
+                        "dd 'de' MMMM, yyyy",
+                        { locale: ptBR },
+                      )}
+                    </span>
+                    <div className="bg-card p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
+                      {milestone.photoUrl && (
+                        <LazyImage
+                          src={getTransformedImageUrl(milestone.photoUrl, {
+                            width: 400,
+                            height: 320,
+                            resize: "cover",
+                          })}
+                          alt={milestone.title}
+                          className="w-full h-32 rounded-lg mb-3"
+                        />
+                      )}
+                      <h3 className="font-display font-bold text-lg mb-2">
+                        {milestone.title}
+                      </h3>
+                      <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">
+                        {milestone.description}
+                      </p>
+                      {/* Social counters */}
+                      {social &&
+                        (social.likeCount > 0 || social.commentCount > 0) && (
+                          <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
+                            {social.likeCount > 0 && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Heart className="w-3 h-3 fill-rose-400 text-rose-400" />
+                                {social.likeCount}
+                              </span>
+                            )}
+                            {social.commentCount > 0 && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <MessageCircle className="w-3 h-3" />
+                                {social.commentCount}
+                              </span>
+                            )}
+                          </div>
                         )}
-                      </span>
-                      <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
-                        {milestone.photoUrl && (
-                          <LazyImage
-                            src={getTransformedImageUrl(milestone.photoUrl, { width: 400, height: 320, resize: 'cover' })}
-                            alt={milestone.title}
-                            className="w-full h-32 rounded-lg mb-3"
-                          />
-                        )}
-                        <h3 className="font-display font-bold text-lg mb-2">
-                          {milestone.title}
-                        </h3>
-                        <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">
-                          {milestone.description}
+                      {!(social?.likeCount || social?.commentCount) && (
+                        <p className="text-xs text-primary mt-2">
+                          Toque para ver detalhes
                         </p>
-                        {/* Social counters */}
-                        {social &&
-                          (social.likeCount > 0 || social.commentCount > 0) && (
-                            <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
-                              {social.likeCount > 0 && (
-                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Heart className="w-3 h-3 fill-rose-400 text-rose-400" />
-                                  {social.likeCount}
-                                </span>
-                              )}
-                              {social.commentCount > 0 && (
-                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <MessageCircle className="w-3 h-3" />
-                                  {social.commentCount}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        {!(social?.likeCount || social?.commentCount) && (
-                          <p className="text-xs text-primary mt-2">
-                            Toque para ver detalhes
-                          </p>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
               {(!milestones || milestones.length === 0) && (
                 <p className="pl-6 text-muted-foreground italic">
                   Registre os primeiros momentos especiais...
@@ -712,22 +719,29 @@ export default function Memories() {
                     <div className="space-y-2">
                       <Label>Como você está se sentindo?</Label>
                       <div className="flex gap-4 justify-center py-2 bg-muted/30 rounded-xl">
-                        {[...POSITIVE_EMOJIS, ...SENSITIVE_EMOJIS].map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => diaryForm.setValue("moodEmoji", emoji)}
-                            className={`text-2xl transition-all hover:scale-125 ${
-                              diaryForm.watch("moodEmoji") === emoji
-                                ? "scale-125 grayscale-0"
-                                : "grayscale opacity-50"
-                            }`}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
+                        {[...POSITIVE_EMOJIS, ...SENSITIVE_EMOJIS].map(
+                          (emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() =>
+                                diaryForm.setValue("moodEmoji", emoji)
+                              }
+                              className={`text-2xl transition-all hover:scale-125 ${
+                                diaryForm.watch("moodEmoji") === emoji
+                                  ? "scale-125 grayscale-0"
+                                  : "grayscale opacity-50"
+                              }`}
+                            >
+                              {emoji}
+                            </button>
+                          ),
+                        )}
                       </div>
-                      <input type="hidden" {...diaryForm.register("moodEmoji")} />
+                      <input
+                        type="hidden"
+                        {...diaryForm.register("moodEmoji")}
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -756,58 +770,60 @@ export default function Memories() {
 
             <div className="grid grid-cols-1 gap-4">
               {allDiaryEntries?.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="bg-white p-5 rounded-2xl border border-border shadow-sm transition-all duration-300"
-                    data-diary-id={entry.id}
-                    data-testid={`card-diary-${entry.id}`}
-                  >
-                    <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
-                      <span className="font-hand text-lg font-bold text-primary flex items-center gap-2">
-                        {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
-                        {entry.moodEmoji && <span className="text-xl">{entry.moodEmoji}</span>}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {entry.photoUrls && entry.photoUrls.length > 0 && (
-                          <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                        )}
-                        {(!entry.userId || entry.userId === user?.id) && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setEditingDiary(entry)}
-                              data-testid={`button-edit-diary-${entry.id}`}
-                            >
-                              <Edit2 className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setDeleteDiaryConfirm(entry)}
-                              data-testid={`button-delete-diary-${entry.id}`}
-                            >
-                              <Trash2 className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-foreground leading-relaxed font-hand text-lg mb-3">
-                      {entry.content}
-                    </p>
-                    <div className="flex items-center justify-start border-t border-border/30 pt-3">
-                      <DiaryLikeButton 
-                        entryId={entry.id} 
-                        childId={activeChild?.id || 0} 
-                        initialCount={entry.likesCount}
-                        initialLiked={(entry as any).userLiked}
-                      />
+                <div
+                  key={entry.id}
+                  className="bg-card p-5 rounded-2xl border border-border shadow-sm transition-all duration-300"
+                  data-diary-id={entry.id}
+                  data-testid={`card-diary-${entry.id}`}
+                >
+                  <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
+                    <span className="font-hand text-lg font-bold text-primary flex items-center gap-2">
+                      {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
+                      {entry.moodEmoji && (
+                        <span className="text-xl">{entry.moodEmoji}</span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {entry.photoUrls && entry.photoUrls.length > 0 && (
+                        <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      {(!entry.userId || entry.userId === user?.id) && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditingDiary(entry)}
+                            data-testid={`button-edit-diary-${entry.id}`}
+                          >
+                            <Edit2 className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setDeleteDiaryConfirm(entry)}
+                            data-testid={`button-delete-diary-${entry.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
-                ))}
+                  <p className="text-foreground leading-relaxed font-hand text-lg mb-3">
+                    {entry.content}
+                  </p>
+                  <div className="flex items-center justify-start border-t border-border/30 pt-3">
+                    <DiaryLikeButton
+                      entryId={entry.id}
+                      childId={activeChild?.id || 0}
+                      initialCount={entry.likesCount}
+                      initialLiked={(entry as any).userLiked}
+                    />
+                  </div>
+                </div>
+              ))}
               {allDiaryEntries.length === 0 && (
                 <div className="text-center py-12">
                   <Book className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
@@ -816,16 +832,18 @@ export default function Memories() {
                   </p>
                 </div>
               )}
-              
+
               {hasNextPage && (
                 <div className="mt-8 flex justify-center">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="rounded-full px-8 py-6 font-semibold"
                     onClick={() => fetchNextPage()}
                     disabled={isFetchingNextPage}
                   >
-                    {isFetchingNextPage ? "Carregando..." : "Carregar mais antigas"}
+                    {isFetchingNextPage
+                      ? "Carregando..."
+                      : "Carregar mais antigas"}
                   </Button>
                 </div>
               )}

@@ -304,7 +304,7 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground mb-3">
               {getEncouragementMessage(recentActivity, closeToLevelUp)}
             </p>
-            <div className="w-full bg-white/50 h-2 rounded-full overflow-hidden mb-2">
+            <div className="w-full bg-muted h-2 rounded-full overflow-hidden mb-2">
               <div
                 className="bg-primary h-full rounded-full transition-all duration-1000"
                 style={{ width: `${Math.min(points % 100, 100)}%` }}
@@ -426,9 +426,9 @@ export default function Dashboard() {
           </h3>
           <div className="grid grid-cols-3 gap-3">
             <Link href="/growth">
-              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform text-center">
-                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3 mx-auto">
-                  <Scale className="w-6 h-6 text-blue-600" />
+              <div className="p-4 rounded-2xl bg-card border border-border shadow-sm active:scale-95 transition-transform text-center">
+                <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-3 mx-auto">
+                  <Scale className="w-6 h-6 text-blue-500" />
                 </div>
                 <p className="font-bold text-xs leading-tight">
                   Registrar
@@ -438,9 +438,9 @@ export default function Dashboard() {
               </div>
             </Link>
             <Link href="/health">
-              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform text-center">
-                <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3 mx-auto">
-                  <Stethoscope className="w-6 h-6 text-rose-600" />
+              <div className="p-4 rounded-2xl bg-card border border-border shadow-sm active:scale-95 transition-transform text-center">
+                <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center mb-3 mx-auto">
+                  <Stethoscope className="w-6 h-6 text-rose-500" />
                 </div>
                 <p className="font-bold text-xs leading-tight">
                   Anotar
@@ -450,9 +450,9 @@ export default function Dashboard() {
               </div>
             </Link>
             <Link href="/memories">
-              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm active:scale-95 transition-transform text-center">
-                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3 mx-auto">
-                  <Star className="w-6 h-6 text-amber-600" />
+              <div className="p-4 rounded-2xl bg-card border border-border shadow-sm active:scale-95 transition-transform text-center">
+                <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mb-3 mx-auto">
+                  <Star className="w-6 h-6 text-amber-500" />
                 </div>
                 <p className="font-bold text-xs leading-tight">
                   Novo

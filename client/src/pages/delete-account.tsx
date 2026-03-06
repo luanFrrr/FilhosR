@@ -60,14 +60,20 @@ export default function DeleteAccount() {
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-red-700 dark:text-red-400">Excluir Conta</h1>
-              <p className="text-sm text-red-600 dark:text-red-400">Esta ação é irreversível</p>
+              <h1 className="text-xl font-bold text-red-700 dark:text-red-400">
+                Excluir Conta
+              </h1>
+              <p className="text-sm text-red-600 dark:text-red-400">
+                Esta ação é irreversível
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-card rounded-2xl border border-border p-6 space-y-4">
-          <h2 className="font-semibold text-foreground">O que será excluído:</h2>
+        <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
+          <h2 className="font-semibold text-foreground">
+            O que será excluído:
+          </h2>
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-center gap-2">
               <Trash2 className="w-4 h-4 text-red-500" />
@@ -103,7 +109,8 @@ export default function DeleteAccount() {
         <div className="mt-6 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="confirmation" className="text-sm font-medium">
-              Para confirmar, digite <span className="font-bold text-red-600">EXCLUIR</span> abaixo:
+              Para confirmar, digite{" "}
+              <span className="font-bold text-red-600">EXCLUIR</span> abaixo:
             </Label>
             <Input
               id="confirmation"
@@ -122,11 +129,14 @@ export default function DeleteAccount() {
             disabled={confirmation !== "EXCLUIR" || isDeleting}
             data-testid="button-delete-account"
           >
-            {isDeleting ? "Excluindo..." : "Excluir minha conta permanentemente"}
+            {isDeleting
+              ? "Excluindo..."
+              : "Excluir minha conta permanentemente"}
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">
-            Após a exclusão, você será desconectado automaticamente e não poderá recuperar seus dados.
+            Após a exclusão, você será desconectado automaticamente e não poderá
+            recuperar seus dados.
           </p>
         </div>
       </div>

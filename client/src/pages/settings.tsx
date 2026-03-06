@@ -117,7 +117,7 @@ function CaregiversList({
       {otherCaregivers.map((c) => (
         <div
           key={c.id}
-          className="flex items-center justify-between bg-white rounded-lg px-3 py-2"
+          className="flex items-center justify-between bg-card rounded-lg px-3 py-2"
         >
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
@@ -370,7 +370,7 @@ export default function Settings() {
 
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
         <div
-          className="bg-white p-6 rounded-2xl border border-border shadow-sm"
+          className="bg-card p-6 rounded-2xl border border-border shadow-sm"
           data-testid="user-profile-card"
         >
           {!editingProfile ? (
@@ -494,7 +494,7 @@ export default function Settings() {
           <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-2">
             Preferências
           </h3>
-          <div className="bg-white dark:bg-card p-4 rounded-xl border border-border shadow-sm space-y-4">
+          <div className="bg-card p-4 rounded-xl border border-border shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
@@ -569,7 +569,7 @@ export default function Settings() {
               return (
                 <div key={child.id} className="space-y-2">
                   <div
-                    className={`bg-white p-4 rounded-xl border ${activeChild?.id === child.id ? "border-primary ring-2 ring-primary/20" : "border-border"} flex items-center gap-3`}
+                    className={`bg-card p-4 rounded-xl border ${activeChild?.id === child.id ? "border-primary ring-2 ring-primary/20" : "border-border"} flex items-center gap-3`}
                     data-testid={`child-card-${child.id}`}
                   >
                     <PhotoView src={child.photoUrl || null} alt={child.name}>
@@ -737,7 +737,7 @@ export default function Settings() {
             Configurações
           </h3>
 
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             {/* Notificações: painel de status inteligente */}
             <div className="p-4 border-b border-border/50">
               <div className="flex items-center gap-3 mb-3">
@@ -905,7 +905,7 @@ export default function Settings() {
                       type="button"
                       size="icon"
                       variant="outline"
-                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white shadow-sm"
+                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-card shadow-sm"
                       onClick={openPicker}
                       data-testid="button-upload-child-photo"
                     >

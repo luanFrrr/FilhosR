@@ -15,11 +15,12 @@ export function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-border z-50 pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 bg-background/90 backdrop-blur-lg border-t border-border z-50 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16 max-w-md mx-auto px-2">
         {navItems.map(({ href, icon: Icon, label }) => {
           const basePath = location.split("?")[0];
-          const isActive = href === "/" ? basePath === "/" : basePath.startsWith(href);
+          const isActive =
+            href === "/" ? basePath === "/" : basePath.startsWith(href);
           return (
             <Link key={href} href={href}>
               <button className="relative flex flex-col items-center justify-center w-full h-full py-1">
@@ -34,15 +35,22 @@ export function BottomNav() {
                 <div
                   className={cn(
                     "p-1.5 rounded-xl transition-colors duration-200",
-                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <Icon className={cn("w-6 h-6", isActive && "fill-current/20")} strokeWidth={isActive ? 2.5 : 2} />
+                  <Icon
+                    className={cn("w-6 h-6", isActive && "fill-current/20")}
+                    strokeWidth={isActive ? 2.5 : 2}
+                  />
                 </div>
-                <span className={cn(
-                  "text-[10px] font-medium transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "text-[10px] font-medium transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground",
+                  )}
+                >
                   {label}
                 </span>
               </button>

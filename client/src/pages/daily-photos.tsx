@@ -1,9 +1,21 @@
 import { useChildContext } from "@/hooks/use-child-context";
-import { useDailyPhotos, useCreateDailyPhoto, useTodayPhoto, useDeleteDailyPhoto } from "@/hooks/use-daily-photos";
+import {
+  useDailyPhotos,
+  useCreateDailyPhoto,
+  useTodayPhoto,
+  useDeleteDailyPhoto,
+} from "@/hooks/use-daily-photos";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Camera, ChevronLeft, ChevronRight, Check, ImagePlus, Trash2 } from "lucide-react";
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  ImagePlus,
+  Trash2,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { format, parseISO, differenceInDays } from "date-fns";
@@ -55,17 +67,23 @@ export default function DailyPhotos() {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showFeedback, setShowFeedback] = useState<{ url: string; message: string } | null>(null);
+  const [showFeedback, setShowFeedback] = useState<{
+    url: string;
+    message: string;
+  } | null>(null);
   const pickerOpenerRef = useRef<(() => void) | null>(null);
   const { upload, isUploading: isUploadingToStorage } = useUpload();
 
   // Cronological order: oldest first, newest last (timeline style)
-  const sortedPhotos = photos?.slice().sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  ) || [];
+  const sortedPhotos =
+    photos
+      ?.slice()
+      .sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      ) || [];
 
   const totalPhotos = sortedPhotos.length;
-  const streakDays = calculateStreak(sortedPhotos.map(p => p.date));
+  const streakDays = calculateStreak(sortedPhotos.map((p) => p.date));
   const newestIndex = totalPhotos - 1; // Last item is the newest (chronological order)
 
   // Initialize to newest photo when photos load
@@ -75,80 +93,98 @@ export default function DailyPhotos() {
     }
   }, [totalPhotos, currentIndex, newestIndex]);
 
-  const getEmotionalMessage = useCallback((currentStreak: number, hadRecentPhotos: boolean) => {
-    const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-    
-    if (totalPhotos === 0) {
-      return pickRandom(MENSAGENS_PRIMEIRA);
-    }
-    
-    if (currentStreak >= 2) {
-      return pickRandom(MENSAGENS_SEQUENCIA);
-    }
-    
-    if (!hadRecentPhotos && totalPhotos > 0) {
-      return pickRandom(MENSAGENS_RETORNO);
-    }
-    
-    return pickRandom(MENSAGENS_MOMENTO);
-  }, [totalPhotos]);
+  const getEmotionalMessage = useCallback(
+    (currentStreak: number, hadRecentPhotos: boolean) => {
+      const pickRandom = (arr: string[]) =>
+        arr[Math.floor(Math.random() * arr.length)];
+
+      if (totalPhotos === 0) {
+        return pickRandom(MENSAGENS_PRIMEIRA);
+      }
+
+      if (currentStreak >= 2) {
+        return pickRandom(MENSAGENS_SEQUENCIA);
+      }
+
+      if (!hadRecentPhotos && totalPhotos > 0) {
+        return pickRandom(MENSAGENS_RETORNO);
+      }
+
+      return pickRandom(MENSAGENS_MOMENTO);
+    },
+    [totalPhotos],
+  );
 
   const hadPhotoYesterday = useMemo(() => {
     if (sortedPhotos.length === 0) return false;
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-    return sortedPhotos.some(p => p.date === yesterdayStr);
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    return sortedPhotos.some((p) => p.date === yesterdayStr);
   }, [sortedPhotos]);
 
-  const handlePhotoSelected = useCallback(async (file: File) => {
-    if (!activeChild) return;
+  const handlePhotoSelected = useCallback(
+    async (file: File) => {
+      if (!activeChild) return;
 
-    setIsUploading(true);
-    
-    try {
-      // 1. Upload para o Supabase Storage
-      const today = new Date().toISOString().split('T')[0];
-      const photoUrl = await upload(file, {
-        bucket: "daily-photos",
-        path: `${activeChild.id}/${today}-${Date.now()}.jpg`,
-        maxSize: 1200,
-        quality: 0.8,
-      });
+      setIsUploading(true);
 
-      if (!photoUrl) throw new Error("Falha no upload da foto");
+      try {
+        // 1. Upload para o Supabase Storage
+        const today = new Date().toISOString().split("T")[0];
+        const photoUrl = await upload(file, {
+          bucket: "daily-photos",
+          path: `${activeChild.id}/${today}-${Date.now()}.jpg`,
+          maxSize: 1200,
+          quality: 0.8,
+        });
 
-      // 2. Salva o registro no banco com a URL do Storage
-      await createPhoto.mutateAsync({
-        childId: activeChild.id,
-        date: today,
-        photoUrl,
-      });
-      
-      const newStreak = hadPhotoYesterday ? streakDays + 1 : 1;
-      const mensagem = getEmotionalMessage(newStreak, hadPhotoYesterday);
-      
-      setShowFeedback({ url: photoUrl, message: mensagem });
-      setTimeout(() => setShowFeedback(null), 5000);
-      
-      setCurrentIndex(-1);
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível salvar a foto.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  }, [activeChild, upload, createPhoto, toast, hadPhotoYesterday, streakDays, getEmotionalMessage]);
+        if (!photoUrl) throw new Error("Falha no upload da foto");
+
+        // 2. Salva o registro no banco com a URL do Storage
+        await createPhoto.mutateAsync({
+          childId: activeChild.id,
+          date: today,
+          photoUrl,
+        });
+
+        const newStreak = hadPhotoYesterday ? streakDays + 1 : 1;
+        const mensagem = getEmotionalMessage(newStreak, hadPhotoYesterday);
+
+        setShowFeedback({ url: photoUrl, message: mensagem });
+        setTimeout(() => setShowFeedback(null), 5000);
+
+        setCurrentIndex(-1);
+      } catch (error: any) {
+        toast({
+          title: "Erro",
+          description: error.message || "Não foi possível salvar a foto.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [
+      activeChild,
+      upload,
+      createPhoto,
+      toast,
+      hadPhotoYesterday,
+      streakDays,
+      getEmotionalMessage,
+    ],
+  );
 
   const handleDeleteTodayPhoto = useCallback(async () => {
     if (!todayPhoto || !activeChild) return;
-    
+
     setIsDeleting(true);
     try {
-      await deletePhoto.mutateAsync({ id: todayPhoto.id, childId: activeChild.id });
+      await deletePhoto.mutateAsync({
+        id: todayPhoto.id,
+        childId: activeChild.id,
+      });
       setTimeout(() => {
         pickerOpenerRef.current?.();
       }, 300);
@@ -182,7 +218,7 @@ export default function DailyPhotos() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header />
-      
+
       <main className="max-w-md mx-auto px-4 py-6 space-y-10">
         <div className="text-center">
           <h1 className="text-2xl font-display font-bold">Foto do Dia</h1>
@@ -201,8 +237,12 @@ export default function DailyPhotos() {
                     <Check className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="font-semibold text-green-700">Foto de hoje registrada!</p>
-                    <p className="text-xs text-muted-foreground">Continue amanhã</p>
+                    <p className="font-semibold text-green-700">
+                      Foto de hoje registrada!
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Continue amanhã
+                    </p>
                   </div>
                 </>
               ) : (
@@ -212,7 +252,9 @@ export default function DailyPhotos() {
                   </div>
                   <div>
                     <p className="font-semibold">Registre o momento de hoje</p>
-                    <p className="text-xs text-muted-foreground">Cada dia é único</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cada dia é único
+                    </p>
                   </div>
                 </>
               )}
@@ -308,7 +350,7 @@ export default function DailyPhotos() {
                   <button
                     onClick={goToPrevious}
                     disabled={currentIndex === 0}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
                     data-testid="button-photo-prev"
                   >
                     <ChevronLeft className="w-6 h-6" />
@@ -316,7 +358,7 @@ export default function DailyPhotos() {
                   <button
                     onClick={goToNext}
                     disabled={currentIndex === totalPhotos - 1}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
                     data-testid="button-photo-next"
                   >
                     <ChevronRight className="w-6 h-6" />
@@ -328,7 +370,11 @@ export default function DailyPhotos() {
             {/* Photo Date */}
             <div className="text-center">
               <p className="font-semibold">
-                {format(parseISO(sortedPhotos[currentIndex]?.date), "EEEE, d 'de' MMMM", { locale: ptBR })}
+                {format(
+                  parseISO(sortedPhotos[currentIndex]?.date),
+                  "EEEE, d 'de' MMMM",
+                  { locale: ptBR },
+                )}
               </p>
               <p className="text-xs text-muted-foreground">
                 {currentIndex + 1} de {totalPhotos}
@@ -350,19 +396,24 @@ export default function DailyPhotos() {
                         key={photo.id}
                         onClick={() => setCurrentIndex(index)}
                         className={`relative flex-shrink-0 rounded-lg overflow-visible transition-all ${
-                          isNewest 
-                            ? "w-16 h-16 ring-2 ring-amber-500 ring-offset-2 shadow-lg" 
+                          isNewest
+                            ? "w-16 h-16 ring-2 ring-amber-500 ring-offset-2 shadow-lg"
                             : "w-14 h-14"
                         } ${
                           isSelected && !isNewest
-                            ? "ring-2 ring-primary ring-offset-2" 
-                            : !isNewest ? "opacity-60 hover:opacity-100" : ""
+                            ? "ring-2 ring-primary ring-offset-2"
+                            : !isNewest
+                              ? "opacity-60 hover:opacity-100"
+                              : ""
                         }`}
                         data-testid={`button-thumbnail-${index}`}
                       >
-                        <div className="bg-white rounded-lg border border-border overflow-hidden shadow-sm group-hover:shadow-md transition-all w-full h-full">
+                        <div className="bg-card rounded-lg border border-border overflow-hidden shadow-sm group-hover:shadow-md transition-all w-full h-full">
                           <LazyImage
-                            src={getTransformedImageUrl(photo.photoUrl, { width: 400, resize: "cover" })}
+                            src={getTransformedImageUrl(photo.photoUrl, {
+                              width: 400,
+                              resize: "cover",
+                            })}
                             alt={`Foto do dia ${new Date(photo.date).toLocaleDateString()}`}
                             className="w-full aspect-square"
                           />
@@ -380,7 +431,6 @@ export default function DailyPhotos() {
             )}
           </div>
         )}
-
       </main>
 
       <AnimatePresence>
@@ -430,23 +480,23 @@ export default function DailyPhotos() {
 
 function calculateStreak(dates: string[]): number {
   if (dates.length === 0) return 0;
-  
-  const sortedDates = [...dates].sort((a, b) => 
-    new Date(b).getTime() - new Date(a).getTime()
+
+  const sortedDates = [...dates].sort(
+    (a, b) => new Date(b).getTime() - new Date(a).getTime(),
   );
-  
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   let streak = 0;
   let currentDate = today;
-  
+
   for (const dateStr of sortedDates) {
     const photoDate = parseISO(dateStr);
     photoDate.setHours(0, 0, 0, 0);
-    
+
     const diff = differenceInDays(currentDate, photoDate);
-    
+
     if (diff === 0 || diff === 1) {
       streak++;
       currentDate = photoDate;
@@ -454,6 +504,6 @@ function calculateStreak(dates: string[]): number {
       break;
     }
   }
-  
+
   return streak;
 }

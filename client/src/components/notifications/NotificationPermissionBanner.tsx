@@ -8,7 +8,8 @@ const DISMISSED_KEY = "notif_permission_dismissed_v1";
 const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 horas
 
 export function NotificationPermissionBanner() {
-  const { isSubscribed, isSupported, subscribe, isLoading } = usePushNotifications();
+  const { isSubscribed, isSupported, subscribe, isLoading } =
+    usePushNotifications();
   const [visible, setVisible] = useState(false);
   const hasAttemptedAutoSubscribe = useRef(false);
 
@@ -52,7 +53,7 @@ export function NotificationPermissionBanner() {
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className="fixed top-0 left-0 right-0 z-50 max-w-md mx-auto"
         >
-          <div className="m-3 bg-white rounded-2xl border border-primary/20 shadow-lg overflow-hidden">
+          <div className="m-3 bg-card rounded-2xl border border-primary/20 shadow-lg overflow-hidden">
             <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-4 pt-4 pb-3">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shrink-0 shadow-sm">
@@ -63,7 +64,8 @@ export function NotificationPermissionBanner() {
                     Ative as notificações 🔔
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                    Receba avisos de vacinas, novos marcos e comentários da família — em tempo real.
+                    Receba avisos de vacinas, novos marcos e comentários da
+                    família — em tempo real.
                   </p>
                 </div>
                 <button

@@ -123,7 +123,7 @@ export default function Onboarding() {
           </p>
         </div>
 
-        <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-border/50">
+        <div className="bg-card py-8 px-6 shadow-xl rounded-2xl border border-border/50">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <PhotoPicker onPhotoSelected={handlePhotoFile}>
               {(openPicker) => (
@@ -154,7 +154,7 @@ export default function Onboarding() {
                       type="button"
                       size="icon"
                       variant="outline"
-                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white shadow-md border-primary/30"
+                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-card shadow-md border-primary/30"
                       onClick={openPicker}
                       data-testid="button-upload-child-photo"
                     >
@@ -196,13 +196,18 @@ export default function Onboarding() {
                 control={control}
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="input-field" data-testid="select-gender">
+                    <SelectTrigger
+                      className="input-field"
+                      data-testid="select-gender"
+                    >
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="male">Masculino</SelectItem>
                       <SelectItem value="female">Feminino</SelectItem>
-                      <SelectItem value="unspecified">Prefiro não informar</SelectItem>
+                      <SelectItem value="unspecified">
+                        Prefiro não informar
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -324,7 +329,7 @@ export default function Onboarding() {
               <div className="w-full border-t border-border/50" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-3 text-muted-foreground">ou</span>
+              <span className="bg-card px-3 text-muted-foreground">ou</span>
             </div>
           </div>
 
