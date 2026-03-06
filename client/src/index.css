@@ -72,6 +72,31 @@
   --ring: 173 50% 45%;
 }
 
+/* Pink Theme Override (light mode) */
+:root[data-theme="pink"] {
+  --background: 340 30% 98%;
+  --primary: 340 60% 60%;
+  --secondary: 340 30% 92%;
+  --secondary-foreground: 340 60% 40%;
+  --accent: 35 90% 65%;
+  --border: 340 20% 90%;
+  --input: 340 20% 90%;
+  --ring: 340 60% 60%;
+}
+
+/* Blue Theme Override (light mode) */
+:root[data-theme="blue"] {
+  --background: 210 30% 98%;
+  --primary: 210 60% 55%;
+  --secondary: 210 30% 92%;
+  --secondary-foreground: 210 60% 35%;
+  --accent: 35 90% 65%;
+  --border: 210 20% 90%;
+  --input: 210 20% 90%;
+  --ring: 210 60% 55%;
+}
+
+/* Dark + Pink (must come AFTER light overrides to win cascade at equal specificity) */
 .dark[data-theme="pink"] {
   --background: 340 30% 10%;
   --foreground: 210 40% 96%;
@@ -92,6 +117,7 @@
   --accent-foreground: 210 40% 98%;
 }
 
+/* Dark + Blue (must come AFTER light overrides to win cascade at equal specificity) */
 .dark[data-theme="blue"] {
   --background: 210 30% 10%;
   --foreground: 210 40% 96%;
@@ -110,30 +136,6 @@
   --ring: 210 60% 55%;
   --accent: 210 50% 40%;
   --accent-foreground: 210 40% 98%;
-}
-
-/* Pink Theme Override */
-[data-theme="pink"] {
-  --background: 340 30% 98%;
-  --primary: 340 60% 60%;
-  --secondary: 340 30% 92%;
-  --secondary-foreground: 340 60% 40%;
-  --accent: 35 90% 65%;
-  --border: 340 20% 90%;
-  --input: 340 20% 90%;
-  --ring: 340 60% 60%;
-}
-
-/* Blue Theme Override */
-[data-theme="blue"] {
-  --background: 210 30% 98%;
-  --primary: 210 60% 55%;
-  --secondary: 210 30% 92%;
-  --secondary-foreground: 210 60% 35%;
-  --accent: 35 90% 65%;
-  --border: 210 20% 90%;
-  --input: 210 20% 90%;
-  --ring: 210 60% 55%;
 }
 
 @layer base {
