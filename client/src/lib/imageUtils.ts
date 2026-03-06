@@ -37,11 +37,12 @@ export async function compressImage(file: File, maxWidth = 1200, quality = 0.8):
 
 /**
  * Transforma uma URL pública do Supabase Storage para utilizar a API de Image Transformations.
- * Isso permite redimensionar, cortar e otimizar imagens on-the-fly.
+ * Se a imagem for gerada pelo novo pipeline seguro de thumbnails (termina em _original.),
+ * substitui pela estática pre-gerada correspondente (_thumb ou _feed).
  * 
  * @param originalUrl URL original do Supabase Storage
- * @param options Opções de transformação (width, height, resize, quality)
- * @returns URL transformada ou a original se não for uma URL do Supabase suportada
+ * @param options Opções de tamanho (width)
+ * @returns URL reescrita e otimizada
  */
 export function getTransformedImageUrl(
   originalUrl: string | null | undefined,
@@ -54,12 +55,23 @@ export function getTransformedImageUrl(
 ): string {
   if (!originalUrl) return "";
 
-  // Verifica se é uma URL válida do Supabase Storage (formato esperado)
-  // Exemplo: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
+  // Verifica se é uma URL gerada pelo novo pipeline de thumbnails (pre-generated)
+  if (originalUrl.includes("_original.")) {
+    // Determine the best static size based on the requested width
+    if (options.width && options.width <= 400) {
+      return originalUrl.replace("_original.", "_thumb.");
+    } else if (options.width && options.width <= 800) {
+      return originalUrl.replace("_original.", "_feed.");
+    }
+    // se for maior, apenas retorna o original (já foi otimizado no client-side pra max 1200)
+    return originalUrl;
+  }
+
+  // --- FALLBACK PARA FOTOS ANTIGAS (On-The-Fly Supabase Transformations) ---
   const supabaseUrlPattern = /\/storage\/v1\/object\/public\/(.+)/;
   
   if (!supabaseUrlPattern.test(originalUrl)) {
-    return originalUrl; // Não é uma URL que sabemos transformar
+    return originalUrl; 
   }
 
   // Substitui /object/public/ por /render/image/public/
@@ -76,7 +88,7 @@ export function getTransformedImageUrl(
   if (options.quality) params.append("quality", options.quality.toString());
 
   const queryString = params.toString();
-  if (!queryString) return originalUrl; // Nenhuma opção aplicada
+  if (!queryString) return originalUrl; 
 
   // Se a URL já tinha query string, junta com &, senão usa ?
   const separator = transformedBaseUrl.includes("?") ? "&" : "?";
