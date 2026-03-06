@@ -1114,10 +1114,11 @@ export async function registerRoutes(
         if (existing) {
           oldPhotoUrl = existing.photoUrl;
           await storage.deleteDailyPhoto(existing.id, tx);
-        } else {
-          await recordPoints(tx, childId, 5, 'daily_photo_create', 'daily_photo', null);
         }
         photo = await storage.createDailyPhoto({ ...input, childId }, tx);
+        if (!existing) {
+          await recordPoints(tx, childId, 5, 'daily_photo_create', 'daily_photo', photo.id);
+        }
       });
 
       if (oldPhotoUrl) {
