@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { caregivers, activityComments } from "@shared/schema";
+import { caregivers, activityComments, children, milestones, diaryEntries, dailyPhotos, vaccineRecords } from "@shared/schema";
 import { db } from "./db";
 import { eq as drizzleEq, sql } from "drizzle-orm";
 import {
@@ -204,8 +204,14 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
+    const existing = await storage.getChild(id);
     const input = api.children.update.input.parse(req.body);
     const record = await storage.updateChild(id, input);
+
+    if ('photoUrl' in input && existing?.photoUrl && input.photoUrl !== existing.photoUrl) {
+      deleteFromStorage(existing.photoUrl).catch(() => {});
+    }
+
     res.json(record);
   });
 
@@ -224,7 +230,29 @@ export async function registerRoutes(
         .json({ message: "Apenas o responsável principal pode excluir" });
     }
 
+    const urlsToDelete: string[] = [];
+
+    const [childRow] = await db.select({ photoUrl: children.photoUrl }).from(children).where(drizzleEq(children.id, id));
+    if (childRow?.photoUrl) urlsToDelete.push(childRow.photoUrl);
+
+    const milestoneRows = await db.select({ photoUrl: milestones.photoUrl }).from(milestones).where(drizzleEq(milestones.childId, id));
+    for (const r of milestoneRows) { if (r.photoUrl) urlsToDelete.push(r.photoUrl); }
+
+    const diaryRows = await db.select({ photoUrls: diaryEntries.photoUrls }).from(diaryEntries).where(drizzleEq(diaryEntries.childId, id));
+    for (const r of diaryRows) { if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls); }
+
+    const dailyRows = await db.select({ photoUrl: dailyPhotos.photoUrl }).from(dailyPhotos).where(drizzleEq(dailyPhotos.childId, id));
+    for (const r of dailyRows) { if (r.photoUrl) urlsToDelete.push(r.photoUrl); }
+
+    const vaccineRows = await db.select({ photoUrls: vaccineRecords.photoUrls }).from(vaccineRecords).where(drizzleEq(vaccineRecords.childId, id));
+    for (const r of vaccineRows) { if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls); }
+
     await storage.deleteChild(id);
+
+    for (const url of urlsToDelete) {
+      deleteFromStorage(url).catch(() => {});
+    }
+
     res.status(204).end();
   });
 
@@ -600,6 +628,11 @@ export async function registerRoutes(
 
     const input = api.milestones.update.input.parse(req.body);
     const record = await storage.updateMilestone(milestoneId, input);
+
+    if ('photoUrl' in input && existing.photoUrl && input.photoUrl !== existing.photoUrl) {
+      deleteFromStorage(existing.photoUrl).catch(() => {});
+    }
+
     res.json(record);
   });
 
@@ -620,6 +653,11 @@ export async function registerRoutes(
       await storage.deleteMilestone(milestoneId);
       await recordPoints(tx, existing.childId, -20, 'milestone_delete', 'milestone', milestoneId);
     });
+
+    if (existing.photoUrl) {
+      deleteFromStorage(existing.photoUrl).catch(() => {});
+    }
+
     res.status(204).send();
   });
 
@@ -720,6 +758,16 @@ export async function registerRoutes(
 
     const input = api.diary.update.input.parse(req.body);
     const updated = await storage.updateDiaryEntry(entryId, input);
+
+    if ('photoUrls' in input && entry.photoUrls?.length) {
+      const newSet = new Set(input.photoUrls || []);
+      for (const oldUrl of entry.photoUrls) {
+        if (!newSet.has(oldUrl)) {
+          deleteFromStorage(oldUrl).catch(() => {});
+        }
+      }
+    }
+
     res.json(updated);
   });
 
@@ -745,6 +793,13 @@ export async function registerRoutes(
       await storage.deleteDiaryEntry(entryId, tx);
       await recordPoints(tx, entry.childId, -5, 'diary_delete', 'diary_entry', entryId);
     });
+
+    if (entry.photoUrls?.length) {
+      for (const url of entry.photoUrls) {
+        deleteFromStorage(url).catch(() => {});
+      }
+    }
+
     res.status(204).send();
   });
 
@@ -934,6 +989,16 @@ export async function registerRoutes(
 
       const input = api.vaccineRecords.update.input.parse(req.body);
       const record = await storage.updateVaccineRecord(id, input);
+
+      if ('photoUrls' in input && existing.photoUrls?.length) {
+        const newSet = new Set(input.photoUrls || []);
+        for (const oldUrl of existing.photoUrls) {
+          if (!newSet.has(oldUrl)) {
+            deleteFromStorage(oldUrl).catch(() => {});
+          }
+        }
+      }
+
       res.json(record);
     },
   );
@@ -960,6 +1025,13 @@ export async function registerRoutes(
         await storage.deleteVaccineRecord(id, tx);
         await recordPoints(tx, existing.childId, -15, 'vaccine_record_delete', 'vaccine_record', id);
       });
+
+      if (existing.photoUrls?.length) {
+        for (const url of existing.photoUrls) {
+          deleteFromStorage(url).catch(() => {});
+        }
+      }
+
       res.status(204).end();
     },
   );
