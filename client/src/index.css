@@ -151,6 +151,22 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  /* Gradient fade below sticky header - professional seamless look */
+  .header-gradient::after {
+    content: "";
+    position: absolute;
+    bottom: -24px;
+    left: 0;
+    right: 0;
+    height: 24px;
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--background) / 0.8),
+      transparent
+    );
+    pointer-events: none;
+  }
+
   h1,
   h2,
   h3,

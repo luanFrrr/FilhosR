@@ -5,9 +5,11 @@ import {
 import React, { useEffect } from "react";
 
 function hslToHex(hslStr: string): string {
-  const parts = hslStr.split(/\s+/).map(Number);
-  if (parts.length < 3) return "#000000";
-  const [h, s, l] = [parts[0], parts[1] / 100, parts[2] / 100];
+  const parts = hslStr.split(/\s+/).map((v) => parseFloat(v));
+  if (parts.length < 3 || parts.some(Number.isNaN)) return "#000000";
+  const [h, sRaw, lRaw] = parts;
+  const s = sRaw > 1 ? sRaw / 100 : sRaw;
+  const l = lRaw > 1 ? lRaw / 100 : lRaw;
   const a = s * Math.min(l, 1 - l);
   const f = (n: number) => {
     const k = (n + h / 30) % 12;

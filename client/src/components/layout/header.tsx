@@ -29,7 +29,10 @@ export function Header({
   const displayDate = today.charAt(0).toUpperCase() + today.slice(1);
 
   return (
-    <header className="sticky top-0 z-40 bg-background border-b border-border/50 transition-all">
+    <header
+      className="sticky top-0 z-40 bg-background/95 backdrop-blur-md transition-all header-gradient relative"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+    >
       <div className="max-w-md mx-auto px-4 h-16 flex items-center justify-between">
         {showChildSelector ? (
           <div className="flex flex-col">
