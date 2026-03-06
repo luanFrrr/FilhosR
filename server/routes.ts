@@ -81,6 +81,19 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express,
 ): Promise<Server> {
+  // === HEALTH CHECK ===
+  app.get("/healthz", (_req, res) => {
+    res.status(200).send("OK");
+  });
+  app.get("/", (_req, res, next) => {
+    // If it's a request for the root, and we're in production, 
+    // we want to make sure it doesn't hang if there's any issue.
+    // However, serveStatic or setupVite usually handles this.
+    // For health check purposes, we'll allow / to be handled by static/vite
+    // but we add /healthz as a dedicated lightweight endpoint.
+    next();
+  });
+
   // === SETUP AUTHENTICATION ===
   await setupAuth(app);
   registerAuthRoutes(app);
