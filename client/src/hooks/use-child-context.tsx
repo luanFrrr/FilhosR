@@ -31,34 +31,13 @@ export function ChildProvider({ children }: { children: React.ReactNode }) {
     if (activeChildId) {
       localStorage.setItem("activeChildId", activeChildId.toString());
 
-      // Update theme based on child
       const child = childList?.find((c) => c.id === activeChildId);
       const theme = child?.theme;
-      
-      const isDark = document.documentElement.classList.contains("dark");
-      let themeColor = isDark ? "#020617" : "#f0fdfa"; // Default colors
-
       if (theme && theme !== "default" && theme !== "neutral") {
         document.documentElement.setAttribute("data-theme", theme);
-        
-        // Map themes to their background colors
-        if (theme === "pink") {
-          themeColor = isDark ? "#1a0b10" : "#fdf2f8";
-        } else if (theme === "blue") {
-          themeColor = isDark ? "#0b111a" : "#f0f9ff";
-        }
       } else {
         document.documentElement.removeAttribute("data-theme");
       }
-
-      // Update theme-color meta tag
-      let meta = document.querySelector('meta[name="theme-color"]');
-      if (!meta) {
-        meta = document.createElement("meta");
-        meta.setAttribute("name", "theme-color");
-        document.head.appendChild(meta);
-      }
-      meta.setAttribute("content", themeColor);
     }
   }, [activeChildId, childList]);
 
