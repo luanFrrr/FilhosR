@@ -56,6 +56,17 @@ export function usePushNotifications() {
   const subscribe = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Check if permission is already denied
+      if (Notification.permission === "denied") {
+        toast({
+          title: "Permissão bloqueada",
+          description: "Você bloqueou as notificações. Para ativar, clique no ícone de cadeado na barra de endereço do navegador.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         toast({

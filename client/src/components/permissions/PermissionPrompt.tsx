@@ -58,6 +58,7 @@ export function PermissionPrompt() {
     if (state.camera === "granted" || state.camera === "denied") startStep = 1;
     if (startStep === 1 && (state.notifications === "granted" || state.notifications === "denied" || state.notifications === "unsupported")) {
       localStorage.setItem(PERMISSIONS_COMPLETED_KEY, String(Date.now()));
+      setShow(false);
       return;
     }
     setStep(startStep);
