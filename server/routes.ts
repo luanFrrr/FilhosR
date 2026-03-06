@@ -17,7 +17,7 @@ import {
   sendVaccineNotifications,
   notifyCaregivers,
 } from "./vaccineNotifications";
-import { uploadToStorage, type UploadBucket } from "./supabaseStorage";
+import { uploadToStorage, deleteFromStorage, type UploadBucket } from "./supabaseStorage";
 import rateLimit from "express-rate-limit";
 import { recordPoints } from "./gamificationHelper";
 
@@ -1033,20 +1033,24 @@ export async function registerRoutes(
 
     const input = api.dailyPhotos.create.input.parse(req.body);
 
-    // Check if photo already exists for this date
     const existing = await storage.getDailyPhotoByDate(childId, input.date);
-    if (existing) {
-      return res
-        .status(409)
-        .json({ message: "Já existe uma foto para esta data" });
-    }
+    let oldPhotoUrl: string | null = null;
 
     try {
       let photo: any;
       await db.transaction(async (tx) => {
+        if (existing) {
+          oldPhotoUrl = existing.photoUrl;
+          await storage.deleteDailyPhoto(existing.id, tx);
+        } else {
+          await recordPoints(tx, childId, 5, 'daily_photo_create', 'daily_photo', null);
+        }
         photo = await storage.createDailyPhoto({ ...input, childId }, tx);
-        await recordPoints(tx, childId, 5, 'daily_photo_create', 'daily_photo', photo.id);
       });
+
+      if (oldPhotoUrl) {
+        deleteFromStorage(oldPhotoUrl).catch(() => {});
+      }
 
       // Responde imediatamente
       res.status(201).json(photo);
@@ -1105,6 +1109,11 @@ export async function registerRoutes(
       await storage.deleteDailyPhoto(id, tx);
       await recordPoints(tx, photo.childId, -5, 'daily_photo_delete', 'daily_photo', id);
     });
+
+    if (photo.photoUrl) {
+      deleteFromStorage(photo.photoUrl).catch(() => {});
+    }
+
     res.status(204).end();
   });
 

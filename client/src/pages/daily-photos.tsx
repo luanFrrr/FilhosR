@@ -3,7 +3,6 @@ import {
   useDailyPhotos,
   useCreateDailyPhoto,
   useTodayPhoto,
-  useDeleteDailyPhoto,
 } from "@/hooks/use-daily-photos";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -14,10 +13,9 @@ import {
   ChevronRight,
   Check,
   ImagePlus,
-  Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -62,17 +60,14 @@ export default function DailyPhotos() {
   const { data: photos, isLoading } = useDailyPhotos(activeChild?.id || 0);
   const { data: todayPhoto } = useTodayPhoto(activeChild?.id || 0);
   const createPhoto = useCreateDailyPhoto();
-  const deletePhoto = useDeleteDailyPhoto();
   const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isUploading, setIsUploading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [showFeedback, setShowFeedback] = useState<{
     url: string;
     message: string;
   } | null>(null);
-  const pickerOpenerRef = useRef<(() => void) | null>(null);
-  const { upload, isUploading: isUploadingToStorage } = useUpload();
+  const { upload } = useUpload();
 
   // Cronological order: oldest first, newest last (timeline style)
   const sortedPhotos =
@@ -176,28 +171,44 @@ export default function DailyPhotos() {
     ],
   );
 
-  const handleDeleteTodayPhoto = useCallback(async () => {
-    if (!todayPhoto || !activeChild) return;
+  const handleReplacePhoto = useCallback(async (file: File) => {
+    if (!activeChild) return;
 
-    setIsDeleting(true);
+    setIsUploading(true);
     try {
-      await deletePhoto.mutateAsync({
-        id: todayPhoto.id,
-        childId: activeChild.id,
+      const today = new Date().toISOString().split("T")[0];
+      const photoUrl = await upload(file, {
+        bucket: "daily-photos",
+        path: `${activeChild.id}/${today}-${Date.now()}.jpg`,
+        maxSize: 1200,
+        quality: 0.8,
       });
-      setTimeout(() => {
-        pickerOpenerRef.current?.();
-      }, 300);
-    } catch (error) {
+
+      if (!photoUrl) throw new Error("Falha no upload da foto");
+
+      await createPhoto.mutateAsync({
+        childId: activeChild.id,
+        date: today,
+        photoUrl,
+      });
+
+      toast({
+        title: "Foto trocada!",
+        description: "A foto do dia foi atualizada.",
+      });
+
+      setCurrentIndex(-1);
+    } catch (error: any) {
       toast({
         title: "Erro",
-        description: "Não foi possível remover a foto.",
+        description: error.message || "Não foi possível trocar a foto.",
         variant: "destructive",
       });
     } finally {
-      setIsDeleting(false);
+      setIsUploading(false);
     }
-  }, [todayPhoto, activeChild, deletePhoto, toast]);
+  }, [activeChild, upload, createPhoto, toast]);
+
 
   const goToPrevious = () => {
     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
@@ -260,21 +271,24 @@ export default function DailyPhotos() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <PhotoPicker onPhotoSelected={handlePhotoSelected}>
-                {(openPicker) => {
-                  pickerOpenerRef.current = openPicker;
-                  return todayPhoto ? (
+              {todayPhoto ? (
+                <PhotoPicker onPhotoSelected={handleReplacePhoto}>
+                  {(openPicker) => (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={handleDeleteTodayPhoto}
-                      disabled={isDeleting}
-                      data-testid="button-delete-today-photo"
+                      onClick={openPicker}
+                      disabled={isUploading}
+                      data-testid="button-replace-today-photo"
                     >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      {isDeleting ? "..." : "Trocar"}
+                      <Camera className="w-4 h-4 mr-1" />
+                      {isUploading ? "Trocando..." : "Trocar"}
                     </Button>
-                  ) : (
+                  )}
+                </PhotoPicker>
+              ) : (
+                <PhotoPicker onPhotoSelected={handlePhotoSelected}>
+                  {(openPicker) => (
                     <Button
                       size="sm"
                       onClick={openPicker}
@@ -282,11 +296,11 @@ export default function DailyPhotos() {
                       data-testid="button-add-today-photo"
                     >
                       <ImagePlus className="w-4 h-4 mr-1" />
-                      {isUploading ? "..." : "Adicionar"}
+                      {isUploading ? "Salvando..." : "Adicionar"}
                     </Button>
-                  );
-                }}
-              </PhotoPicker>
+                  )}
+                </PhotoPicker>
+              )}
             </div>
           </div>
         </Card>
