@@ -55,7 +55,13 @@ import { getZodiacSign } from "@/lib/zodiac";
 import { format } from "date-fns";
 import { parseLocalDate, parseDecimalBR, formatDecimalBR } from "@/lib/utils";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
-import { useUpdateProfile, useUploadProfilePhoto, getDisplayName, getDisplayFirstName, getDisplayPhotoUrl } from "@/hooks/use-profile";
+import {
+  useUpdateProfile,
+  useUploadProfilePhoto,
+  getDisplayName,
+  getDisplayFirstName,
+  getDisplayPhotoUrl,
+} from "@/hooks/use-profile";
 import {
   Dialog,
   DialogContent,
@@ -86,7 +92,11 @@ import { PhotoPicker } from "@/components/ui/photo-picker";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-function CaregiversList({ childId, isOwner, onRemove }: {
+function CaregiversList({
+  childId,
+  isOwner,
+  onRemove,
+}: {
   childId: number;
   isOwner: boolean;
   onRemove: (caregiverId: number, name: string) => void;
@@ -95,7 +105,7 @@ function CaregiversList({ childId, isOwner, onRemove }: {
 
   if (!caregiversData || caregiversData.length <= 1) return null;
 
-  const otherCaregivers = caregiversData.filter(c => c.role !== "owner");
+  const otherCaregivers = caregiversData.filter((c) => c.role !== "owner");
   if (otherCaregivers.length === 0) return null;
 
   return (
@@ -105,7 +115,10 @@ function CaregiversList({ childId, isOwner, onRemove }: {
         <span>Cuidadores</span>
       </div>
       {otherCaregivers.map((c) => (
-        <div key={c.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2">
+        <div
+          key={c.id}
+          className="flex items-center justify-between bg-white rounded-lg px-3 py-2"
+        >
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
               <UserAvatar
@@ -116,8 +129,13 @@ function CaregiversList({ childId, isOwner, onRemove }: {
                 size={28}
               />
             </div>
-            <span className="text-sm truncate" data-testid={`text-caregiver-name-${c.id}`}>
-              {[c.userFirstName, c.userLastName].filter(Boolean).join(" ") || c.userEmail || "Cuidador"}
+            <span
+              className="text-sm truncate"
+              data-testid={`text-caregiver-name-${c.id}`}
+            >
+              {[c.userFirstName, c.userLastName].filter(Boolean).join(" ") ||
+                c.userEmail ||
+                "Cuidador"}
             </span>
           </div>
           {isOwner && (
@@ -125,7 +143,14 @@ function CaregiversList({ childId, isOwner, onRemove }: {
               size="icon"
               variant="ghost"
               className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => onRemove(c.id, [c.userFirstName, c.userLastName].filter(Boolean).join(" ") || c.userEmail || "Cuidador")}
+              onClick={() =>
+                onRemove(
+                  c.id,
+                  [c.userFirstName, c.userLastName].filter(Boolean).join(" ") ||
+                    c.userEmail ||
+                    "Cuidador",
+                )
+              }
               data-testid={`button-remove-caregiver-${c.id}`}
             >
               <UserMinus className="w-3.5 h-3.5" />
@@ -138,6 +163,7 @@ function CaregiversList({ childId, isOwner, onRemove }: {
 }
 
 export default function Settings() {
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const { activeChild, setActiveChildId } = useChildContext();
   const { data: children } = useChildren();
   const { data: childrenWithRoles } = useChildrenWithRoles();
@@ -163,7 +189,10 @@ export default function Settings() {
 
   // Estado para edição de perfil inline
   const [editingProfile, setEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "" });
+  const [profileForm, setProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+  });
 
   const openProfileEdit = () => {
     setProfileForm({
@@ -184,7 +213,11 @@ export default function Settings() {
 
   const handleProfilePhotoUpload = async (file: File) => {
     if (file.size > 8 * 1024 * 1024) {
-      toast({ title: "Imagem muito grande", description: "Escolha uma imagem menor que 8MB", variant: "destructive" });
+      toast({
+        title: "Imagem muito grande",
+        description: "Escolha uma imagem menor que 8MB",
+        variant: "destructive",
+      });
       return;
     }
     await uploadPhoto.mutateAsync(file);
@@ -194,7 +227,6 @@ export default function Settings() {
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
   const [sharingChild, setSharingChild] = useState<Child | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -402,16 +434,28 @@ export default function Settings() {
                   <label className="text-xs text-muted-foreground">Nome</label>
                   <Input
                     value={profileForm.firstName}
-                    onChange={(e) => setProfileForm(f => ({ ...f, firstName: e.target.value }))}
+                    onChange={(e) =>
+                      setProfileForm((f) => ({
+                        ...f,
+                        firstName: e.target.value,
+                      }))
+                    }
                     placeholder="Seu nome"
                     data-testid="input-display-first-name"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Sobrenome</label>
+                  <label className="text-xs text-muted-foreground">
+                    Sobrenome
+                  </label>
                   <Input
                     value={profileForm.lastName}
-                    onChange={(e) => setProfileForm(f => ({ ...f, lastName: e.target.value }))}
+                    onChange={(e) =>
+                      setProfileForm((f) => ({
+                        ...f,
+                        lastName: e.target.value,
+                      }))
+                    }
                     placeholder="Sobrenome"
                     data-testid="input-display-last-name"
                   />
@@ -422,7 +466,9 @@ export default function Settings() {
                   size="sm"
                   className="flex-1"
                   onClick={handleProfileSave}
-                  disabled={updateProfile.isPending || !profileForm.firstName.trim()}
+                  disabled={
+                    updateProfile.isPending || !profileForm.firstName.trim()
+                  }
                   data-testid="button-save-profile"
                 >
                   <Check className="w-4 h-4 mr-1" />
@@ -466,7 +512,10 @@ export default function Settings() {
                 </div>
               </div>
               <Select value={theme} onValueChange={(v: any) => setTheme(v)}>
-                <SelectTrigger className="w-32 h-10 rounded-xl" data-testid="select-theme">
+                <SelectTrigger
+                  className="w-32 h-10 rounded-xl"
+                  data-testid="select-theme"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -513,7 +562,9 @@ export default function Settings() {
 
           <div className="space-y-3">
             {children?.map((child) => {
-              const roleInfo = childrenWithRoles?.find((c: any) => c.id === child.id);
+              const roleInfo = childrenWithRoles?.find(
+                (c: any) => c.id === child.id,
+              );
               const isOwner = roleInfo?.role === "owner";
               return (
                 <div key={child.id} className="space-y-2">
@@ -524,7 +575,10 @@ export default function Settings() {
                     <PhotoView src={child.photoUrl || null} alt={child.name}>
                       {child.photoUrl ? (
                         <img
-                          src={getTransformedImageUrl(child.photoUrl, { width: 150, resize: "cover" })}
+                          src={getTransformedImageUrl(child.photoUrl, {
+                            width: 150,
+                            resize: "cover",
+                          })}
                           alt={child.name}
                           className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
                         />
@@ -595,13 +649,22 @@ export default function Settings() {
                         childId={child.id}
                         isOwner={true}
                         onRemove={(caregiverId, displayName) => {
-                          if (confirm(`Remover ${displayName} como cuidador(a)?`)) {
+                          if (
+                            confirm(`Remover ${displayName} como cuidador(a)?`)
+                          ) {
                             removeCaregiver.mutate(
                               { childId: child.id, caregiverId },
                               {
-                                onSuccess: () => toast({ title: `${displayName} removido(a)` }),
-                                onError: (e) => toast({ title: e.message, variant: "destructive" }),
-                              }
+                                onSuccess: () =>
+                                  toast({
+                                    title: `${displayName} removido(a)`,
+                                  }),
+                                onError: (e) =>
+                                  toast({
+                                    title: e.message,
+                                    variant: "destructive",
+                                  }),
+                              },
                             );
                           }
                         }}
@@ -623,13 +686,23 @@ export default function Settings() {
                       size="sm"
                       className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/5"
                       onClick={() => {
-                        if (confirm(`Deseja sair do cuidado de ${child.name}? Você perderá o acesso.`)) {
+                        if (
+                          confirm(
+                            `Deseja sair do cuidado de ${child.name}? Você perderá o acesso.`,
+                          )
+                        ) {
                           leaveChild.mutate(child.id, {
                             onSuccess: () => {
-                              toast({ title: `Você saiu do cuidado de ${child.name}` });
+                              toast({
+                                title: `Você saiu do cuidado de ${child.name}`,
+                              });
                               setActiveChildId(null);
                             },
-                            onError: (e) => toast({ title: e.message, variant: "destructive" }),
+                            onError: (e) =>
+                              toast({
+                                title: e.message,
+                                variant: "destructive",
+                              }),
                           });
                         }
                       }}
@@ -677,7 +750,9 @@ export default function Settings() {
                     Vacinas, marcos e atividades da família
                   </p>
                 </div>
-                {pushLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                {pushLoading && (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                )}
               </div>
 
               {!isSupported ? (
@@ -692,7 +767,8 @@ export default function Settings() {
                   <div className="flex items-center gap-2 bg-red-50 rounded-lg px-3 py-2">
                     <BellOff className="w-4 h-4 text-red-400 shrink-0" />
                     <p className="text-xs text-red-600">
-                      Permissão bloqueada no dispositivo. Ative manualmente nas configurações do navegador.
+                      Permissão bloqueada no dispositivo. Ative manualmente nas
+                      configurações do navegador.
                     </p>
                   </div>
                   <Button
@@ -702,7 +778,8 @@ export default function Settings() {
                     onClick={() => window.open("app-settings:", "_blank")}
                     data-testid="button-open-browser-settings"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" /> Abrir configurações do navegador
+                    <ExternalLink className="w-3.5 h-3.5" /> Abrir configurações
+                    do navegador
                   </Button>
                 </div>
               ) : isSubscribed ? (
