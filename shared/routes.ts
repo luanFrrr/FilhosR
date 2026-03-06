@@ -313,6 +313,20 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    likesGet: {
+      method: "GET" as const,
+      path: "/api/children/:childId/diary/:entryId/likes",
+      responses: {
+        200: z.object({ count: z.number(), userLiked: z.boolean() }),
+      },
+    },
+    likesToggle: {
+      method: "POST" as const,
+      path: "/api/children/:childId/diary/:entryId/like",
+      responses: {
+        200: z.object({ count: z.number(), userLiked: z.boolean() }),
+      },
+    },
   },
 
   // SUS Vaccines Catalog

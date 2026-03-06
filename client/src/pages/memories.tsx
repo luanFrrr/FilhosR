@@ -58,6 +58,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { LikeButton } from "@/components/social/LikeButton";
+import { LazyImage } from "@/components/ui/lazy-image";
+import { DiaryLikeButton } from "@/components/social/DiaryLikeButton";
 import { MilestoneComments } from "@/components/social/MilestoneComments";
 import { useMilestonesWithSocial } from "@/hooks/use-social";
 import { useUpload } from "@/hooks/use-upload";
@@ -604,15 +606,10 @@ export default function Memories() {
                       </span>
                       <div className="bg-white p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
                         {milestone.photoUrl && (
-                          <img
-<<<<<<< HEAD
+                          <LazyImage
                             src={getTransformedImageUrl(milestone.photoUrl, { width: 400, height: 320, resize: 'cover' })}
-=======
-                            src={getTransformedImageUrl(milestone.photoUrl, { width: 400, resize: "cover" })}
->>>>>>> b57c38837d1df585891f457ee3f3d5d3f6580c01
                             alt={milestone.title}
-                            className="w-full h-32 object-cover rounded-lg mb-3"
-                            loading="lazy"
+                            className="w-full h-32 rounded-lg mb-3"
                           />
                         )}
                         <h3 className="font-display font-bold text-lg mb-2">
@@ -745,9 +742,17 @@ export default function Memories() {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-foreground leading-relaxed font-hand text-lg">
+                    <p className="text-foreground leading-relaxed font-hand text-lg mb-3">
                       {entry.content}
                     </p>
+                    <div className="flex items-center justify-start border-t border-border/30 pt-3">
+                      <DiaryLikeButton 
+                        entryId={entry.id} 
+                        childId={activeChild?.id || 0} 
+                        initialCount={entry.likesCount}
+                        initialLiked={(entry as any).userLiked}
+                      />
+                    </div>
                   </div>
                 ))}
               {allDiaryEntries.length === 0 && (
@@ -797,10 +802,10 @@ export default function Memories() {
               </DialogHeader>
 
               {viewMilestone.photoUrl && (
-                <img
+                <LazyImage
                   src={viewMilestone.photoUrl}
                   alt={viewMilestone.title}
-                  className="w-full rounded-xl object-cover max-h-64"
+                  className="w-full h-64 rounded-xl max-h-64"
                 />
               )}
 

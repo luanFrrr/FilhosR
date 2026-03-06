@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getPendingVaccines, getPendingDosesByVaccine } from "@/lib/vaccineCheck";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
 import { useUpload } from "@/hooks/use-upload";
+import { LazyImage } from "@/components/ui/lazy-image";
 
 const encouragingMessages = [
   "Cada vacina é um abraço de proteção!",
@@ -646,6 +647,7 @@ export default function VaccineCard() {
                         src={getTransformedImageUrl(url, { width: 150, resize: "cover" })} 
                         alt={`Foto salva ${index + 1}`} 
                         className="w-20 h-20 object-cover rounded-lg border shadow-sm"
+                        loading="lazy"
                       />
                       <Button
                         type="button"
@@ -667,6 +669,7 @@ export default function VaccineCard() {
                           src={URL.createObjectURL(file)} 
                           alt={`Nova foto ${index + 1}`} 
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                         <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                           <Plus className="w-4 h-4 text-white" />
@@ -774,10 +777,10 @@ export default function VaccineCard() {
                           rel="noopener noreferrer"
                           className="block"
                         >
-                          <img 
+                          <LazyImage 
                             src={getTransformedImageUrl(url, { width: 400, resize: "cover" })} 
                             alt={`Comprovante ${index + 1}`} 
-                            className="w-24 h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity"
+                            className="w-24 h-24 rounded-lg border hover:opacity-80 transition-opacity"
                           />
                         </a>
                       ))}

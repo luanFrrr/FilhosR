@@ -16,6 +16,7 @@ import {
   inviteCodes,
   activityComments,
   milestoneLikes,
+  diaryLikes,
   type User,
   type Child,
   type InsertChild,
@@ -44,6 +45,8 @@ import {
   type InsertActivityComment,
   type MilestoneLikeStatus,
   type MilestoneWithSocial,
+  type DiaryLikeStatus,
+  type DiaryEntryWithSocial,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql, count, desc } from "drizzle-orm";
@@ -110,9 +113,10 @@ export interface IStorage {
   // Diary
   getDiaryEntries(
     childId: number,
+    userId: string,
     page?: number,
     pageSize?: number,
-  ): Promise<{ data: DiaryEntry[]; total: number; page: number; pageSize: number; hasMore: boolean }>;
+  ): Promise<{ data: DiaryEntryWithSocial[]; total: number; page: number; pageSize: number; hasMore: boolean }>;
   getDiaryEntryById(id: number): Promise<DiaryEntry | undefined>;
   createDiaryEntry(entry: InsertDiaryEntry, tx?: any): Promise<DiaryEntry>;
   updateDiaryEntry(
@@ -226,6 +230,16 @@ export interface IStorage {
     childId: number,
     userId: string,
   ): Promise<MilestoneWithSocial[]>;
+
+  // Diary Likes
+  getDiaryLikeStatus(
+    diaryEntryId: number,
+    userId: string,
+  ): Promise<DiaryLikeStatus>;
+  toggleDiaryLike(
+    diaryEntryId: number,
+    userId: string,
+  ): Promise<DiaryLikeStatus>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -538,14 +552,15 @@ export class DatabaseStorage implements IStorage {
   // Diary — paginação completa
   async getDiaryEntries(
     childId: number,
+    userId: string,
     page = 1,
     pageSize = 30,
-  ): Promise<{ data: DiaryEntry[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
+  ): Promise<{ data: DiaryEntryWithSocial[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
     const safePage = Math.max(1, page);
     const safeSize = Math.min(Math.max(1, pageSize), 100); // max 100 por página
     const offset = (safePage - 1) * safeSize;
 
-    const [[countResult], data] = await Promise.all([
+    const [[countResult], pagedEntries] = await Promise.all([
       db.select({ total: count() }).from(diaryEntries).where(eq(diaryEntries.childId, childId)),
       db
         .select()
@@ -557,7 +572,33 @@ export class DatabaseStorage implements IStorage {
     ]);
 
     const total = countResult?.total ?? 0;
-    return { data, total, page: safePage, pageSize: safeSize, hasMore: offset + data.length < total };
+    
+    if (pagedEntries.length === 0) {
+      return { data: [], total, page: safePage, pageSize: safeSize, hasMore: false };
+    }
+
+    const entryIds = pagedEntries.map(e => e.id);
+
+    // Fetch user likes for the entries in this page
+    const userLikes = await db
+        .select({ diaryEntryId: diaryLikes.diaryEntryId })
+        .from(diaryLikes)
+        .where(
+          and(
+            eq(diaryLikes.userId, userId),
+            sql`${diaryLikes.diaryEntryId} IN (${sql.raw(entryIds.join(','))})`,
+          ),
+        );
+        
+    const userLikedSet = new Set(userLikes.map((r) => r.diaryEntryId));
+
+    const data = pagedEntries.map((entry) => ({
+      ...entry,
+      likeCount: entry.likesCount,
+      userLiked: userLikedSet.has(entry.id),
+    }));
+
+    return { data, total, page: safePage, pageSize: safeSize, hasMore: offset + pagedEntries.length < total };
   }
 
   async getDiaryEntryById(id: number): Promise<DiaryEntry | undefined> {
@@ -1055,12 +1096,13 @@ export class DatabaseStorage implements IStorage {
     milestoneId: number,
     userId: string,
   ): Promise<MilestoneLikeStatus> {
-    // 1 query com COUNT + verificação de like do usuário em paralelo
-    const [[likeCount], [userLikeRow]] = await Promise.all([
+    const [milestoneRow, [userLikeRow]] = await Promise.all([
       db
-        .select({ count: count() })
-        .from(milestoneLikes)
-        .where(eq(milestoneLikes.milestoneId, milestoneId)),
+        .select({ count: milestones.likesCount })
+        .from(milestones)
+        .where(eq(milestones.id, milestoneId))
+        .limit(1)
+        .then((res) => res[0]),
       db
         .select({ id: milestoneLikes.userId })
         .from(milestoneLikes)
@@ -1073,7 +1115,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1),
     ]);
     return {
-      count: likeCount?.count ?? 0,
+      count: milestoneRow?.count ?? 0,
       userLiked: !!userLikeRow,
     };
   }
@@ -1082,30 +1124,40 @@ export class DatabaseStorage implements IStorage {
     milestoneId: number,
     userId: string,
   ): Promise<MilestoneLikeStatus> {
-    const existing = await db
-      .select()
-      .from(milestoneLikes)
-      .where(
-        and(
-          eq(milestoneLikes.milestoneId, milestoneId),
-          eq(milestoneLikes.userId, userId),
-        ),
-      );
-
-    if (existing.length > 0) {
-      // Remove like
-      await db
-        .delete(milestoneLikes)
+    await db.transaction(async (tx) => {
+      const existing = await tx
+        .select()
+        .from(milestoneLikes)
         .where(
           and(
             eq(milestoneLikes.milestoneId, milestoneId),
             eq(milestoneLikes.userId, userId),
           ),
         );
-    } else {
-      // Add like
-      await db.insert(milestoneLikes).values({ milestoneId, userId });
-    }
+
+      if (existing.length > 0) {
+        // Remove like
+        await tx
+          .delete(milestoneLikes)
+          .where(
+            and(
+              eq(milestoneLikes.milestoneId, milestoneId),
+              eq(milestoneLikes.userId, userId),
+            ),
+          );
+        // Descrementar counter
+        await tx.execute(
+          sql`UPDATE milestones SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = ${milestoneId}`,
+        );
+      } else {
+        // Add like
+        await tx.insert(milestoneLikes).values({ milestoneId, userId });
+        // Incrementar counter
+        await tx.execute(
+          sql`UPDATE milestones SET likes_count = likes_count + 1 WHERE id = ${milestoneId}`,
+        );
+      }
+    });
 
     return this.getMilestoneLikeStatus(milestoneId, userId);
   }
@@ -1114,60 +1166,121 @@ export class DatabaseStorage implements IStorage {
     childId: number,
     userId: string,
   ): Promise<MilestoneWithSocial[]> {
-    // 4 queries paralelas — sem N+1
-    const [allMilestones, likeCounts, commentCounts, userLikes] =
-      await Promise.all([
-        // 1) Marcos ordenados: data mais recente primeiro, desempate por createdAt
-        db
-          .select()
-          .from(milestones)
-          .where(eq(milestones.childId, childId))
-          .orderBy(desc(milestones.date), desc(milestones.createdAt))
-          .limit(200),
+    // 3 queries paralelas — sem N+1, sem agg de likes
+    const [allMilestones, commentCounts, userLikes] = await Promise.all([
+      // 1) Marcos ordenados
+      db
+        .select()
+        .from(milestones)
+        .where(eq(milestones.childId, childId))
+        .orderBy(desc(milestones.date), desc(milestones.createdAt))
+        .limit(200),
 
-        // 2) Total de likes por marco
-        db
-          .select({ milestoneId: milestoneLikes.milestoneId, total: count() })
-          .from(milestoneLikes)
-          .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
-          .where(eq(milestones.childId, childId))
-          .groupBy(milestoneLikes.milestoneId),
-
-        // 3) Total de comentários por marco
-        db
-          .select({ recordId: activityComments.recordId, total: count() })
-          .from(activityComments)
-          .where(
-            and(
-              eq(activityComments.childId, childId),
-              eq(activityComments.recordType, "milestone"),
-            ),
-          )
-          .groupBy(activityComments.recordId),
-
-        // 4) IDs dos marcos que o usuário atual já curtiu — elimina query por marco
-        db
-          .select({ milestoneId: milestoneLikes.milestoneId })
-          .from(milestoneLikes)
-          .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
-          .where(
-            and(
-              eq(milestones.childId, childId),
-              eq(milestoneLikes.userId, userId),
-            ),
+      // 2) Total de comentários por marco
+      db
+        .select({ recordId: activityComments.recordId, total: count() })
+        .from(activityComments)
+        .where(
+          and(
+            eq(activityComments.childId, childId),
+            eq(activityComments.recordType, "milestone"),
           ),
-      ]);
+        )
+        .groupBy(activityComments.recordId),
 
-    const likeMap = new Map(likeCounts.map((r) => [r.milestoneId, r.total]));
+      // 3) IDs dos marcos que o usuário atual curtiu
+      db
+        .select({ milestoneId: milestoneLikes.milestoneId })
+        .from(milestoneLikes)
+        .innerJoin(milestones, eq(milestoneLikes.milestoneId, milestones.id))
+        .where(
+          and(
+            eq(milestones.childId, childId),
+            eq(milestoneLikes.userId, userId),
+          ),
+        ),
+    ]);
+
     const commentMap = new Map(commentCounts.map((r) => [r.recordId, r.total]));
     const userLikedSet = new Set(userLikes.map((r) => r.milestoneId));
 
     return allMilestones.map((milestone) => ({
       ...milestone,
-      likeCount: likeMap.get(milestone.id) ?? 0,
+      likeCount: milestone.likesCount,
       commentCount: commentMap.get(milestone.id) ?? 0,
       userLiked: userLikedSet.has(milestone.id),
     }));
+  }
+
+  // Diary Likes
+  async getDiaryLikeStatus(
+    diaryEntryId: number,
+    userId: string,
+  ): Promise<DiaryLikeStatus> {
+    const [entryRow, [userLikeRow]] = await Promise.all([
+      db
+        .select({ count: diaryEntries.likesCount })
+        .from(diaryEntries)
+        .where(eq(diaryEntries.id, diaryEntryId))
+        .limit(1)
+        .then((res) => res[0]),
+      db
+        .select({ id: diaryLikes.userId })
+        .from(diaryLikes)
+        .where(
+          and(
+            eq(diaryLikes.diaryEntryId, diaryEntryId),
+            eq(diaryLikes.userId, userId),
+          ),
+        )
+        .limit(1),
+    ]);
+    return {
+      count: entryRow?.count ?? 0,
+      userLiked: !!userLikeRow,
+    };
+  }
+
+  async toggleDiaryLike(
+    diaryEntryId: number,
+    userId: string,
+  ): Promise<DiaryLikeStatus> {
+    await db.transaction(async (tx) => {
+      const existing = await tx
+        .select()
+        .from(diaryLikes)
+        .where(
+          and(
+            eq(diaryLikes.diaryEntryId, diaryEntryId),
+            eq(diaryLikes.userId, userId),
+          ),
+        );
+
+      if (existing.length > 0) {
+        // Remove like
+        await tx
+          .delete(diaryLikes)
+          .where(
+            and(
+              eq(diaryLikes.diaryEntryId, diaryEntryId),
+              eq(diaryLikes.userId, userId),
+            ),
+          );
+        // Decrementar counter
+        await tx.execute(
+          sql`UPDATE diary_entries SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = ${diaryEntryId}`,
+        );
+      } else {
+        // Add like
+        await tx.insert(diaryLikes).values({ diaryEntryId, userId });
+        // Incrementar counter
+        await tx.execute(
+          sql`UPDATE diary_entries SET likes_count = likes_count + 1 WHERE id = ${diaryEntryId}`,
+        );
+      }
+    });
+
+    return this.getDiaryLikeStatus(diaryEntryId, userId);
   }
 
   // Verifica acesso direto na tabela caregivers (sem buscar todos os filhos)

@@ -86,6 +86,7 @@ export const milestones = pgTable("milestones", {
   title: text("title").notNull(),
   description: text("description"),
   photoUrl: text("photo_url"),
+  likesCount: integer("likes_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -95,6 +96,7 @@ export const diaryEntries = pgTable("diary_entries", {
   date: date("date").notNull(),
   content: text("content"),
   photoUrls: text("photo_urls").array(),
+  likesCount: integer("likes_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -278,11 +280,12 @@ export const milestonesRelations = relations(milestones, ({ one, many }) => ({
   likes: many(milestoneLikes),
 }));
 
-export const diaryEntriesRelations = relations(diaryEntries, ({ one }) => ({
+export const diaryEntriesRelations = relations(diaryEntries, ({ one, many }) => ({
   child: one(children, {
     fields: [diaryEntries.childId],
     references: [children.id],
   }),
+  likes: many(diaryLikes),
 }));
 
 export const gamificationRelations = relations(gamification, ({ one }) => ({
@@ -366,6 +369,33 @@ export const milestoneLikesRelations = relations(milestoneLikes, ({ one }) => ({
   }),
   user: one(users, {
     fields: [milestoneLikes.userId],
+    references: [users.id],
+  }),
+}));
+
+export const diaryLikes = pgTable(
+  "diary_likes",
+  {
+    id: serial("id").primaryKey(),
+    diaryEntryId: integer("diary_entry_id").notNull(),
+    userId: varchar("user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueUserDiaryEntry: uniqueIndex("diary_likes_entry_user_unique").on(
+      table.diaryEntryId,
+      table.userId,
+    ),
+  }),
+);
+
+export const diaryLikesRelations = relations(diaryLikes, ({ one }) => ({
+  diaryEntry: one(diaryEntries, {
+    fields: [diaryLikes.diaryEntryId],
+    references: [diaryEntries.id],
+  }),
+  user: one(users, {
+    fields: [diaryLikes.userId],
     references: [users.id],
   }),
 }));
@@ -484,6 +514,23 @@ export type MilestoneLikeStatus = {
 export type MilestoneWithSocial = Milestone & {
   likeCount: number;
   commentCount: number;
+  userLiked: boolean;
+};
+
+export const insertDiaryLikeSchema = createInsertSchema(diaryLikes).omit({
+  id: true,
+  createdAt: true,
+});
+export type DiaryLike = typeof diaryLikes.$inferSelect;
+export type InsertDiaryLike = z.infer<typeof insertDiaryLikeSchema>;
+
+export type DiaryLikeStatus = {
+  count: number;
+  userLiked: boolean;
+};
+
+export type DiaryEntryWithSocial = DiaryEntry & {
+  likeCount: number;
   userLiked: boolean;
 };
 

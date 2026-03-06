@@ -636,7 +636,7 @@ export async function registerRoutes(
     const page = Number(req.query.page) || 1;
     const pageSize = Number(req.query.pageSize) || 30;
 
-    const records = await storage.getDiaryEntries(childId, page, pageSize);
+    const records = await storage.getDiaryEntries(childId, userId, page, pageSize);
     res.json(records); // records agora é um objeto com .data, .total, etc
   });
 
@@ -717,6 +717,72 @@ export async function registerRoutes(
       await recordPoints(tx, entry.childId, -5, 'diary_delete', 'diary_entry', entryId);
     });
     res.status(204).send();
+  });
+
+  // Obter status de like de um diário
+  app.get(api.diary.likesGet.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const entryId = Number(req.params.entryId);
+    if (!entryId || isNaN(entryId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const entry = await storage.getDiaryEntryById(entryId);
+    if (!entry) {
+      return res.status(404).json({ message: "Registro não encontrado" });
+    }
+    if (!(await hasChildAccess(userId, entry.childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const status = await storage.getDiaryLikeStatus(entryId, userId);
+    res.json(status);
+  });
+
+  // Toggle like em um diário
+  app.post(api.diary.likesToggle.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const entryId = Number(req.params.entryId);
+    if (!entryId || isNaN(entryId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const entry = await storage.getDiaryEntryById(entryId);
+    if (!entry) {
+      return res.status(404).json({ message: "Registro não encontrado" });
+    }
+    if (!(await hasChildAccess(userId, entry.childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const status = await storage.toggleDiaryLike(entryId, userId);
+    res.json(status);
+
+    if (status.userLiked) {
+      (async () => {
+        try {
+          const [user, child] = await Promise.all([
+            storage.getUser(userId),
+            storage.getChild(entry.childId),
+          ]);
+          const userName = resolveUserName(user);
+          const childName = child?.name || "seu filho(a)";
+          notifyCaregivers(
+            entry.childId,
+            userId,
+            "❤️ Novo coraçãozinho no diário!",
+            `${userName} amou uma anotação de ${childName}`,
+            `/memories?tab=diary&id=${entry.id}`,
+          );
+        } catch (err) {
+          console.error("[bg] Erro pós-like no diário:", err);
+        }
+      })();
+    }
   });
 
   // SUS Vaccines Catalog (requer autenticação)

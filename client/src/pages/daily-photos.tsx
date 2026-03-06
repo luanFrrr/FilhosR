@@ -14,6 +14,7 @@ import { PhotoPicker } from "@/components/ui/photo-picker";
 import { X } from "lucide-react";
 import { useUpload } from "@/hooks/use-upload";
 import { getTransformedImageUrl } from "@/lib/imageUtils";
+import { LazyImage } from "@/components/ui/lazy-image";
 
 const MENSAGENS_MOMENTO = [
   "Esse momento não volta. Ainda bem que você guardou.",
@@ -360,11 +361,10 @@ export default function DailyPhotos() {
                         data-testid={`button-thumbnail-${index}`}
                       >
                         <div className="bg-white rounded-lg border border-border overflow-hidden shadow-sm group-hover:shadow-md transition-all w-full h-full">
-                          <img
+                          <LazyImage
                             src={getTransformedImageUrl(photo.photoUrl, { width: 400, resize: "cover" })}
                             alt={`Foto do dia ${new Date(photo.date).toLocaleDateString()}`}
-                            className="w-full aspect-square object-cover"
-                            loading="lazy"
+                            className="w-full aspect-square"
                           />
                         </div>
                         {isNewest && (

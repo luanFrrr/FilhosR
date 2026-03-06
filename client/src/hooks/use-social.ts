@@ -305,3 +305,70 @@ export function useMilestonesWithSocial(childId: number) {
     staleTime: 5_000, // 5s — evita refetches desnecessários em troca de abas
   });
 }
+
+// ============================================================
+// DIARY LIKES
+// ============================================================
+
+export function useDiaryLikes(childId: number, entryId: number) {
+  return useQuery<LikeStatus>({
+    queryKey: ["diary-likes", entryId],
+    queryFn: async () => {
+      const res = await fetch(`/api/children/${childId}/diary/${entryId}/likes`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Erro ao buscar likes");
+      return res.json();
+    },
+    enabled: !!entryId && !!childId,
+    staleTime: 5_000,
+  });
+}
+
+export function useToggleDiaryLike(childId: number, entryId: number) {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/children/${childId}/diary/${entryId}/like`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Erro ao reagir ao diário");
+      return res.json() as Promise<LikeStatus>;
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({
+        queryKey: ["diary-likes", entryId],
+      });
+      const previous = queryClient.getQueryData<LikeStatus>([
+        "diary-likes",
+        entryId,
+      ]);
+      if (previous) {
+        queryClient.setQueryData<LikeStatus>(["diary-likes", entryId], {
+          count: previous.userLiked ? previous.count - 1 : previous.count + 1,
+          userLiked: !previous.userLiked,
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          ["diary-likes", entryId],
+          context.previous,
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["diary-likes", entryId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/children/:childId/diary", childId],
+      });
+    },
+  });
+}

@@ -76,6 +76,36 @@ export function useRealtimeSocial(childId: number) {
           queryClient.invalidateQueries({
             queryKey: ["milestones-social", childId],
           });
+          queryClient.invalidateQueries({
+            queryKey: ["/api/children/:childId/diary", childId],
+          });
+        },
+      )
+      
+      // ── Escuta likes em diário ──────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // INSERT e DELETE
+          schema: "public",
+          table: "diary_likes",
+        },
+        (payload) => {
+          const diaryEntryId =
+            (payload.new as any)?.diary_entry_id ??
+            (payload.old as any)?.diary_entry_id;
+
+          // Atualiza o contador de likes da entrada específica
+          if (diaryEntryId) {
+            queryClient.invalidateQueries({
+              queryKey: ["diary-likes", diaryEntryId],
+            });
+          }
+
+          // Atualiza o feed do diário (onde os contadores estão integrados)
+          queryClient.invalidateQueries({
+             queryKey: ["/api/children/:childId/diary", childId],
+          });
         },
       )
 
