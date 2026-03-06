@@ -230,6 +230,15 @@ export interface IStorage {
     childId: number,
     userId: string,
   ): Promise<MilestoneWithSocial[]>;
+  getMilestoneLikers(milestoneId: number): Promise<Array<{
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+    displayFirstName: string | null;
+    displayLastName: string | null;
+    displayPhotoUrl: string | null;
+  }>>;
 
   // Diary Likes
   getDiaryLikeStatus(
@@ -1219,6 +1228,33 @@ export class DatabaseStorage implements IStorage {
       commentCount: commentMap.get(milestone.id) ?? 0,
       userLiked: userLikedSet.has(milestone.id),
     }));
+  }
+  
+  async getMilestoneLikers(milestoneId: number): Promise<Array<{
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+    displayFirstName: string | null;
+    displayLastName: string | null;
+    displayPhotoUrl: string | null;
+  }>> {
+    const likers = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profileImageUrl: users.profileImageUrl,
+        displayFirstName: users.displayFirstName,
+        displayLastName: users.displayLastName,
+        displayPhotoUrl: users.displayPhotoUrl,
+      })
+      .from(milestoneLikes)
+      .innerJoin(users, eq(milestoneLikes.userId, users.id))
+      .where(eq(milestoneLikes.milestoneId, milestoneId))
+      .orderBy(desc(milestoneLikes.createdAt));
+
+    return likers;
   }
 
   // Diary Likes

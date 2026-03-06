@@ -306,6 +306,21 @@ export function useMilestonesWithSocial(childId: number) {
   });
 }
 
+export function useMilestoneLikers(childId: number, milestoneId: number) {
+  return useQuery<LikerUser[]>({
+    queryKey: ["milestone-likers", milestoneId],
+    queryFn: async () => {
+      const res = await fetch(`/api/children/${childId}/milestones/${milestoneId}/likers`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Erro ao buscar quem curtiu");
+      return res.json();
+    },
+    enabled: !!milestoneId && !!childId,
+    staleTime: 2_000,
+  });
+}
+
 // ============================================================
 // DIARY LIKES
 // ============================================================

@@ -623,6 +623,24 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  app.get(api.milestones.likers.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const milestoneId = Number(req.params.milestoneId);
+    const existing = await storage.getMilestoneById(milestoneId);
+    if (!existing) {
+      return res.status(404).json({ message: "Marco não encontrado" });
+    }
+    
+    if (!(await hasChildAccess(userId, existing.childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const likers = await storage.getMilestoneLikers(milestoneId);
+    res.json(likers);
+  });
+
   // Diary
   app.get(api.diary.list.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
