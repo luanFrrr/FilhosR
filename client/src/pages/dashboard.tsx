@@ -322,22 +322,28 @@ export default function Dashboard() {
             title="Idade"
             value={age}
             subtitle={getAgeSubtitle()}
-            icon={<Activity className="w-5 h-5 text-purple-500" />}
-            color="bg-purple-50/50 border-purple-100"
+            icon={
+              <Activity className="w-5 h-5 text-purple-500 dark:text-purple-400" />
+            }
+            color="bg-purple-50/50 dark:bg-purple-950/50 border-purple-100 dark:border-purple-800/50"
             delay={0.1}
           />
           <StatsCard
             title="Peso Atual"
             value={`${latestWeight} kg`}
-            icon={<Scale className="w-5 h-5 text-blue-500" />}
-            color="bg-blue-50/50 border-blue-100"
+            icon={
+              <Scale className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+            }
+            color="bg-blue-50/50 dark:bg-blue-950/50 border-blue-100 dark:border-blue-800/50"
             delay={0.2}
           />
           <StatsCard
             title="Altura"
             value={`${latestHeight} cm`}
-            icon={<Ruler className="w-5 h-5 text-emerald-500" />}
-            color="bg-emerald-50/50 border-emerald-100"
+            icon={
+              <Ruler className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+            }
+            color="bg-emerald-50/50 dark:bg-emerald-950/50 border-emerald-100 dark:border-emerald-800/50"
             delay={0.3}
           />
           <Link href="/vaccines">
@@ -352,15 +358,15 @@ export default function Dashboard() {
                 }
                 icon={
                   hasPendingVaccines ? (
-                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                   ) : (
-                    <Heart className="w-5 h-5 text-rose-500" />
+                    <Heart className="w-5 h-5 text-rose-500 dark:text-rose-400" />
                   )
                 }
                 color={
                   hasPendingVaccines
-                    ? "bg-amber-50/50 border-amber-200"
-                    : "bg-rose-50/50 border-rose-100"
+                    ? "bg-amber-50/50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/50"
+                    : "bg-rose-50/50 dark:bg-rose-950/50 border-rose-100 dark:border-rose-800/50"
                 }
                 delay={0.4}
               />
@@ -374,32 +380,29 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45 }}
-            className="rounded-2xl border p-4 cursor-pointer active:scale-[0.98] transition-transform mt-4"
-            style={{
-              backgroundColor: todayPhoto
-                ? "rgb(236 253 245)"
-                : "rgb(254 252 232)",
-              borderColor: todayPhoto ? "rgb(167 243 208)" : "rgb(254 240 138)",
-            }}
+            className={`rounded-2xl border p-4 cursor-pointer active:scale-[0.98] transition-transform mt-4 ${
+              todayPhoto
+                ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/50"
+                : "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/50"
+            }`}
             data-testid="card-daily-photo"
           >
             <div className="flex items-center gap-4">
               <div
-                className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{
-                  backgroundColor: todayPhoto
-                    ? "rgb(167 243 208)"
-                    : "rgb(254 240 138)",
-                }}
+                className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  todayPhoto
+                    ? "bg-emerald-200 dark:bg-emerald-800/60"
+                    : "bg-amber-200 dark:bg-amber-800/60"
+                }`}
               >
                 {todayPhoto ? (
-                  <Check className="w-7 h-7 text-green-600" />
+                  <Check className="w-7 h-7 text-green-600 dark:text-green-400" />
                 ) : (
-                  <Camera className="w-7 h-7 text-amber-600" />
+                  <Camera className="w-7 h-7 text-amber-600 dark:text-amber-400" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-base">
+                <h3 className="font-bold text-base text-foreground">
                   {todayPhoto ? "Foto de hoje registrada!" : "Foto do Dia"}
                 </h3>
                 <p className="text-sm text-muted-foreground">

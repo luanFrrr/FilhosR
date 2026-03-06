@@ -31,7 +31,7 @@ export function StatsCard({
       )}
     >
       <div className="flex justify-between items-start">
-        <div className="p-2.5 rounded-xl bg-background/50 text-foreground backdrop-blur-sm shadow-sm border border-foreground/5">
+        <div className="p-2.5 rounded-xl bg-background/50 dark:bg-background/80 text-foreground backdrop-blur-sm shadow-sm border border-foreground/5 dark:border-foreground/10">
           {icon}
         </div>
       </div>
