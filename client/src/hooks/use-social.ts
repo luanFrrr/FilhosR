@@ -372,3 +372,29 @@ export function useToggleDiaryLike(childId: number, entryId: number) {
     },
   });
 }
+
+export type LikerUser = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  profileImageUrl: string | null;
+  displayFirstName: string | null;
+  displayLastName: string | null;
+  displayPhotoUrl: string | null;
+};
+
+export function useDiaryLikers(childId: number, entryId: number) {
+  return useQuery<LikerUser[]>({
+    queryKey: ["diary-likers", entryId],
+    queryFn: async () => {
+      const res = await fetch(`/api/children/${childId}/diary/${entryId}/likers`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Erro ao buscar quem curtiu");
+      return res.json();
+    },
+    enabled: !!entryId && !!childId,
+    // Menos cache aqui pois a lista de usuários é menor e mais propensa a mudanças rápidas
+    staleTime: 2_000, 
+  });
+}

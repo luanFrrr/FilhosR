@@ -785,6 +785,28 @@ export async function registerRoutes(
     }
   });
 
+  // Obter quem curtiu um diário
+  app.get(api.diary.likers.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const entryId = Number(req.params.entryId);
+    if (!entryId || isNaN(entryId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const entry = await storage.getDiaryEntryById(entryId);
+    if (!entry) {
+      return res.status(404).json({ message: "Registro não encontrado" });
+    }
+    if (!(await hasChildAccess(userId, entry.childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const likers = await storage.getDiaryLikers(entryId);
+    res.json(likers);
+  });
+
   // SUS Vaccines Catalog (requer autenticação)
   app.get(api.susVaccines.list.path, isAuthenticated, async (req, res) => {
     // Initialize vaccines if not present

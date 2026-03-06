@@ -240,6 +240,15 @@ export interface IStorage {
     diaryEntryId: number,
     userId: string,
   ): Promise<DiaryLikeStatus>;
+  getDiaryLikers(diaryEntryId: number): Promise<Array<{
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+    displayFirstName: string | null;
+    displayLastName: string | null;
+    displayPhotoUrl: string | null;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1281,6 +1290,37 @@ export class DatabaseStorage implements IStorage {
     });
 
     return this.getDiaryLikeStatus(diaryEntryId, userId);
+  }
+
+  async getDiaryLikers(
+    diaryEntryId: number,
+  ): Promise<
+    Array<{
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      profileImageUrl: string | null;
+      displayFirstName: string | null;
+      displayLastName: string | null;
+      displayPhotoUrl: string | null;
+    }>
+  > {
+    const likers = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profileImageUrl: users.profileImageUrl,
+        displayFirstName: users.displayFirstName,
+        displayLastName: users.displayLastName,
+        displayPhotoUrl: users.displayPhotoUrl,
+      })
+      .from(diaryLikes)
+      .innerJoin(users, eq(diaryLikes.userId, users.id))
+      .where(eq(diaryLikes.diaryEntryId, diaryEntryId))
+      .orderBy(desc(diaryLikes.createdAt));
+
+    return likers;
   }
 
   // Verifica acesso direto na tabela caregivers (sem buscar todos os filhos)

@@ -327,6 +327,21 @@ export const api = {
         200: z.object({ count: z.number(), userLiked: z.boolean() }),
       },
     },
+    likers: {
+      method: "GET" as const,
+      path: "/api/children/:childId/diary/:entryId/likers",
+      responses: {
+        200: z.array(z.object({
+          id: z.string(),
+          firstName: z.string().nullable(),
+          lastName: z.string().nullable(),
+          profileImageUrl: z.string().nullable(),
+          displayFirstName: z.string().nullable(),
+          displayLastName: z.string().nullable(),
+          displayPhotoUrl: z.string().nullable(),
+        })),
+      },
+    },
   },
 
   // SUS Vaccines Catalog
