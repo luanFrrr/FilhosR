@@ -98,20 +98,20 @@
 
 /* Dark + Pink (must come AFTER light overrides to win cascade at equal specificity) */
 .dark[data-theme="pink"] {
-  --background: 340 30% 10%;
+  --background: 222 47% 7%;
   --foreground: 210 40% 96%;
   --primary: 340 60% 60%;
   --primary-foreground: 0 0% 100%;
   --secondary: 340 30% 15%;
   --secondary-foreground: 340 60% 70%;
-  --muted: 340 25% 14%;
+  --muted: 222 40% 13%;
   --muted-foreground: 340 15% 65%;
-  --card: 340 28% 12%;
+  --card: 222 45% 9%;
   --card-foreground: 210 40% 96%;
-  --popover: 340 28% 12%;
+  --popover: 222 45% 9%;
   --popover-foreground: 210 40% 96%;
-  --border: 340 20% 20%;
-  --input: 340 20% 20%;
+  --border: 222 30% 18%;
+  --input: 222 30% 18%;
   --ring: 340 60% 60%;
   --accent: 340 50% 40%;
   --accent-foreground: 210 40% 98%;
@@ -119,20 +119,20 @@
 
 /* Dark + Blue (must come AFTER light overrides to win cascade at equal specificity) */
 .dark[data-theme="blue"] {
-  --background: 210 30% 10%;
+  --background: 222 47% 7%;
   --foreground: 210 40% 96%;
   --primary: 210 60% 55%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 30% 15%;
   --secondary-foreground: 210 60% 70%;
-  --muted: 210 25% 14%;
+  --muted: 222 40% 13%;
   --muted-foreground: 210 15% 65%;
-  --card: 210 28% 12%;
+  --card: 222 45% 9%;
   --card-foreground: 210 40% 96%;
-  --popover: 210 28% 12%;
+  --popover: 222 45% 9%;
   --popover-foreground: 210 40% 96%;
-  --border: 210 20% 20%;
-  --input: 210 20% 20%;
+  --border: 222 30% 18%;
+  --input: 222 30% 18%;
   --ring: 210 60% 55%;
   --accent: 210 50% 40%;
   --accent-foreground: 210 40% 98%;

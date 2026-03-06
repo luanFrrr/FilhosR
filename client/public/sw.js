@@ -1,4 +1,4 @@
-const CACHE_NAME = "filhos-v7";
+const CACHE_NAME = "filhos-v8";
 const IMAGE_CACHE_NAME = "filhos-images-v1";
 const MAX_IMAGE_CACHE_ENTRIES = 200;
 const STATIC_ASSETS = ["/manifest.json"];
@@ -56,12 +56,14 @@ async function handleSupabaseImage(request) {
   const cachedResponse = await cache.match(request);
 
   if (cachedResponse) {
-    fetch(request).then(async (response) => {
-      if (response.ok) {
-        await cache.put(request, response.clone());
-        trimImageCache();
-      }
-    }).catch(() => {});
+    fetch(request)
+      .then(async (response) => {
+        if (response.ok) {
+          await cache.put(request, response.clone());
+          trimImageCache();
+        }
+      })
+      .catch(() => {});
     return cachedResponse;
   }
 

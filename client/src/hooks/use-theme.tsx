@@ -30,10 +30,10 @@ function syncThemeColor() {
         .trim();
       if (!bg) return;
       const hex = hslToHex(bg);
-      const meta = document.querySelector(
-        'meta[name="theme-color"]',
-      ) as HTMLMetaElement | null;
-      if (meta) meta.setAttribute("content", hex);
+      // Update all theme-color meta tags (light + dark media variants)
+      document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+        meta.setAttribute("content", hex);
+      });
     });
   });
 }
