@@ -23,22 +23,51 @@ interface DiaryLikeButtonProps {
 function LikersList({ childId, entryId }: { childId: number; entryId: number }) {
   const { data: likers, isLoading } = useDiaryLikers(childId, entryId);
 
-  if (isLoading) return <div className="p-4 text-center text-sm text-muted-foreground">Carregando...</div>;
-  if (!likers?.length) return <div className="p-4 text-center text-sm text-muted-foreground">Ninguém curtiu ainda.</div>;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-3 animate-pulse">
+            <div className="h-10 w-10 rounded-full bg-muted" />
+            <div className="h-4 w-24 rounded bg-muted" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!likers?.length) {
+    return (
+      <div className="p-8 text-center bg-muted/20 rounded-2xl border border-dashed border-border m-2">
+        <Heart className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground font-medium">Ainda sem curtidas</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-3 py-2 max-h-[60vh] overflow-y-auto">
+    <div className="flex flex-col px-1 max-h-[60vh] overflow-y-auto py-2">
       {likers.map((user) => {
         const name = user.displayFirstName || user.firstName || "Usuário";
         const lastName = user.displayLastName || user.lastName || "";
         const photo = user.displayPhotoUrl || user.profileImageUrl;
         return (
-          <div key={user.id} className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
+          <div
+            key={user.id}
+            className="flex items-center gap-3 p-2 hover:bg-muted/40 rounded-xl transition-colors group cursor-default"
+          >
+            <Avatar className="h-10 w-10 border border-border shadow-sm">
               <AvatarImage src={photo || undefined} />
-              <AvatarFallback>{name.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold font-hand">
+                {name.charAt(0)}
+              </AvatarFallback>
             </Avatar>
-            <span className="text-sm font-medium">{name} {lastName}</span>
+            <div className="flex flex-col">
+              <span className="text-[15px] font-semibold text-foreground group-hover:text-primary transition-colors">
+                {name} {lastName}
+              </span>
+              <span className="text-[12px] text-muted-foreground">Cuidador(a)</span>
+            </div>
           </div>
         );
       })}
