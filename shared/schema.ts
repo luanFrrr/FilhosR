@@ -98,6 +98,7 @@ export const diaryEntries = pgTable("diary_entries", {
   photoUrls: text("photo_urls").array(),
   likesCount: integer("likes_count").notNull().default(0),
   userId: varchar("user_id"), // Permite null para retrocompatibilidade
+  moodEmoji: text("mood_emoji"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

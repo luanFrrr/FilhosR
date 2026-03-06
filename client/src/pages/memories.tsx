@@ -109,6 +109,28 @@ const celebrationMessages = [
   },
 ];
 
+const empatheticMessages = [
+  {
+    title: "Estamos com você!",
+    subtitle: "Nem todo dia é fácil, mas cada momento importa.",
+  },
+  {
+    title: "Momento registrado",
+    subtitle: "Até os dias difíceis merecem ser lembrados.",
+  },
+  {
+    title: "Muito amor e paciência",
+    subtitle: "Cuidar também é atravessar momentos intensos.",
+  },
+  {
+    title: "Faz parte do caminho",
+    subtitle: "Essa memória também faz parte da jornada.",
+  },
+];
+
+const POSITIVE_EMOJIS = ["❤️", "😂"];
+const SENSITIVE_EMOJIS = ["😮", "😢", "😡"];
+
 export default function Memories() {
   const { user } = useAuth();
   const { activeChild } = useChildContext();
@@ -226,11 +248,11 @@ export default function Memories() {
     reader.readAsDataURL(file);
   };
 
-  const triggerCelebration = () => {
-    const msg =
-      celebrationMessages[
-        Math.floor(Math.random() * celebrationMessages.length)
-      ];
+  const triggerCelebration = (moodEmoji?: string | null) => {
+    const isSensitive = moodEmoji && SENSITIVE_EMOJIS.includes(moodEmoji);
+    const pool = isSensitive ? empatheticMessages : celebrationMessages;
+    
+    const msg = pool[Math.floor(Math.random() * pool.length)];
     setCelebrationMsg(msg);
     setShowCelebration(true);
     setTimeout(() => setShowCelebration(false), 3500);
@@ -342,6 +364,7 @@ export default function Memories() {
       editDiaryForm.reset({
         date: editingDiary.date,
         content: editingDiary.content || "",
+        moodEmoji: editingDiary.moodEmoji || "",
       });
     }
   }, [editingDiary, editDiaryForm]);
@@ -351,10 +374,11 @@ export default function Memories() {
     createDiary.mutate(
       { childId: activeChild.id, ...data, photoUrls: [] },
       {
-        onSuccess: () => {
+        onSuccess: (record) => {
           setOpenDiary(false);
           diaryForm.reset();
-          toast({ title: "Diário atualizado!" });
+          toast({ title: "Diário salvo!", description: "Sua memória foi guardada com carinho." });
+          triggerCelebration(record.moodEmoji);
         },
         onError: () => {
           toast({
@@ -686,10 +710,32 @@ export default function Memories() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>Como você está se sentindo?</Label>
+                      <div className="flex gap-4 justify-center py-2 bg-muted/30 rounded-xl">
+                        {[...POSITIVE_EMOJIS, ...SENSITIVE_EMOJIS].map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => diaryForm.setValue("moodEmoji", emoji)}
+                            className={`text-2xl transition-all hover:scale-125 ${
+                              diaryForm.watch("moodEmoji") === emoji
+                                ? "scale-125 grayscale-0"
+                                : "grayscale opacity-50"
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                      <input type="hidden" {...diaryForm.register("moodEmoji")} />
+                    </div>
+
+                    <div className="space-y-2">
                       <Label>O que aconteceu hoje?</Label>
                       <Textarea
                         {...diaryForm.register("content")}
                         className="min-h-[120px]"
+                        placeholder="Escreva algo memorável..."
                         data-testid="input-diary-content"
                       />
                     </div>
@@ -717,8 +763,9 @@ export default function Memories() {
                     data-testid={`card-diary-${entry.id}`}
                   >
                     <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
-                      <span className="font-hand text-lg font-bold text-primary">
+                      <span className="font-hand text-lg font-bold text-primary flex items-center gap-2">
                         {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
+                        {entry.moodEmoji && <span className="text-xl">{entry.moodEmoji}</span>}
                       </span>
                       <div className="flex items-center gap-1">
                         {entry.photoUrls && entry.photoUrls.length > 0 && (
@@ -993,6 +1040,27 @@ export default function Memories() {
                 data-testid="input-edit-diary-date"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Como você está se sentindo?</Label>
+              <div className="flex gap-4 justify-center py-2 bg-muted/30 rounded-xl">
+                {[...POSITIVE_EMOJIS, ...SENSITIVE_EMOJIS].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => editDiaryForm.setValue("moodEmoji", emoji)}
+                    className={`text-2xl transition-all hover:scale-125 ${
+                      editDiaryForm.watch("moodEmoji") === emoji
+                        ? "scale-125 grayscale-0"
+                        : "grayscale opacity-50"
+                    }`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <input type="hidden" {...editDiaryForm.register("moodEmoji")} />
+            </div>
+
             <div className="space-y-2">
               <Label>O que aconteceu?</Label>
               <Textarea
