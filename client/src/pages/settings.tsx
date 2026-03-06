@@ -38,7 +38,6 @@ import {
   Users,
   UserMinus,
   DoorOpen,
-  ExternalLink,
   Monitor,
   Moon,
   Sun,
@@ -764,30 +763,25 @@ export default function Settings() {
                 </div>
               ) : Notification.permission === "denied" ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 bg-red-50 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 bg-red-500/10 rounded-lg px-3 py-2">
                     <BellOff className="w-4 h-4 text-red-400 shrink-0" />
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-red-600 dark:text-red-400">
                       Permissão bloqueada no dispositivo. Ative manualmente nas
                       configurações do navegador.
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2 text-xs"
-                    onClick={() => window.open("app-settings:", "_blank")}
-                    data-testid="button-open-browser-settings"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Abrir configurações
-                    do navegador
-                  </Button>
+                  <div className="bg-muted/30 rounded-lg px-3 py-2 mt-1">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      <strong>Como reativar:</strong> Toque no cadeado ao lado da barra de endereço do navegador, depois ative "Notificações".
+                    </p>
+                  </div>
                 </div>
               ) : isSubscribed ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 bg-green-500/10 rounded-lg px-3 py-2">
                     <BellRing className="w-4 h-4 text-green-500 shrink-0" />
-                    <p className="text-xs text-green-700 font-medium">
-                      ✓ Notificações ativadas
+                    <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+                      Notificações ativadas
                     </p>
                   </div>
                   <div className="flex gap-2">

@@ -94,6 +94,13 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **Service Worker Image Cache (v7)**: Dedicated `filhos-images-v1` cache for all Supabase Storage images (both `/object/public/` and `/render/image/public/` URLs). Uses stale-while-revalidate strategy for instant image loading with background refresh. Max 200 entries with automatic eviction of oldest entries. Offline fallback serves a gray SVG placeholder. General cache restricted to same-origin (`basic` type) responses only.
 - **Supabase Image Transformations**: `getTransformedImageUrl()` in `client/src/lib/imageUtils.ts` converts Supabase Storage URLs to use the render/image API for on-the-fly resizing. Used in Header (100px avatars), Memories feed (400px thumbnails), Daily Photos (800px main + 120px thumbnails), Vaccine Card (200px proof photos), and Settings (child photos). Full-resolution originals are used for fullscreen/modal views.
 
+### Recent Changes (Mar 2026)
+- **Permission Prompt on First Launch**: `PermissionPrompt` component (`client/src/components/permissions/PermissionPrompt.tsx`) shows on first authenticated launch, requesting camera and notification permissions step-by-step. Stores completion in `localStorage` (`filhos_permissions_completed_v1`). Auto-skips already-granted permissions.
+- **NotificationPermissionBanner Coordination**: Banner only shows after PermissionPrompt has been completed (checks same localStorage key) to avoid duplicate prompting.
+- **Notification Badge Icon**: Proper 96x96 monochrome white-on-transparent PNG badge at `client/public/icons/badge-96x96.png` for Android status bar rendering.
+- **Supabase Storage Cleanup**: All delete and update routes now clean up orphaned files from Supabase Storage (milestones, diary entries, vaccine records, daily photos, child photos). Child deletion collects all associated photo URLs via direct DB queries before cascade delete. `deleteFromStorage()` in `server/supabaseStorage.ts`.
+- **Service Worker Cache**: v9
+
 ## External Dependencies
 
 ### Database

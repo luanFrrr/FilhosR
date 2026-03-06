@@ -9,6 +9,7 @@ import { BottomNav } from "@/components/layout/bottom-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { NotificationPermissionBanner } from "@/components/notifications/NotificationPermissionBanner";
+import { PermissionPrompt } from "@/components/permissions/PermissionPrompt";
 
 // Pages
 import Dashboard from "@/pages/dashboard";
@@ -49,6 +50,7 @@ function AuthenticatedRouter() {
 
   return (
     <>
+      <PermissionPrompt />
       <NotificationPermissionBanner />
       <Switch>
         <Route path="/" component={Dashboard} />

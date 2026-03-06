@@ -6,6 +6,7 @@ import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 const DISMISSED_KEY = "notif_permission_dismissed_v1";
 const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 horas
+const PERMISSIONS_COMPLETED_KEY = "filhos_permissions_completed_v1";
 
 export function NotificationPermissionBanner() {
   const { isSubscribed, isSupported, subscribe, isLoading } =
@@ -17,6 +18,7 @@ export function NotificationPermissionBanner() {
     if (!isSupported || isLoading) return;
     if (isSubscribed) return;
     if (Notification.permission === "denied") return;
+    if (!localStorage.getItem(PERMISSIONS_COMPLETED_KEY)) return;
     const dismissedAt = localStorage.getItem(DISMISSED_KEY);
     if (dismissedAt) {
       const elapsed = Date.now() - Number(dismissedAt);
