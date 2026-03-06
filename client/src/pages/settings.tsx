@@ -38,7 +38,7 @@ import {
   Users,
   UserMinus,
   DoorOpen,
-  Settings,
+  ExternalLink,
   Monitor,
   Moon,
   Sun,
@@ -194,7 +194,7 @@ export default function Settings() {
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
   const [sharingChild, setSharingChild] = useState<Child | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const [editForm, setEditForm] = useState({
     name: "",
