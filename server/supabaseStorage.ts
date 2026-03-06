@@ -1,4 +1,5 @@
-import sharp from "sharp";
+// import sharp from "sharp";
+import { Buffer } from "buffer";
 
 /**
  * Utilitário de upload para Supabase Storage
@@ -85,6 +86,7 @@ export async function uploadToStorage(
   let feedBuffer: Uint8Array = buffer;
   let thumbBuffer: Uint8Array = buffer;
 
+  /* Comentado temporariamente para evitar erro de módulo 'sharp' no ambiente Replit
   try {
     const img = sharp(buffer);
     const metadata = await img.metadata();
@@ -98,8 +100,8 @@ export async function uploadToStorage(
     }
   } catch (err) {
     console.error("Error generating thumbnails using sharp:", err);
-    // Keep buffers as original if sharp fails
   }
+  */
 
   // Upload concurrently
   await Promise.all([

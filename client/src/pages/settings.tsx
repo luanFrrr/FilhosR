@@ -39,6 +39,8 @@ import {
   UserMinus,
   DoorOpen,
   ExternalLink,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { InviteCodeDialog } from "@/components/invite/invite-code-dialog";
 import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
@@ -190,6 +192,20 @@ export default function Settings() {
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
   const [sharingChild, setSharingChild] = useState<Child | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => 
+    localStorage.getItem("theme") === "dark"
+  );
+
+  const toggleDarkMode = (checked: boolean) => {
+    setIsDarkMode(checked);
+    if (checked) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -437,6 +453,36 @@ export default function Settings() {
               </p>
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-2">
+            Preferências
+          </h3>
+          <div className="bg-white dark:bg-card p-4 rounded-xl border border-border shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  {isDarkMode ? (
+                    <Moon className="w-5 h-5 text-primary" />
+                  ) : (
+                    <Sun className="w-5 h-5 text-primary" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-bold">Modo Escuro</p>
+                  <p className="text-xs text-muted-foreground">
+                    Ajusta as cores para ambientes escuros
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={isDarkMode}
+                onCheckedChange={toggleDarkMode}
+                data-testid="switch-dark-mode"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="space-y-2">
