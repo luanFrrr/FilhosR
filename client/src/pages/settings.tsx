@@ -38,10 +38,12 @@ import {
   Users,
   UserMinus,
   DoorOpen,
-  ExternalLink,
+  Settings,
+  Monitor,
   Moon,
   Sun,
 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 import { InviteCodeDialog } from "@/components/invite/invite-code-dialog";
 import { RedeemCodeDialog } from "@/components/invite/redeem-code-dialog";
 import { compressImage, getTransformedImageUrl } from "@/lib/imageUtils";
@@ -192,20 +194,7 @@ export default function Settings() {
   const [editPhoto, setEditPhoto] = useState<string | null>(null);
   const [sharingChild, setSharingChild] = useState<Child | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => 
-    localStorage.getItem("theme") === "dark"
-  );
-
-  const toggleDarkMode = (checked: boolean) => {
-    setIsDarkMode(checked);
-    if (checked) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  };
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -463,24 +452,44 @@ export default function Settings() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
-                  {isDarkMode ? (
+                  {resolvedTheme === "dark" ? (
                     <Moon className="w-5 h-5 text-primary" />
                   ) : (
                     <Sun className="w-5 h-5 text-primary" />
                   )}
                 </div>
                 <div>
-                  <p className="font-bold">Modo Escuro</p>
+                  <p className="font-bold">Tema do Aplicativo</p>
                   <p className="text-xs text-muted-foreground">
-                    Ajusta as cores para ambientes escuros
+                    Escolha a aparência ou siga o sistema
                   </p>
                 </div>
               </div>
-              <Switch
-                checked={isDarkMode}
-                onCheckedChange={toggleDarkMode}
-                data-testid="switch-dark-mode"
-              />
+              <Select value={theme} onValueChange={(v: any) => setTheme(v)}>
+                <SelectTrigger className="w-32 h-10 rounded-xl" data-testid="select-theme">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">
+                    <div className="flex items-center gap-2">
+                      <Sun className="w-4 h-4" />
+                      <span>Claro</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="dark">
+                    <div className="flex items-center gap-2">
+                      <Moon className="w-4 h-4" />
+                      <span>Escuro</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="system">
+                    <div className="flex items-center gap-2">
+                      <Monitor className="w-4 h-4" />
+                      <span>Auto</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
