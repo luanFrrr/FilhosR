@@ -97,6 +97,7 @@ export const diaryEntries = pgTable("diary_entries", {
   content: text("content"),
   photoUrls: text("photo_urls").array(),
   likesCount: integer("likes_count").notNull().default(0),
+  userId: varchar("user_id"), // Permite null para retrocompatibilidade
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -284,6 +285,10 @@ export const diaryEntriesRelations = relations(diaryEntries, ({ one, many }) => 
   child: one(children, {
     fields: [diaryEntries.childId],
     references: [children.id],
+  }),
+  user: one(users, {
+    fields: [diaryEntries.userId],
+    references: [users.id],
   }),
   likes: many(diaryLikes),
 }));

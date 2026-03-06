@@ -64,6 +64,7 @@ import { MilestoneComments } from "@/components/social/MilestoneComments";
 import { useMilestonesWithSocial } from "@/hooks/use-social";
 import { useUpload } from "@/hooks/use-upload";
 import { useRealtimeSocial } from "@/hooks/use-realtime-social";
+import { useAuth } from "@/hooks/use-auth";
 
 const celebrationMessages = [
   {
@@ -109,6 +110,7 @@ const celebrationMessages = [
 ];
 
 export default function Memories() {
+  const { user } = useAuth();
   const { activeChild } = useChildContext();
   const { data: milestones } = useMilestones(activeChild?.id || 0);
   const { data: milestonesWithSocial } = useMilestonesWithSocial(
@@ -722,24 +724,28 @@ export default function Memories() {
                         {entry.photoUrls && entry.photoUrls.length > 0 && (
                           <ImageIcon className="w-4 h-4 text-muted-foreground" />
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setEditingDiary(entry)}
-                          data-testid={`button-edit-diary-${entry.id}`}
-                        >
-                          <Edit2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setDeleteDiaryConfirm(entry)}
-                          data-testid={`button-delete-diary-${entry.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
+                        {(!entry.userId || entry.userId === user?.id) && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setEditingDiary(entry)}
+                              data-testid={`button-edit-diary-${entry.id}`}
+                            >
+                              <Edit2 className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setDeleteDiaryConfirm(entry)}
+                              data-testid={`button-delete-diary-${entry.id}`}
+                            >
+                              <Trash2 className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                     <p className="text-foreground leading-relaxed font-hand text-lg mb-3">

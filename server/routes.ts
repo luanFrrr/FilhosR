@@ -653,7 +653,8 @@ export async function registerRoutes(
 
     let record: any;
     await db.transaction(async (tx) => {
-      record = await storage.createDiaryEntry({ ...input, childId }, tx);
+      // Adicionamos o userId de quem está criando o registro
+      record = await storage.createDiaryEntry({ ...input, childId, userId }, tx);
       await recordPoints(tx, childId, 5, 'diary_create', 'diary_entry', record.id);
     });
 
@@ -694,6 +695,11 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
+    // Regra de Propriedade: Apenas o autor pode editar, ou qualquer cuidador caso seja um registro antigo sem autor
+    if (entry.userId && entry.userId !== userId) {
+      return res.status(403).json({ message: "Apenas o autor pode editar esta anotação" });
+    }
+
     const input = api.diary.update.input.parse(req.body);
     const updated = await storage.updateDiaryEntry(entryId, input);
     res.json(updated);
@@ -710,6 +716,11 @@ export async function registerRoutes(
 
     if (!(await hasChildAccess(userId, entry.childId))) {
       return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    // Regra de Propriedade: Apenas o autor pode remover, ou qualquer cuidador caso seja um registro antigo sem autor
+    if (entry.userId && entry.userId !== userId) {
+      return res.status(403).json({ message: "Apenas o autor pode excluir esta anotação" });
     }
 
     await db.transaction(async (tx) => {
