@@ -609,25 +609,27 @@ export async function registerRoutes(
     // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: notificações
-    (async () => {
-      try {
-        const [user, child] = await Promise.all([
-          storage.getUser(userId),
-          storage.getChild(childId),
-        ]);
-        const userName = resolveUserName(user);
-        const childName = child?.name || "seu filho(a)";
-        notifyCaregivers(
-          childId, userId,
-          "✨ Novo marco registrado!",
-          `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
-          `/memories?tab=milestones&id=${record.id}`,
-        );
-      } catch (err) {
-        console.error("[bg] Erro pós-criação de marco:", err);
-      }
-    })();
+    // Background: notificações (apenas se público)
+    if (input.isPublic) {
+      (async () => {
+        try {
+          const [user, child] = await Promise.all([
+            storage.getUser(userId),
+            storage.getChild(childId),
+          ]);
+          const userName = resolveUserName(user);
+          const childName = child?.name || "seu filho(a)";
+          notifyCaregivers(
+            childId, userId,
+            "✨ Novo marco registrado!",
+            `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
+            `/memories?tab=milestones&id=${record.id}`,
+          );
+        } catch (err) {
+          console.error("[bg] Erro pós-criação de marco:", err);
+        }
+      })();
+    }
   });
 
   app.patch(api.milestones.update.path, isAuthenticated, async (req, res) => {
@@ -736,31 +738,33 @@ export async function registerRoutes(
         },
         tx,
       );
-      await recordPoints(tx, childId, 20, 'diary_create', 'diary_entry', record.id);
+      await recordPoints(tx, childId, 5, 'diary_create', 'diary_entry', record.id);
     });
 
     // Responde imediatamente
     res.status(201).json(record);
 
-    // Background: notificações
-    (async () => {
-      try {
-        const [user, child] = await Promise.all([
-          storage.getUser(userId),
-          storage.getChild(childId),
-        ]);
-        const userName = resolveUserName(user);
-        const childName = child?.name || "seu filho(a)";
-        notifyCaregivers(
-          childId, userId,
-          "📖 Nova nota no diário",
-          `${userName} escreveu uma nova nota no diário do ${childName}`,
-          `/memories?tab=diary&id=${record.id}`,
-        );
-      } catch (err) {
-        console.error("[bg] Erro pós-criação de diário:", err);
-      }
-    })();
+    // Background: notificações (apenas se público)
+    if (input.isPublic) {
+      (async () => {
+        try {
+          const [user, child] = await Promise.all([
+            storage.getUser(userId),
+            storage.getChild(childId),
+          ]);
+          const userName = resolveUserName(user);
+          const childName = child?.name || "seu filho(a)";
+          notifyCaregivers(
+            childId, userId,
+            "📖 Nova nota no diário",
+            `${userName} escreveu uma nova nota no diário do ${childName}`,
+            `/memories?tab=diary&id=${record.id}`,
+          );
+        } catch (err) {
+          console.error("[bg] Erro pós-criação de diário:", err);
+        }
+      })();
+    }
   });
 
   app.patch(api.diary.update.path, isAuthenticated, async (req, res) => {

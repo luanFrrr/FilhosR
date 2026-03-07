@@ -470,7 +470,7 @@ export default function Memories() {
                 </h2>
                 <p className="text-white/90">{celebrationMsg.subtitle}</p>
                 <div className="mt-4 text-sm bg-white/20 rounded-full px-4 py-2 inline-block">
-                  +20 pontos de amor
+                  +{activeTab === "milestones" ? 20 : 5} pontos de amor
                 </div>
               </motion.div>
             </motion.div>
