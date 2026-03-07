@@ -736,7 +736,7 @@ export async function registerRoutes(
         },
         tx,
       );
-      await recordPoints(tx, childId, 5, 'diary_create', 'diary_entry', record.id);
+      await recordPoints(tx, childId, 20, 'diary_create', 'diary_entry', record.id);
     });
 
     // Responde imediatamente
