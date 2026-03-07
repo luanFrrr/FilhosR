@@ -30,7 +30,7 @@ export function Header({
 
   return (
     <header
-      className="sticky top-0 z-40 bg-background/95 backdrop-blur-md transition-all header-gradient relative"
+      className="sticky top-0 z-40 bg-background transition-colors relative"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="max-w-md mx-auto px-4 h-16 flex items-center justify-between">

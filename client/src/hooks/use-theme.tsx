@@ -4,36 +4,19 @@ import {
 } from "next-themes";
 import React, { useEffect } from "react";
 
-function hslToHex(hslStr: string): string {
-  const parts = hslStr.split(/\s+/).map((v) => parseFloat(v));
-  if (parts.length < 3 || parts.some(Number.isNaN)) return "#000000";
-  const [h, sRaw, lRaw] = parts;
-  const s = sRaw > 1 ? sRaw / 100 : sRaw;
-  const l = lRaw > 1 ? lRaw / 100 : lRaw;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-    return Math.round(255 * color)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-
 function syncThemeColor() {
-  // Double-RAF ensures CSS has fully recalculated after attribute changes
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const bg = getComputedStyle(document.documentElement)
-        .getPropertyValue("--background")
-        .trim();
-      if (!bg) return;
-      const hex = hslToHex(bg);
-      // Update all theme-color meta tags (light + dark media variants)
-      document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
-        meta.setAttribute("content", hex);
-      });
+    const rgb = getComputedStyle(document.documentElement).backgroundColor;
+    const match = rgb.match(/\d+/g);
+    if (!match || match.length < 3) return;
+    const hex =
+      "#" +
+      match
+        .slice(0, 3)
+        .map((n) => parseInt(n).toString(16).padStart(2, "0"))
+        .join("");
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      meta.setAttribute("content", hex);
     });
   });
 }
@@ -41,12 +24,10 @@ function syncThemeColor() {
 function ThemeColorSync() {
   const { resolvedTheme } = useNextTheme();
 
-  // Sync on dark/light toggle
   useEffect(() => {
     syncThemeColor();
   }, [resolvedTheme]);
 
-  // Watch for data-theme attribute changes (child theme switching)
   useEffect(() => {
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {

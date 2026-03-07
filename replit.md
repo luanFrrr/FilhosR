@@ -99,7 +99,8 @@ All API routes are prefixed with `/api/` and organized by resource:
 - **NotificationPermissionBanner Coordination**: Banner only shows after PermissionPrompt has been completed (checks same localStorage key) to avoid duplicate prompting.
 - **Notification Badge Icon**: Proper 96x96 monochrome white-on-transparent PNG badge at `client/public/icons/badge-96x96.png` for Android status bar rendering.
 - **Supabase Storage Cleanup**: All delete and update routes now clean up orphaned files from Supabase Storage (milestones, diary entries, vaccine records, daily photos, child photos). Child deletion collects all associated photo URLs via direct DB queries before cascade delete. `deleteFromStorage()` in `server/supabaseStorage.ts`.
-- **Service Worker Cache**: v9
+- **Service Worker Cache**: v10
+- **Status Bar (theme-color)**: Header uses solid `bg-background` (no opacity/blur). `ThemeColorSync` reads computed `backgroundColor` from `<html>` element and syncs all `<meta name="theme-color">` tags. MutationObserver watches `data-theme` and `class` attribute changes. Manifest `theme_color` set to dark (`#090e1a`).
 
 ## External Dependencies
 
