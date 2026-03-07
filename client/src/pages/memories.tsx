@@ -370,6 +370,7 @@ export default function Memories() {
         date: editingDiary.date,
         content: editingDiary.content || "",
         moodEmoji: editingDiary.moodEmoji || "",
+        isPublic: editingDiary.isPublic ?? false,
       });
     }
   }, [editingDiary, editDiaryForm]);
