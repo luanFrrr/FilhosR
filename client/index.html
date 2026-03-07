@@ -6,16 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover"
     />
-    <meta
-      name="theme-color"
-      media="(prefers-color-scheme: light)"
-      content="#f8fbfa"
-    />
-    <meta
-      name="theme-color"
-      media="(prefers-color-scheme: dark)"
-      content="#090e1a"
-    />
+    <meta name="theme-color" content="#090e1a" />
     <meta
       name="description"
       content="Acompanhe o crescimento, vacinas, saúde e memórias dos seus filhos. Feito com carinho para pais brasileiros."
@@ -50,11 +41,8 @@
         } else {
           document.documentElement.classList.remove("dark");
         }
-        document
-          .querySelectorAll('meta[name="theme-color"]')
-          .forEach(function (m) {
-            m.setAttribute("content", isDark ? "#090e1a" : "#f8fbfa");
-          });
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute("content", isDark ? "#090e1a" : "#f8fbfa");
       })();
     </script>
     <div id="root"></div>
