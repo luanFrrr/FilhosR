@@ -224,6 +224,7 @@ export default function Memories() {
         date: editingMilestone.date,
         title: editingMilestone.title,
         description: editingMilestone.description || "",
+        isPublic: editingMilestone.isPublic ?? false,
       });
       setMilestoneImage(editingMilestone.photoUrl || null);
     }
@@ -665,9 +666,21 @@ export default function Memories() {
                           className="w-full h-32 rounded-lg mb-3"
                         />
                       )}
-                      <h3 className="font-display font-bold text-lg mb-2">
-                        {milestone.title}
-                      </h3>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-display font-bold text-lg">
+                          {milestone.title}
+                        </h3>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-muted/50 rounded-full shrink-0">
+                          {milestone.isPublic ? (
+                            <Globe className="w-3 h-3 text-primary" />
+                          ) : (
+                            <Lock className="w-3 h-3 text-muted-foreground" />
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            {milestone.isPublic ? "Público" : "Privado"}
+                          </span>
+                        </div>
+                      </div>
                       <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">
                         {milestone.description}
                       </p>
