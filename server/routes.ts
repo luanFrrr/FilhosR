@@ -645,6 +645,13 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
+    if (!existing.isPublic) {
+      const role = await storage.getCaregiverRole(userId, existing.childId);
+      if (role !== "owner") {
+        return res.status(403).json({ message: "Apenas o responsável principal pode editar marcos privados" });
+      }
+    }
+
     const input = api.milestones.update.input.parse(req.body);
     const record = await storage.updateMilestone(milestoneId, input);
 
@@ -666,6 +673,13 @@ export async function registerRoutes(
     }
     if (!(await hasChildAccess(userId, existing.childId))) {
       return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    if (!existing.isPublic) {
+      const role = await storage.getCaregiverRole(userId, existing.childId);
+      if (role !== "owner") {
+        return res.status(403).json({ message: "Apenas o responsável principal pode excluir marcos privados" });
+      }
     }
 
     await db.transaction(async (tx) => {
