@@ -598,7 +598,11 @@ export async function registerRoutes(
 
     let record: any;
     await db.transaction(async (tx) => {
-      record = await storage.createMilestone({ ...input, childId });
+      record = await storage.createMilestone({
+        ...input,
+        childId,
+        isPublic: input.isPublic ?? false,
+      });
       await recordPoints(tx, childId, 20, 'milestone_create', 'milestone', record.id);
     });
 
@@ -723,7 +727,15 @@ export async function registerRoutes(
     let record: any;
     await db.transaction(async (tx) => {
       // Adicionamos o userId de quem está criando o registro
-      record = await storage.createDiaryEntry({ ...input, childId, userId }, tx);
+      record = await storage.createDiaryEntry(
+        {
+          ...input,
+          childId,
+          userId,
+          isPublic: input.isPublic ?? false,
+        },
+        tx,
+      );
       await recordPoints(tx, childId, 5, 'diary_create', 'diary_entry', record.id);
     });
 

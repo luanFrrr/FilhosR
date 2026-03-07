@@ -579,11 +579,21 @@ export class DatabaseStorage implements IStorage {
     const offset = (safePage - 1) * safeSize;
 
     const [[countResult], pagedEntries] = await Promise.all([
-      db.select({ total: count() }).from(diaryEntries).where(eq(diaryEntries.childId, childId)),
+      db.select({ total: count() }).from(diaryEntries).where(
+        and(
+          eq(diaryEntries.childId, childId),
+          sql`(${diaryEntries.isPublic} = true OR ${diaryEntries.userId} = ${userId})`
+        )
+      ),
       db
         .select()
         .from(diaryEntries)
-        .where(eq(diaryEntries.childId, childId))
+        .where(
+          and(
+            eq(diaryEntries.childId, childId),
+            sql`(${diaryEntries.isPublic} = true OR ${diaryEntries.userId} = ${userId})`
+          )
+        )
         .orderBy(desc(diaryEntries.date), desc(diaryEntries.createdAt))
         .limit(safeSize)
         .offset(offset),
@@ -1186,11 +1196,16 @@ export class DatabaseStorage implements IStorage {
   ): Promise<MilestoneWithSocial[]> {
     // 3 queries paralelas — sem N+1, sem agg de likes
     const [allMilestones, commentCounts, userLikes] = await Promise.all([
-      // 1) Marcos ordenados
+      // 1) Marcos ordenados - Filtrando por privacidade
       db
         .select()
         .from(milestones)
-        .where(eq(milestones.childId, childId))
+        .where(
+          and(
+            eq(milestones.childId, childId),
+            sql`(${milestones.isPublic} = true OR EXISTS (SELECT 1 FROM caregivers WHERE child_id = ${childId} AND user_id = ${userId} AND role = 'owner'))`
+          )
+        )
         .orderBy(desc(milestones.date), desc(milestones.createdAt))
         .limit(200),
 

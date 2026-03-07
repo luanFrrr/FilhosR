@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Switch } from "@/components/ui/switch";
 import {
   Star,
   Book,
@@ -39,6 +40,8 @@ import {
   Heart,
   Sparkles,
   MessageCircle,
+  Lock,
+  Globe,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
@@ -327,6 +330,7 @@ export default function Memories() {
         ...data,
         date,
         photoUrl,
+        isPublic: data.isPublic ?? editingMilestone.isPublic,
       });
       setEditingMilestone(null);
       editForm.reset();
@@ -394,28 +398,25 @@ export default function Memories() {
     );
   };
 
-  const onSubmitEditDiary = (data: any) => {
+  const onSubmitEditDiary = async (data: any) => {
     if (!activeChild || !editingDiary) return;
-    updateDiary.mutate(
-      {
+    try {
+      await updateDiary.mutateAsync({
         childId: activeChild.id,
         entryId: editingDiary.id,
         ...data,
-      },
-      {
-        onSuccess: () => {
-          setEditingDiary(null);
-          toast({ title: "Registro atualizado!" });
-        },
-        onError: () => {
-          toast({
-            title: "Erro ao atualizar diário",
-            description: "Tente novamente",
-            variant: "destructive",
-          });
-        },
-      },
-    );
+        isPublic: data.isPublic ?? editingDiary.isPublic,
+      });
+      setEditingDiary(null);
+      editDiaryForm.reset();
+      toast({ title: "Registro atualizado!" });
+    } catch {
+      toast({
+        title: "Erro ao atualizar diário",
+        description: "Tente novamente",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeleteDiary = () => {
@@ -596,6 +597,25 @@ export default function Memories() {
                       )}
                     </div>
 
+                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
+                      <div className="flex items-center gap-2">
+                        {milestoneForm.watch("isPublic") ? (
+                          <Globe className="w-4 h-4 text-primary" />
+                        ) : (
+                          <Lock className="w-4 h-4 text-muted-foreground" />
+                        )}
+                        <div className="flex flex-col">
+                          <Label className="text-sm font-semibold">Momento Público</Label>
+                          <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={milestoneForm.watch("isPublic")}
+                        onCheckedChange={(val) => milestoneForm.setValue("isPublic", val)}
+                        data-testid="switch-milestone-public"
+                      />
+                    </div>
+
                     <Button
                       type="submit"
                       className="w-full"
@@ -753,6 +773,25 @@ export default function Memories() {
                         data-testid="input-diary-content"
                       />
                     </div>
+                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
+                      <div className="flex items-center gap-2">
+                        {diaryForm.watch("isPublic") ? (
+                          <Globe className="w-4 h-4 text-primary" />
+                        ) : (
+                          <Lock className="w-4 h-4 text-muted-foreground" />
+                        )}
+                        <div className="flex flex-col">
+                          <Label className="text-sm font-semibold">Registro Público</Label>
+                          <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={diaryForm.watch("isPublic")}
+                        onCheckedChange={(val) => diaryForm.setValue("isPublic", val)}
+                        data-testid="switch-diary-public"
+                      />
+                    </div>
+
                     <Button
                       type="submit"
                       className="w-full"
@@ -777,12 +816,24 @@ export default function Memories() {
                   data-testid={`card-diary-${entry.id}`}
                 >
                   <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
-                    <span className="font-hand text-lg font-bold text-primary flex items-center gap-2">
-                      {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
-                      {entry.moodEmoji && (
-                        <span className="text-xl">{entry.moodEmoji}</span>
-                      )}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-hand text-lg font-bold text-primary flex items-center gap-2">
+                        {format(parseLocalDate(entry.date), "dd/MM/yyyy")}
+                        {entry.moodEmoji && (
+                          <span className="text-xl">{entry.moodEmoji}</span>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-muted/50 rounded-full w-fit">
+                        {entry.isPublic ? (
+                          <Globe className="w-3 h-3 text-primary" />
+                        ) : (
+                          <Lock className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className="text-[10px] text-muted-foreground">
+                          {entry.isPublic ? "Público" : "Privado"}
+                        </span>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-1">
                       {entry.photoUrls && entry.photoUrls.length > 0 && (
                         <ImageIcon className="w-4 h-4 text-muted-foreground" />
@@ -956,6 +1007,24 @@ export default function Memories() {
               <Textarea {...editForm.register("description")} />
             </div>
 
+            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
+              <div className="flex items-center gap-2">
+                {editForm.watch("isPublic") ? (
+                  <Globe className="w-4 h-4 text-primary" />
+                ) : (
+                  <Lock className="w-4 h-4 text-muted-foreground" />
+                )}
+                <div className="flex flex-col">
+                  <Label className="text-sm font-semibold">Momento Público</Label>
+                  <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                </div>
+              </div>
+              <Switch
+                checked={editForm.watch("isPublic")}
+                onCheckedChange={(val) => editForm.setValue("isPublic", val)}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Foto do momento</Label>
               {milestoneImage ? (
@@ -1087,6 +1156,24 @@ export default function Memories() {
                 data-testid="input-edit-diary-content"
               />
             </div>
+            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
+              <div className="flex items-center gap-2">
+                {editDiaryForm.watch("isPublic") ? (
+                  <Globe className="w-4 h-4 text-primary" />
+                ) : (
+                  <Lock className="w-4 h-4 text-muted-foreground" />
+                )}
+                <div className="flex flex-col">
+                  <Label className="text-sm font-semibold">Registro Público</Label>
+                  <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                </div>
+              </div>
+              <Switch
+                checked={editDiaryForm.watch("isPublic")}
+                onCheckedChange={(val) => editDiaryForm.setValue("isPublic", val)}
+              />
+            </div>
+
             <Button
               type="submit"
               className="w-full"
