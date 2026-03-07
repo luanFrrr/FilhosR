@@ -82,6 +82,7 @@ export const healthRecords = pgTable("health_records", {
 export const milestones = pgTable("milestones", {
   id: serial("id").primaryKey(),
   childId: integer("child_id").notNull(),
+  userId: varchar("user_id"),
   date: date("date").notNull(),
   title: text("title").notNull(),
   description: text("description"),

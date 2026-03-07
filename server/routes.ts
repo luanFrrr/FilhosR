@@ -601,6 +601,7 @@ export async function registerRoutes(
       record = await storage.createMilestone({
         ...input,
         childId,
+        userId,
         isPublic: input.isPublic ?? false,
       });
       await recordPoints(tx, childId, 20, 'milestone_create', 'milestone', record.id);
@@ -646,9 +647,14 @@ export async function registerRoutes(
     }
 
     if (!existing.isPublic) {
-      const role = await storage.getCaregiverRole(userId, existing.childId);
-      if (role !== "owner") {
-        return res.status(403).json({ message: "Apenas o responsável principal pode editar marcos privados" });
+      if (existing.userId && existing.userId !== userId) {
+        return res.status(403).json({ message: "Apenas o autor pode editar marcos privados" });
+      }
+      if (!existing.userId) {
+        const role = await storage.getCaregiverRole(userId, existing.childId);
+        if (role !== "owner") {
+          return res.status(403).json({ message: "Apenas o responsável principal pode editar marcos privados" });
+        }
       }
     }
 
@@ -676,9 +682,14 @@ export async function registerRoutes(
     }
 
     if (!existing.isPublic) {
-      const role = await storage.getCaregiverRole(userId, existing.childId);
-      if (role !== "owner") {
-        return res.status(403).json({ message: "Apenas o responsável principal pode excluir marcos privados" });
+      if (existing.userId && existing.userId !== userId) {
+        return res.status(403).json({ message: "Apenas o autor pode excluir marcos privados" });
+      }
+      if (!existing.userId) {
+        const role = await storage.getCaregiverRole(userId, existing.childId);
+        if (role !== "owner") {
+          return res.status(403).json({ message: "Apenas o responsável principal pode excluir marcos privados" });
+        }
       }
     }
 

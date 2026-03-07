@@ -1203,7 +1203,7 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(milestones.childId, childId),
-            sql`(${milestones.isPublic} = true OR EXISTS (SELECT 1 FROM caregivers WHERE child_id = ${childId} AND user_id = ${userId} AND role = 'owner'))`
+            sql`(${milestones.isPublic} = true OR ${milestones.userId} = ${userId} OR EXISTS (SELECT 1 FROM caregivers WHERE child_id = ${childId} AND user_id = ${userId} AND role = 'owner'))`
           )
         )
         .orderBy(desc(milestones.date), desc(milestones.createdAt))
