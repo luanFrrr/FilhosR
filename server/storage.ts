@@ -578,11 +578,12 @@ export class DatabaseStorage implements IStorage {
     const safeSize = Math.min(Math.max(1, pageSize), 100); // max 100 por página
     const offset = (safePage - 1) * safeSize;
 
+    const privacyFilter = sql`(${diaryEntries.isPublic} = true OR ${diaryEntries.userId} = ${userId} OR ${diaryEntries.userId} IS NULL OR ${diaryEntries.userId} = '')`;
     const [[countResult], pagedEntries] = await Promise.all([
       db.select({ total: count() }).from(diaryEntries).where(
         and(
           eq(diaryEntries.childId, childId),
-          sql`(${diaryEntries.isPublic} = true OR ${diaryEntries.userId} = ${userId})`
+          privacyFilter
         )
       ),
       db
@@ -591,7 +592,7 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(diaryEntries.childId, childId),
-            sql`(${diaryEntries.isPublic} = true OR ${diaryEntries.userId} = ${userId})`
+            privacyFilter
           )
         )
         .orderBy(desc(diaryEntries.date), desc(diaryEntries.createdAt))
@@ -1203,7 +1204,7 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(milestones.childId, childId),
-            sql`(${milestones.isPublic} = true OR ${milestones.userId} = ${userId} OR EXISTS (SELECT 1 FROM caregivers WHERE child_id = ${childId} AND user_id = ${userId} AND role = 'owner'))`
+            sql`(${milestones.isPublic} = true OR ${milestones.userId} = ${userId} OR ${milestones.userId} IS NULL OR EXISTS (SELECT 1 FROM caregivers WHERE child_id = ${childId} AND user_id = ${userId} AND role = 'owner'))`
           )
         )
         .orderBy(desc(milestones.date), desc(milestones.createdAt))
