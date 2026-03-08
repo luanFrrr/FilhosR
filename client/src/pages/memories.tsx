@@ -156,6 +156,21 @@ export default function Memories() {
   const createDiary = useCreateDiaryEntry();
   const updateDiary = useUpdateDiaryEntry();
   const deleteDiary = useDeleteDiaryEntry();
+  
+  const canManageMilestone = (milestone: Milestone) => {
+    const isAuthor = milestone.userId ? milestone.userId === user?.id : false;
+    const isOwner = (activeChild as any)?.role === "owner";
+    if (milestone.isPrivate) return milestone.userId ? isAuthor : isOwner;
+    return milestone.userId ? (isAuthor || isOwner) : isOwner;
+  };
+
+  const canManageDiary = (entry: DiaryEntry) => {
+    const isAuthor = entry.userId ? entry.userId === user?.id : false;
+    const isOwner = (activeChild as any)?.role === "owner";
+    if (entry.isPrivate) return entry.userId ? isAuthor : isOwner;
+    return entry.userId ? (isAuthor || isOwner) : isOwner;
+  };
+
   const { toast } = useToast();
   const [openMilestone, setOpenMilestone] = useState(false);
   const [openDiary, setOpenDiary] = useState(false);
@@ -852,7 +867,7 @@ export default function Memories() {
                       {entry.photoUrls && entry.photoUrls.length > 0 && (
                         <ImageIcon className="w-4 h-4 text-muted-foreground" />
                       )}
-                      {(!entry.userId || entry.userId === user?.id) && (
+                      {canManageDiary(entry as any) && (
                         <>
                           <Button
                             variant="ghost"
@@ -964,23 +979,27 @@ export default function Memories() {
               </div>
 
               <DialogFooter className="flex gap-2 sm:gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingMilestone(viewMilestone);
-                    setViewMilestone(null);
-                  }}
-                  data-testid="button-edit-milestone"
-                >
-                  <Edit2 className="w-4 h-4 mr-2" /> Editar
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setDeleteConfirm(viewMilestone)}
-                  data-testid="button-delete-milestone"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                </Button>
+                {canManageMilestone(viewMilestone) && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditingMilestone(viewMilestone);
+                        setViewMilestone(null);
+                      }}
+                      data-testid="button-edit-milestone"
+                    >
+                      <Edit2 className="w-4 h-4 mr-2" /> Editar
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setDeleteConfirm(viewMilestone)}
+                      data-testid="button-delete-milestone"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                    </Button>
+                  </>
+                )}
               </DialogFooter>
             </>
           )}

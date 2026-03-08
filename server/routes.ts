@@ -646,15 +646,17 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
+    const role = await storage.getCaregiverRole(userId, existing.childId);
+    const isOwner = role === "owner";
+    const isAuthor = existing.userId === userId;
+
     if (existing.isPrivate) {
-      if (existing.userId && existing.userId !== userId) {
+      if (existing.userId ? !isAuthor : !isOwner) {
         return res.status(403).json({ message: "Apenas o autor pode editar marcos privados" });
       }
-      if (!existing.userId) {
-        const role = await storage.getCaregiverRole(userId, existing.childId);
-        if (role !== "owner") {
-          return res.status(403).json({ message: "Apenas o responsável principal pode editar marcos privados" });
-        }
+    } else {
+      if (existing.userId ? (!isAuthor && !isOwner) : !isOwner) {
+        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem editar este marco" });
       }
     }
 
@@ -681,15 +683,17 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
+    const role = await storage.getCaregiverRole(userId, existing.childId);
+    const isOwner = role === "owner";
+    const isAuthor = existing.userId === userId;
+
     if (existing.isPrivate) {
-      if (existing.userId && existing.userId !== userId) {
+      if (existing.userId ? !isAuthor : !isOwner) {
         return res.status(403).json({ message: "Apenas o autor pode excluir marcos privados" });
       }
-      if (!existing.userId) {
-        const role = await storage.getCaregiverRole(userId, existing.childId);
-        if (role !== "owner") {
-          return res.status(403).json({ message: "Apenas o responsável principal pode excluir marcos privados" });
-        }
+    } else {
+      if (existing.userId ? (!isAuthor && !isOwner) : !isOwner) {
+        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem excluir este marco" });
       }
     }
 
@@ -805,9 +809,18 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    // Regra de Propriedade: Apenas o autor pode editar, ou qualquer cuidador caso seja um registro antigo sem autor
-    if (entry.userId && entry.userId !== userId) {
-      return res.status(403).json({ message: "Apenas o autor pode editar esta anotação" });
+    const role = await storage.getCaregiverRole(userId, entry.childId);
+    const isOwner = role === "owner";
+    const isAuthor = entry.userId === userId;
+
+    if (entry.isPrivate) {
+      if (entry.userId ? !isAuthor : !isOwner) {
+        return res.status(403).json({ message: "Apenas o autor pode editar anotações privadas" });
+      }
+    } else {
+      if (entry.userId ? (!isAuthor && !isOwner) : !isOwner) {
+        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem editar esta anotação" });
+      }
     }
 
     const input = api.diary.update.input.parse(req.body);
@@ -838,9 +851,18 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    // Regra de Propriedade: Apenas o autor pode remover, ou qualquer cuidador caso seja um registro antigo sem autor
-    if (entry.userId && entry.userId !== userId) {
-      return res.status(403).json({ message: "Apenas o autor pode excluir esta anotação" });
+    const role = await storage.getCaregiverRole(userId, entry.childId);
+    const isOwner = role === "owner";
+    const isAuthor = entry.userId === userId;
+
+    if (entry.isPrivate) {
+      if (entry.userId ? !isAuthor : !isOwner) {
+        return res.status(403).json({ message: "Apenas o autor pode excluir anotações privadas" });
+      }
+    } else {
+      if (entry.userId ? (!isAuthor && !isOwner) : !isOwner) {
+        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem excluir esta anotação" });
+      }
     }
 
     await db.transaction(async (tx) => {
