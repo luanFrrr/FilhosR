@@ -3,7 +3,15 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { caregivers, activityComments, children, milestones, diaryEntries, dailyPhotos, vaccineRecords } from "@shared/schema";
+import {
+  caregivers,
+  activityComments,
+  children,
+  milestones,
+  diaryEntries,
+  dailyPhotos,
+  vaccineRecords,
+} from "@shared/schema";
 import { db } from "./db";
 import { eq as drizzleEq, sql } from "drizzle-orm";
 import {
@@ -17,7 +25,11 @@ import {
   sendVaccineNotifications,
   notifyCaregivers,
 } from "./vaccineNotifications";
-import { uploadToStorage, deleteFromStorage, type UploadBucket } from "./supabaseStorage";
+import {
+  uploadToStorage,
+  deleteFromStorage,
+  type UploadBucket,
+} from "./supabaseStorage";
 import rateLimit from "express-rate-limit";
 import { recordPoints } from "./gamificationHelper";
 
@@ -28,7 +40,9 @@ const globalLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: "Muitas requisições. Tente novamente em alguns minutos." },
+  message: {
+    message: "Muitas requisições. Tente novamente em alguns minutos.",
+  },
   validate: { xForwardedForHeader: false },
 });
 
@@ -38,7 +52,9 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: "Muitas tentativas de login. Tente novamente em 15 minutos." },
+  message: {
+    message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
+  },
 });
 
 // Upload: 20 uploads por IP por 15 minutos
@@ -47,7 +63,9 @@ const uploadLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: "Limite de uploads atingido. Tente novamente em alguns minutos." },
+  message: {
+    message: "Limite de uploads atingido. Tente novamente em alguns minutos.",
+  },
 });
 
 // Push test: 5 por IP por 15 minutos (evita spam de notificações)
@@ -86,7 +104,7 @@ export async function registerRoutes(
     res.status(200).send("OK");
   });
   app.get("/", (_req, res, next) => {
-    // If it's a request for the root, and we're in production, 
+    // If it's a request for the root, and we're in production,
     // we want to make sure it doesn't hang if there's any issue.
     // However, serveStatic or setupVite usually handles this.
     // For health check purposes, we'll allow / to be handled by static/vite
@@ -184,19 +202,30 @@ export async function registerRoutes(
         });
 
         // 3. Medidas ao nascer (opcional)
-        const hasWeight = input.initialWeight && parseFloat(String(input.initialWeight)) > 0;
-        const hasHeight = input.initialHeight && parseFloat(String(input.initialHeight)) > 0;
-        const hasHead   = input.initialHeadCircumference && parseFloat(String(input.initialHeadCircumference)) > 0;
+        const hasWeight =
+          input.initialWeight && parseFloat(String(input.initialWeight)) > 0;
+        const hasHeight =
+          input.initialHeight && parseFloat(String(input.initialHeight)) > 0;
+        const hasHead =
+          input.initialHeadCircumference &&
+          parseFloat(String(input.initialHeadCircumference)) > 0;
         if (hasWeight || hasHeight || hasHead) {
-          const growthData: any = { childId: child.id, date: child.birthDate, notes: "Medidas ao nascer" };
+          const growthData: any = {
+            childId: child.id,
+            date: child.birthDate,
+            notes: "Medidas ao nascer",
+          };
           if (hasWeight) growthData.weight = String(input.initialWeight);
           if (hasHeight) growthData.height = String(input.initialHeight);
-          if (hasHead)   growthData.headCircumference = String(input.initialHeadCircumference);
+          if (hasHead)
+            growthData.headCircumference = String(
+              input.initialHeadCircumference,
+            );
           await storage.createGrowthRecord(growthData);
         }
 
         // 4. Gamificação — 50 pontos por cadastrar uma criança
-        await recordPoints(tx, child.id, 50, 'child_create', 'child', child.id);
+        await recordPoints(tx, child.id, 50, "child_create", "child", child.id);
       });
 
       res.status(201).json(child);
@@ -221,7 +250,11 @@ export async function registerRoutes(
     const input = api.children.update.input.parse(req.body);
     const record = await storage.updateChild(id, input);
 
-    if ('photoUrl' in input && existing?.photoUrl && input.photoUrl !== existing.photoUrl) {
+    if (
+      "photoUrl" in input &&
+      existing?.photoUrl &&
+      input.photoUrl !== existing.photoUrl
+    ) {
       deleteFromStorage(existing.photoUrl).catch(() => {});
     }
 
@@ -245,20 +278,43 @@ export async function registerRoutes(
 
     const urlsToDelete: string[] = [];
 
-    const [childRow] = await db.select({ photoUrl: children.photoUrl }).from(children).where(drizzleEq(children.id, id));
+    const [childRow] = await db
+      .select({ photoUrl: children.photoUrl })
+      .from(children)
+      .where(drizzleEq(children.id, id));
     if (childRow?.photoUrl) urlsToDelete.push(childRow.photoUrl);
 
-    const milestoneRows = await db.select({ photoUrl: milestones.photoUrl }).from(milestones).where(drizzleEq(milestones.childId, id));
-    for (const r of milestoneRows) { if (r.photoUrl) urlsToDelete.push(r.photoUrl); }
+    const milestoneRows = await db
+      .select({ photoUrl: milestones.photoUrl })
+      .from(milestones)
+      .where(drizzleEq(milestones.childId, id));
+    for (const r of milestoneRows) {
+      if (r.photoUrl) urlsToDelete.push(r.photoUrl);
+    }
 
-    const diaryRows = await db.select({ photoUrls: diaryEntries.photoUrls }).from(diaryEntries).where(drizzleEq(diaryEntries.childId, id));
-    for (const r of diaryRows) { if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls); }
+    const diaryRows = await db
+      .select({ photoUrls: diaryEntries.photoUrls })
+      .from(diaryEntries)
+      .where(drizzleEq(diaryEntries.childId, id));
+    for (const r of diaryRows) {
+      if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls);
+    }
 
-    const dailyRows = await db.select({ photoUrl: dailyPhotos.photoUrl }).from(dailyPhotos).where(drizzleEq(dailyPhotos.childId, id));
-    for (const r of dailyRows) { if (r.photoUrl) urlsToDelete.push(r.photoUrl); }
+    const dailyRows = await db
+      .select({ photoUrl: dailyPhotos.photoUrl })
+      .from(dailyPhotos)
+      .where(drizzleEq(dailyPhotos.childId, id));
+    for (const r of dailyRows) {
+      if (r.photoUrl) urlsToDelete.push(r.photoUrl);
+    }
 
-    const vaccineRows = await db.select({ photoUrls: vaccineRecords.photoUrls }).from(vaccineRecords).where(drizzleEq(vaccineRecords.childId, id));
-    for (const r of vaccineRows) { if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls); }
+    const vaccineRows = await db
+      .select({ photoUrls: vaccineRecords.photoUrls })
+      .from(vaccineRecords)
+      .where(drizzleEq(vaccineRecords.childId, id));
+    for (const r of vaccineRows) {
+      if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls);
+    }
 
     await storage.deleteChild(id);
 
@@ -297,7 +353,14 @@ export async function registerRoutes(
     let record: any;
     await db.transaction(async (tx) => {
       record = await storage.createGrowthRecord({ ...input, childId });
-      await recordPoints(tx, childId, 10, 'growth_create', 'growth_record', record.id);
+      await recordPoints(
+        tx,
+        childId,
+        10,
+        "growth_create",
+        "growth_record",
+        record.id,
+      );
     });
 
     // Responde imediatamente
@@ -313,7 +376,8 @@ export async function registerRoutes(
         const userName = resolveUserName(user);
         const childName = child?.name || "seu filho(a)";
         notifyCaregivers(
-          childId, userId,
+          childId,
+          userId,
           "📏 Novo registro de crescimento",
           `${userName} registrou peso/altura do ${childName}`,
           "/health?tab=growth",
@@ -358,7 +422,14 @@ export async function registerRoutes(
     let record: any;
     await db.transaction(async (tx) => {
       record = await storage.archiveGrowthRecord(id);
-      await recordPoints(tx, existing.childId, -10, 'growth_archive', 'growth_record', id);
+      await recordPoints(
+        tx,
+        existing.childId,
+        -10,
+        "growth_archive",
+        "growth_record",
+        id,
+      );
     });
     res.json(record);
   });
@@ -387,8 +458,16 @@ export async function registerRoutes(
     }
 
     const DOSE_LABELS = [
-      "1ª dose","2ª dose","3ª dose","4ª dose","5ª dose",
-      "6ª dose","7ª dose","8ª dose","9ª dose","10ª dose",
+      "1ª dose",
+      "2ª dose",
+      "3ª dose",
+      "4ª dose",
+      "5ª dose",
+      "6ª dose",
+      "7ª dose",
+      "8ª dose",
+      "9ª dose",
+      "10ª dose",
     ];
 
     const input = api.vaccines.create.input.parse(req.body);
@@ -418,7 +497,14 @@ export async function registerRoutes(
       }
 
       // 3. Gamificação — atômica com o restante
-      await recordPoints(tx, childId, 10, 'vaccine_create', 'vaccine', vaccine.id);
+      await recordPoints(
+        tx,
+        childId,
+        10,
+        "vaccine_create",
+        "vaccine",
+        vaccine.id,
+      );
     });
 
     // Responde imediatamente
@@ -433,9 +519,13 @@ export async function registerRoutes(
         ]);
         const userName = resolveUserName(user);
         const childName = child?.name || "seu filho(a)";
-        const dosesInfo = createdDoses.length > 0 ? ` (${createdDoses.length} dose(s) criadas)` : "";
+        const dosesInfo =
+          createdDoses.length > 0
+            ? ` (${createdDoses.length} dose(s) criadas)`
+            : "";
         notifyCaregivers(
-          childId, userId,
+          childId,
+          userId,
           "💉 Nova vacina adicionada",
           `${userName} adicionou a vacina "${vaccine.name}" para o ${childName}${dosesInfo}`,
           "/vaccines",
@@ -581,7 +671,7 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const records = await storage.getMilestones(childId);
+    const records = await storage.getMilestones(childId, userId);
     res.json(records);
   });
 
@@ -604,7 +694,14 @@ export async function registerRoutes(
         userId,
         isPrivate: input.isPrivate ?? false,
       });
-      await recordPoints(tx, childId, 20, 'milestone_create', 'milestone', record.id);
+      await recordPoints(
+        tx,
+        childId,
+        20,
+        "milestone_create",
+        "milestone",
+        record.id,
+      );
     });
 
     // Responde imediatamente
@@ -621,7 +718,8 @@ export async function registerRoutes(
           const userName = resolveUserName(user);
           const childName = child?.name || "seu filho(a)";
           notifyCaregivers(
-            childId, userId,
+            childId,
+            userId,
             "✨ Novo marco registrado!",
             `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
             `/memories?tab=milestones&id=${record.id}`,
@@ -652,18 +750,29 @@ export async function registerRoutes(
 
     if (existing.isPrivate) {
       if (existing.userId ? !isAuthor : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor pode editar marcos privados" });
+        return res
+          .status(403)
+          .json({ message: "Apenas o autor pode editar marcos privados" });
       }
     } else {
-      if (existing.userId ? (!isAuthor && !isOwner) : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem editar este marco" });
+      if (existing.userId ? !isAuthor && !isOwner : !isOwner) {
+        return res
+          .status(403)
+          .json({
+            message:
+              "Apenas o autor ou o responsável principal podem editar este marco",
+          });
       }
     }
 
     const input = api.milestones.update.input.parse(req.body);
     const record = await storage.updateMilestone(milestoneId, input);
 
-    if ('photoUrl' in input && existing.photoUrl && input.photoUrl !== existing.photoUrl) {
+    if (
+      "photoUrl" in input &&
+      existing.photoUrl &&
+      input.photoUrl !== existing.photoUrl
+    ) {
       deleteFromStorage(existing.photoUrl).catch(() => {});
     }
 
@@ -689,17 +798,31 @@ export async function registerRoutes(
 
     if (existing.isPrivate) {
       if (existing.userId ? !isAuthor : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor pode excluir marcos privados" });
+        return res
+          .status(403)
+          .json({ message: "Apenas o autor pode excluir marcos privados" });
       }
     } else {
-      if (existing.userId ? (!isAuthor && !isOwner) : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem excluir este marco" });
+      if (existing.userId ? !isAuthor && !isOwner : !isOwner) {
+        return res
+          .status(403)
+          .json({
+            message:
+              "Apenas o autor ou o responsável principal podem excluir este marco",
+          });
       }
     }
 
     await db.transaction(async (tx) => {
       await storage.deleteMilestone(milestoneId);
-      await recordPoints(tx, existing.childId, -20, 'milestone_delete', 'milestone', milestoneId);
+      await recordPoints(
+        tx,
+        existing.childId,
+        -20,
+        "milestone_delete",
+        "milestone",
+        milestoneId,
+      );
     });
 
     if (existing.photoUrl) {
@@ -718,9 +841,13 @@ export async function registerRoutes(
     if (!existing) {
       return res.status(404).json({ message: "Marco não encontrado" });
     }
-    
+
     if (!(await hasChildAccess(userId, existing.childId))) {
       return res.status(403).json({ message: "Acesso negado" });
+    }
+    // Marcos privados: likers só visíveis para o autor
+    if (existing.isPrivate && existing.userId !== userId) {
+      return res.status(403).json({ message: "Acesso negado a marco privado" });
     }
 
     const likers = await storage.getMilestoneLikers(milestoneId);
@@ -740,7 +867,12 @@ export async function registerRoutes(
     const page = Number(req.query.page) || 1;
     const pageSize = Number(req.query.pageSize) || 30;
 
-    const records = await storage.getDiaryEntries(childId, userId, page, pageSize);
+    const records = await storage.getDiaryEntries(
+      childId,
+      userId,
+      page,
+      pageSize,
+    );
     res.json(records); // records agora é um objeto com .data, .total, etc
   });
 
@@ -767,7 +899,14 @@ export async function registerRoutes(
         },
         tx,
       );
-      await recordPoints(tx, childId, 5, 'diary_create', 'diary_entry', record.id);
+      await recordPoints(
+        tx,
+        childId,
+        5,
+        "diary_create",
+        "diary_entry",
+        record.id,
+      );
     });
 
     // Responde imediatamente
@@ -784,7 +923,8 @@ export async function registerRoutes(
           const userName = resolveUserName(user);
           const childName = child?.name || "seu filho(a)";
           notifyCaregivers(
-            childId, userId,
+            childId,
+            userId,
             "📖 Nova nota no diário",
             `${userName} escreveu uma nova nota no diário do ${childName}`,
             `/memories?tab=diary&id=${record.id}`,
@@ -815,18 +955,25 @@ export async function registerRoutes(
 
     if (entry.isPrivate) {
       if (entry.userId ? !isAuthor : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor pode editar anotações privadas" });
+        return res
+          .status(403)
+          .json({ message: "Apenas o autor pode editar anotações privadas" });
       }
     } else {
-      if (entry.userId ? (!isAuthor && !isOwner) : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem editar esta anotação" });
+      if (entry.userId ? !isAuthor && !isOwner : !isOwner) {
+        return res
+          .status(403)
+          .json({
+            message:
+              "Apenas o autor ou o responsável principal podem editar esta anotação",
+          });
       }
     }
 
     const input = api.diary.update.input.parse(req.body);
     const updated = await storage.updateDiaryEntry(entryId, input);
 
-    if ('photoUrls' in input && entry.photoUrls?.length) {
+    if ("photoUrls" in input && entry.photoUrls?.length) {
       const newSet = new Set(input.photoUrls || []);
       for (const oldUrl of entry.photoUrls) {
         if (!newSet.has(oldUrl)) {
@@ -857,17 +1004,31 @@ export async function registerRoutes(
 
     if (entry.isPrivate) {
       if (entry.userId ? !isAuthor : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor pode excluir anotações privadas" });
+        return res
+          .status(403)
+          .json({ message: "Apenas o autor pode excluir anotações privadas" });
       }
     } else {
-      if (entry.userId ? (!isAuthor && !isOwner) : !isOwner) {
-        return res.status(403).json({ message: "Apenas o autor ou o responsável principal podem excluir esta anotação" });
+      if (entry.userId ? !isAuthor && !isOwner : !isOwner) {
+        return res
+          .status(403)
+          .json({
+            message:
+              "Apenas o autor ou o responsável principal podem excluir esta anotação",
+          });
       }
     }
 
     await db.transaction(async (tx) => {
       await storage.deleteDiaryEntry(entryId, tx);
-      await recordPoints(tx, entry.childId, -5, 'diary_delete', 'diary_entry', entryId);
+      await recordPoints(
+        tx,
+        entry.childId,
+        -5,
+        "diary_delete",
+        "diary_entry",
+        entryId,
+      );
     });
 
     if (entry.photoUrls?.length) {
@@ -1011,11 +1172,19 @@ export async function registerRoutes(
           // Conflito de constraint única (child_id, sus_vaccine_id, dose)
           return res.status(409).json({
             message: "Essa dose já foi registrada",
-            detail: "Já existe um registro para essa dose desta vacina nesta criança. Edite o registro existente se precisar corrigir alguma informação.",
+            detail:
+              "Já existe um registro para essa dose desta vacina nesta criança. Edite o registro existente se precisar corrigir alguma informação.",
           });
         }
 
-        await recordPoints(tx, childId, 15, 'vaccine_record_create', 'vaccine_record', record.id);
+        await recordPoints(
+          tx,
+          childId,
+          15,
+          "vaccine_record_create",
+          "vaccine_record",
+          record.id,
+        );
       });
 
       // Responde imediatamente
@@ -1031,9 +1200,12 @@ export async function registerRoutes(
           ]);
           const userName = resolveUserName(user);
           const childName = child?.name || "seu filho(a)";
-          const susVaccine = allVaccines.find((v) => v.id === record.susVaccineId);
+          const susVaccine = allVaccines.find(
+            (v) => v.id === record.susVaccineId,
+          );
           notifyCaregivers(
-            childId, userId,
+            childId,
+            userId,
             "💉 Nova vacina registrada",
             `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`,
             "/vaccines",
@@ -1066,7 +1238,7 @@ export async function registerRoutes(
       const input = api.vaccineRecords.update.input.parse(req.body);
       const record = await storage.updateVaccineRecord(id, input);
 
-      if ('photoUrls' in input && existing.photoUrls?.length) {
+      if ("photoUrls" in input && existing.photoUrls?.length) {
         const newSet = new Set(input.photoUrls || []);
         for (const oldUrl of existing.photoUrls) {
           if (!newSet.has(oldUrl)) {
@@ -1099,7 +1271,14 @@ export async function registerRoutes(
 
       await db.transaction(async (tx) => {
         await storage.deleteVaccineRecord(id, tx);
-        await recordPoints(tx, existing.childId, -15, 'vaccine_record_delete', 'vaccine_record', id);
+        await recordPoints(
+          tx,
+          existing.childId,
+          -15,
+          "vaccine_record_delete",
+          "vaccine_record",
+          id,
+        );
       });
 
       if (existing.photoUrls?.length) {
@@ -1193,7 +1372,14 @@ export async function registerRoutes(
         }
         photo = await storage.createDailyPhoto({ ...input, childId }, tx);
         if (!existing) {
-          await recordPoints(tx, childId, 5, 'daily_photo_create', 'daily_photo', photo.id);
+          await recordPoints(
+            tx,
+            childId,
+            5,
+            "daily_photo_create",
+            "daily_photo",
+            photo.id,
+          );
         }
       });
 
@@ -1214,7 +1400,8 @@ export async function registerRoutes(
           const userName = resolveUserName(user);
           const childName = child?.name || "seu filho(a)";
           notifyCaregivers(
-            childId, userId,
+            childId,
+            userId,
             "📸 Nova Foto do Dia!",
             `${userName} adicionou a foto do dia do ${childName}`,
             "/daily-photos",
@@ -1256,7 +1443,14 @@ export async function registerRoutes(
 
     await db.transaction(async (tx) => {
       await storage.deleteDailyPhoto(id, tx);
-      await recordPoints(tx, photo.childId, -5, 'daily_photo_delete', 'daily_photo', id);
+      await recordPoints(
+        tx,
+        photo.childId,
+        -5,
+        "daily_photo_delete",
+        "daily_photo",
+        id,
+      );
     });
 
     if (photo.photoUrl) {
@@ -1267,30 +1461,34 @@ export async function registerRoutes(
   });
 
   // Admin: verifica consistência entre gamification.points e SUM(events)
-  app.get("/admin/gamification/verify/:childId", isAuthenticated, async (req, res) => {
-    const childId = Number(req.params.childId);
-    if (!childId || isNaN(childId)) {
-      return res.status(400).json({ message: "childId inválido" });
-    }
-    try {
-      const [consistencyRow] = (await db.execute(
-        sql`SELECT verify_gamification(${childId}) AS consistent`
-      ) as unknown) as any[];
-      const [eventsRow] = (await db.execute(
-        sql`SELECT COALESCE(SUM(delta), 0) AS real_sum FROM gamification_events WHERE child_id = ${childId}`
-      ) as unknown) as any[];
-      const cached = await storage.getGamification(childId);
-      res.json({
-        childId,
-        consistent: consistencyRow?.consistent ?? null,
-        cachedPoints: cached?.points ?? 0,
-        realSum: Number(eventsRow?.real_sum ?? 0),
-      });
-    } catch (err) {
-      console.error("[admin] verify_gamification error:", err);
-      res.status(500).json({ message: "Erro ao verificar gamificação" });
-    }
-  });
+  app.get(
+    "/admin/gamification/verify/:childId",
+    isAuthenticated,
+    async (req, res) => {
+      const childId = Number(req.params.childId);
+      if (!childId || isNaN(childId)) {
+        return res.status(400).json({ message: "childId inválido" });
+      }
+      try {
+        const [consistencyRow] = (await db.execute(
+          sql`SELECT verify_gamification(${childId}) AS consistent`,
+        )) as unknown as any[];
+        const [eventsRow] = (await db.execute(
+          sql`SELECT COALESCE(SUM(delta), 0) AS real_sum FROM gamification_events WHERE child_id = ${childId}`,
+        )) as unknown as any[];
+        const cached = await storage.getGamification(childId);
+        res.json({
+          childId,
+          consistent: consistencyRow?.consistent ?? null,
+          cachedPoints: cached?.points ?? 0,
+          realSum: Number(eventsRow?.real_sum ?? 0),
+        });
+      } catch (err) {
+        console.error("[admin] verify_gamification error:", err);
+        res.status(500).json({ message: "Erro ao verificar gamificação" });
+      }
+    },
+  );
 
   app.get("/.well-known/assetlinks.json", (_req, res) => {
     res.json([
@@ -1423,59 +1621,66 @@ export async function registerRoutes(
     res.json({ subscribed: subs.length > 0, count: subs.length });
   });
 
-  app.post("/api/push/test", pushTestLimiter, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+  app.post(
+    "/api/push/test",
+    pushTestLimiter,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const webpushModule = await import("web-push");
-    const webpush = webpushModule.default || webpushModule;
-    const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
-    const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+      const webpushModule = await import("web-push");
+      const webpush = webpushModule.default || webpushModule;
+      const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
+      const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
 
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-      return res
-        .status(500)
-        .json({ message: "Push notifications não configuradas" });
-    }
+      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+        return res
+          .status(500)
+          .json({ message: "Push notifications não configuradas" });
+      }
 
-    webpush.setVapidDetails(
-      process.env.VAPID_SUBJECT || "mailto:filhos@replit.app",
-      VAPID_PUBLIC_KEY,
-      VAPID_PRIVATE_KEY,
-    );
+      webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT || "mailto:filhos@replit.app",
+        VAPID_PUBLIC_KEY,
+        VAPID_PRIVATE_KEY,
+      );
 
-    const subs = await storage.getPushSubscriptionsByUserId(userId);
-    if (subs.length === 0) {
-      return res.status(400).json({ message: "Nenhuma assinatura encontrada" });
-    }
+      const subs = await storage.getPushSubscriptionsByUserId(userId);
+      if (subs.length === 0) {
+        return res
+          .status(400)
+          .json({ message: "Nenhuma assinatura encontrada" });
+      }
 
-    let sent = 0;
-    for (const sub of subs) {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          JSON.stringify({
-            title: "💉 Teste de Notificação",
-            body: "As notificações de vacinas estão funcionando!",
-            icon: "/icons/icon-192x192.png",
-            badge: "/icons/icon-72x72.png",
-            tag: "test",
-            data: { url: "/" },
-          }),
-        );
-        sent++;
-      } catch (error: any) {
-        if (error.statusCode === 404 || error.statusCode === 410) {
-          await storage.deletePushSubscription(sub.endpoint);
+      let sent = 0;
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            JSON.stringify({
+              title: "💉 Teste de Notificação",
+              body: "As notificações de vacinas estão funcionando!",
+              icon: "/icons/icon-192x192.png",
+              badge: "/icons/icon-72x72.png",
+              tag: "test",
+              data: { url: "/" },
+            }),
+          );
+          sent++;
+        } catch (error: any) {
+          if (error.statusCode === 404 || error.statusCode === 410) {
+            await storage.deletePushSubscription(sub.endpoint);
+          }
         }
       }
-    }
 
-    res.json({ message: `Notificação de teste enviada!`, sent });
-  });
+      res.json({ message: `Notificação de teste enviada!`, sent });
+    },
+  );
 
   // === INVITE CODES (Compartilhar crianças entre cuidadores) ===
 
@@ -1791,6 +1996,17 @@ export async function registerRoutes(
 
     try {
       const input = api.comments.create.input.parse(req.body);
+
+      // Se for comentário em marco, verificar se o marco é privado
+      if (input.recordType === "milestone") {
+        const milestone = await storage.getMilestoneById(input.recordId);
+        if (milestone?.isPrivate && milestone.userId !== userId) {
+          return res
+            .status(403)
+            .json({ message: "Acesso negado a marco privado" });
+        }
+      }
+
       const comment = await storage.createComment({
         childId,
         userId,
@@ -1803,25 +2019,36 @@ export async function registerRoutes(
       res.status(201).json(comment);
 
       // Background: notificações (não bloqueia a resposta)
-      (async () => {
-        try {
-          const [user, child] = await Promise.all([
-            storage.getUser(userId),
-            storage.getChild(childId),
-          ]);
-          const userName = resolveUserName(user);
-          const childName = child?.name || "seu filho(a)";
-          notifyCaregivers(
-            childId,
-            userId,
-            "💬 Novo comentário",
-            `${userName} comentou em um marco de ${childName}`,
-            `/memories?tab=milestones&id=${comment.recordId}`,
-          );
-        } catch (err) {
-          console.error("[bg] Erro pós-criação de comentário:", err);
+      // Não notifica se o marco/registro é privado
+      const shouldNotify = await (async () => {
+        if (input.recordType === "milestone") {
+          const ms = await storage.getMilestoneById(input.recordId);
+          return !ms?.isPrivate;
         }
+        return true;
       })();
+
+      if (shouldNotify) {
+        (async () => {
+          try {
+            const [user, child] = await Promise.all([
+              storage.getUser(userId),
+              storage.getChild(childId),
+            ]);
+            const userName = resolveUserName(user);
+            const childName = child?.name || "seu filho(a)";
+            notifyCaregivers(
+              childId,
+              userId,
+              "💬 Novo comentário",
+              `${userName} comentou em um marco de ${childName}`,
+              `/memories?tab=milestones&id=${comment.recordId}`,
+            );
+          } catch (err) {
+            console.error("[bg] Erro pós-criação de comentário:", err);
+          }
+        })();
+      }
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -1912,6 +2139,10 @@ export async function registerRoutes(
     if (!(await hasChildAccess(userId, milestone.childId))) {
       return res.status(403).json({ message: "Acesso negado" });
     }
+    // Marcos privados só podem ser vistos pelo autor
+    if (milestone.isPrivate && milestone.userId !== userId) {
+      return res.status(403).json({ message: "Acesso negado a marco privado" });
+    }
 
     const status = await storage.getMilestoneLikeStatus(milestoneId, userId);
     res.json(status);
@@ -1934,6 +2165,10 @@ export async function registerRoutes(
     }
     if (!(await hasChildAccess(userId, milestone.childId))) {
       return res.status(403).json({ message: "Acesso negado" });
+    }
+    // Marcos privados não podem receber likes de outros cuidadores
+    if (milestone.isPrivate && milestone.userId !== userId) {
+      return res.status(403).json({ message: "Acesso negado a marco privado" });
     }
 
     const status = await storage.toggleMilestoneLike(milestoneId, userId);
@@ -2030,40 +2265,47 @@ export async function registerRoutes(
   // === UPLOAD UNIVERSAL DE FOTO (Supabase Storage) ===
   // Aceita: { base64, mimeType, bucket, path }
   // buckets permitidos: child-photos, milestone-photos, daily-photos
-  app.post("/api/upload", uploadLimiter, isAuthenticated, async (req: any, res) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+  app.post(
+    "/api/upload",
+    uploadLimiter,
+    isAuthenticated,
+    async (req: any, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const allowed: UploadBucket[] = [
-      "child-photos",
-      "milestone-photos",
-      "daily-photos",
-      "profile-photos",
-      "vaccine-photos",
-    ];
-    const { base64, mimeType, bucket, path: filePath } = req.body;
+      const allowed: UploadBucket[] = [
+        "child-photos",
+        "milestone-photos",
+        "daily-photos",
+        "profile-photos",
+        "vaccine-photos",
+      ];
+      const { base64, mimeType, bucket, path: filePath } = req.body;
 
-    if (!base64 || !mimeType || !bucket || !filePath) {
-      return res
-        .status(400)
-        .json({ message: "base64, mimeType, bucket e path são obrigatórios" });
-    }
-    if (!allowed.includes(bucket)) {
-      return res.status(400).json({ message: "Bucket não permitido" });
-    }
-    // Previne path traversal
-    if (filePath.includes("..") || filePath.startsWith("/")) {
-      return res.status(400).json({ message: "Path inválido" });
-    }
+      if (!base64 || !mimeType || !bucket || !filePath) {
+        return res
+          .status(400)
+          .json({
+            message: "base64, mimeType, bucket e path são obrigatórios",
+          });
+      }
+      if (!allowed.includes(bucket)) {
+        return res.status(400).json({ message: "Bucket não permitido" });
+      }
+      // Previne path traversal
+      if (filePath.includes("..") || filePath.startsWith("/")) {
+        return res.status(400).json({ message: "Path inválido" });
+      }
 
-    try {
-      const url = await uploadToStorage(bucket, filePath, base64, mimeType);
-      res.json({ url });
-    } catch (err: any) {
-      console.error("[upload] Failed:", err.message);
-      res.status(500).json({ message: "Erro ao fazer upload da foto" });
-    }
-  });
+      try {
+        const url = await uploadToStorage(bucket, filePath, base64, mimeType);
+        res.json({ url });
+      } catch (err: any) {
+        console.error("[upload] Failed:", err.message);
+        res.status(500).json({ message: "Erro ao fazer upload da foto" });
+      }
+    },
+  );
 
   startVaccineNotificationScheduler();
 

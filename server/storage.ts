@@ -101,7 +101,7 @@ export interface IStorage {
   deleteHealthRecord(id: number): Promise<void>;
 
   // Milestones
-  getMilestones(childId: number): Promise<Milestone[]>;
+  getMilestones(childId: number, userId: string): Promise<Milestone[]>;
   getMilestoneById(id: number): Promise<Milestone | undefined>;
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
   updateMilestone(
@@ -116,7 +116,13 @@ export interface IStorage {
     userId: string,
     page?: number,
     pageSize?: number,
-  ): Promise<{ data: DiaryEntryWithSocial[]; total: number; page: number; pageSize: number; hasMore: boolean }>;
+  ): Promise<{
+    data: DiaryEntryWithSocial[];
+    total: number;
+    page: number;
+    pageSize: number;
+    hasMore: boolean;
+  }>;
   getDiaryEntryById(id: number): Promise<DiaryEntry | undefined>;
   createDiaryEntry(entry: InsertDiaryEntry, tx?: any): Promise<DiaryEntry>;
   updateDiaryEntry(
@@ -135,7 +141,10 @@ export interface IStorage {
   // Vaccine Records
   getVaccineRecords(childId: number): Promise<VaccineRecord[]>;
   getVaccineRecordById(id: number): Promise<VaccineRecord | undefined>;
-  createVaccineRecord(record: InsertVaccineRecord, tx?: any): Promise<VaccineRecord | null>;
+  createVaccineRecord(
+    record: InsertVaccineRecord,
+    tx?: any,
+  ): Promise<VaccineRecord | null>;
   updateVaccineRecord(
     id: number,
     record: Partial<InsertVaccineRecord>,
@@ -203,9 +212,7 @@ export interface IStorage {
       }
     >
   >;
-  getCommentsByChild(
-    childId: number,
-  ): Promise<
+  getCommentsByChild(childId: number): Promise<
     Array<
       ActivityComment & {
         userFirstName: string | null;
@@ -230,15 +237,17 @@ export interface IStorage {
     childId: number,
     userId: string,
   ): Promise<MilestoneWithSocial[]>;
-  getMilestoneLikers(milestoneId: number): Promise<Array<{
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    profileImageUrl: string | null;
-    displayFirstName: string | null;
-    displayLastName: string | null;
-    displayPhotoUrl: string | null;
-  }>>;
+  getMilestoneLikers(milestoneId: number): Promise<
+    Array<{
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      profileImageUrl: string | null;
+      displayFirstName: string | null;
+      displayLastName: string | null;
+      displayPhotoUrl: string | null;
+    }>
+  >;
 
   // Diary Likes
   getDiaryLikeStatus(
@@ -249,15 +258,17 @@ export interface IStorage {
     diaryEntryId: number,
     userId: string,
   ): Promise<DiaryLikeStatus>;
-  getDiaryLikers(diaryEntryId: number): Promise<Array<{
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    profileImageUrl: string | null;
-    displayFirstName: string | null;
-    displayLastName: string | null;
-    displayPhotoUrl: string | null;
-  }>>;
+  getDiaryLikers(diaryEntryId: number): Promise<
+    Array<{
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      profileImageUrl: string | null;
+      displayFirstName: string | null;
+      displayLastName: string | null;
+      displayPhotoUrl: string | null;
+    }>
+  >;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -522,11 +533,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Milestones
-  async getMilestones(childId: number): Promise<Milestone[]> {
+  async getMilestones(childId: number, userId: string): Promise<Milestone[]> {
     return await db
       .select()
       .from(milestones)
-      .where(eq(milestones.childId, childId))
+      .where(
+        and(
+          eq(milestones.childId, childId),
+          sql`(${milestones.isPrivate} = false OR ${milestones.userId} = ${userId} OR ${milestones.userId} IS NULL)`,
+        ),
+      )
       .orderBy(desc(milestones.date), desc(milestones.createdAt))
       .limit(200);
   }
@@ -573,52 +589,57 @@ export class DatabaseStorage implements IStorage {
     userId: string,
     page = 1,
     pageSize = 30,
-  ): Promise<{ data: DiaryEntryWithSocial[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
+  ): Promise<{
+    data: DiaryEntryWithSocial[];
+    total: number;
+    page: number;
+    pageSize: number;
+    hasMore: boolean;
+  }> {
     const safePage = Math.max(1, page);
     const safeSize = Math.min(Math.max(1, pageSize), 100); // max 100 por página
     const offset = (safePage - 1) * safeSize;
 
     const privacyFilter = sql`(${diaryEntries.isPrivate} = false OR ${diaryEntries.userId} = ${userId} OR ${diaryEntries.userId} IS NULL OR ${diaryEntries.userId} = '')`;
     const [[countResult], pagedEntries] = await Promise.all([
-      db.select({ total: count() }).from(diaryEntries).where(
-        and(
-          eq(diaryEntries.childId, childId),
-          privacyFilter
-        )
-      ),
+      db
+        .select({ total: count() })
+        .from(diaryEntries)
+        .where(and(eq(diaryEntries.childId, childId), privacyFilter)),
       db
         .select()
         .from(diaryEntries)
-        .where(
-          and(
-            eq(diaryEntries.childId, childId),
-            privacyFilter
-          )
-        )
+        .where(and(eq(diaryEntries.childId, childId), privacyFilter))
         .orderBy(desc(diaryEntries.date), desc(diaryEntries.createdAt))
         .limit(safeSize)
         .offset(offset),
     ]);
 
     const total = countResult?.total ?? 0;
-    
+
     if (pagedEntries.length === 0) {
-      return { data: [], total, page: safePage, pageSize: safeSize, hasMore: false };
+      return {
+        data: [],
+        total,
+        page: safePage,
+        pageSize: safeSize,
+        hasMore: false,
+      };
     }
 
-    const entryIds = pagedEntries.map(e => e.id);
+    const entryIds = pagedEntries.map((e) => e.id);
 
     // Fetch user likes for the entries in this page
     const userLikes = await db
-        .select({ diaryEntryId: diaryLikes.diaryEntryId })
-        .from(diaryLikes)
-        .where(
-          and(
-            eq(diaryLikes.userId, userId),
-            sql`${diaryLikes.diaryEntryId} IN (${sql.raw(entryIds.join(','))})`,
-          ),
-        );
-        
+      .select({ diaryEntryId: diaryLikes.diaryEntryId })
+      .from(diaryLikes)
+      .where(
+        and(
+          eq(diaryLikes.userId, userId),
+          sql`${diaryLikes.diaryEntryId} IN (${sql.raw(entryIds.join(","))})`,
+        ),
+      );
+
     const userLikedSet = new Set(userLikes.map((r) => r.diaryEntryId));
 
     const data = pagedEntries.map((entry) => ({
@@ -627,7 +648,13 @@ export class DatabaseStorage implements IStorage {
       userLiked: userLikedSet.has(entry.id),
     }));
 
-    return { data, total, page: safePage, pageSize: safeSize, hasMore: offset + pagedEntries.length < total };
+    return {
+      data,
+      total,
+      page: safePage,
+      pageSize: safeSize,
+      hasMore: offset + pagedEntries.length < total,
+    };
   }
 
   async getDiaryEntryById(id: number): Promise<DiaryEntry | undefined> {
@@ -638,7 +665,10 @@ export class DatabaseStorage implements IStorage {
     return record;
   }
 
-  async createDiaryEntry(entry: InsertDiaryEntry, tx?: any): Promise<DiaryEntry> {
+  async createDiaryEntry(
+    entry: InsertDiaryEntry,
+    tx?: any,
+  ): Promise<DiaryEntry> {
     const ex = tx ?? db;
     const [newEntry] = await ex.insert(diaryEntries).values(entry).returning();
     return newEntry;
@@ -693,70 +723,188 @@ export class DatabaseStorage implements IStorage {
     const CALENDAR_VERSION = 4;
 
     const expectedOrder = [
-      "BCG", "Hepatite B",
-      "Pentavalente (DTP+Hib+HB)", "VIP (Pólio Inativada)",
-      "Pneumocócica 10-valente", "Rotavírus Humano",
+      "BCG",
+      "Hepatite B",
+      "Pentavalente (DTP+Hib+HB)",
+      "VIP (Pólio Inativada)",
+      "Pneumocócica 10-valente",
+      "Rotavírus Humano",
       "Meningocócica C (conjugada)",
-      "Influenza (Gripe)", "COVID-19 Infantil",
+      "Influenza (Gripe)",
+      "COVID-19 Infantil",
       "Febre Amarela",
       "Tríplice Viral (SCR)",
-      "Tetra Viral (SCRV)", "DTP (Tríplice Bacteriana)", "Hepatite A",
+      "Tetra Viral (SCRV)",
+      "DTP (Tríplice Bacteriana)",
+      "Hepatite A",
       "Reforço Pólio (VIP/VOP)",
-      "DTP 2º Reforço", "Reforço Pólio 4 anos", "Varicela (2ª dose)",
-      "HPV Quadrivalente", "Meningocócica ACWY",
+      "DTP 2º Reforço",
+      "Reforço Pólio 4 anos",
+      "Varicela (2ª dose)",
+      "HPV Quadrivalente",
+      "Meningocócica ACWY",
     ];
 
-    const needsReorder = existing.length === 20 &&
+    const needsReorder =
+      existing.length === 20 &&
       existing.some((v, i) => v.name !== expectedOrder[i]);
 
     if (existing.length === 20 && !needsReorder) return;
 
     const vaccineList: InsertSusVaccine[] = [
-      { name: "BCG", diseasesPrevented: "Tuberculose (formas graves)", recommendedDoses: "Dose única", ageRange: "Ao nascer" },
-      { name: "Hepatite B", diseasesPrevented: "Hepatite B", recommendedDoses: "1ª dose", ageRange: "Ao nascer (primeiras 24h)" },
-      { name: "Pentavalente (DTP+Hib+HB)", diseasesPrevented: "Difteria, Tétano, Coqueluche, Haemophilus influenzae b, Hepatite B", recommendedDoses: "1ª, 2ª, 3ª dose", ageRange: "2, 4, 6 meses" },
-      { name: "VIP (Pólio Inativada)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "1ª, 2ª, 3ª dose", ageRange: "2, 4, 6 meses" },
-      { name: "Pneumocócica 10-valente", diseasesPrevented: "Pneumonia, Meningite, Otite (doenças pneumocócicas)", recommendedDoses: "1ª, 2ª dose + Reforço", ageRange: "2, 4 meses + reforço 12 meses" },
-      { name: "Rotavírus Humano", diseasesPrevented: "Diarreia grave por rotavírus", recommendedDoses: "1ª, 2ª dose", ageRange: "2, 4 meses" },
-      { name: "Meningocócica C (conjugada)", diseasesPrevented: "Meningite e infecção generalizada por meningococo C", recommendedDoses: "1ª, 2ª dose + Reforço", ageRange: "3, 5 meses + reforço 12 meses" },
-      { name: "Influenza (Gripe)", diseasesPrevented: "Gripe e suas complicações", recommendedDoses: "Dose anual (campanhas)", ageRange: "A partir de 6 meses (campanhas anuais)" },
-      { name: "COVID-19 Infantil", diseasesPrevented: "COVID-19", recommendedDoses: "1ª dose, 2ª dose, 3ª dose", ageRange: "6, 7, 9 meses" },
-      { name: "Febre Amarela", diseasesPrevented: "Febre amarela", recommendedDoses: "1ª dose + Reforço", ageRange: "9 meses + reforço 4 anos" },
-      { name: "Tríplice Viral (SCR)", diseasesPrevented: "Sarampo, Caxumba, Rubéola", recommendedDoses: "1ª dose", ageRange: "12 meses" },
-      { name: "Tetra Viral (SCRV)", diseasesPrevented: "Sarampo, Caxumba, Rubéola, Varicela", recommendedDoses: "Dose única (2ª SCR + 1ª Varicela)", ageRange: "15 meses" },
-      { name: "DTP (Tríplice Bacteriana)", diseasesPrevented: "Difteria, Tétano, Coqueluche", recommendedDoses: "1º reforço", ageRange: "15 meses" },
-      { name: "Hepatite A", diseasesPrevented: "Hepatite A", recommendedDoses: "Dose única", ageRange: "15 meses" },
-      { name: "Reforço Pólio (VIP/VOP)", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "1º reforço", ageRange: "18 meses" },
-      { name: "DTP 2º Reforço", diseasesPrevented: "Difteria, Tétano, Coqueluche", recommendedDoses: "2º reforço", ageRange: "4 anos" },
-      { name: "Reforço Pólio 4 anos", diseasesPrevented: "Poliomielite (paralisia infantil)", recommendedDoses: "2º reforço", ageRange: "4 anos" },
-      { name: "Varicela (2ª dose)", diseasesPrevented: "Catapora (varicela)", recommendedDoses: "2ª dose", ageRange: "4 anos" },
-      { name: "HPV Quadrivalente", diseasesPrevented: "HPV (Papilomavírus Humano) - prevenção de cânceres", recommendedDoses: "2 doses (intervalo 6 meses)", ageRange: "9-14 anos (meninas) / 11-14 anos (meninos)" },
-      { name: "Meningocócica ACWY", diseasesPrevented: "Meningite meningocócica A, C, W, Y", recommendedDoses: "Reforço", ageRange: "11-14 anos" },
+      {
+        name: "BCG",
+        diseasesPrevented: "Tuberculose (formas graves)",
+        recommendedDoses: "Dose única",
+        ageRange: "Ao nascer",
+      },
+      {
+        name: "Hepatite B",
+        diseasesPrevented: "Hepatite B",
+        recommendedDoses: "1ª dose",
+        ageRange: "Ao nascer (primeiras 24h)",
+      },
+      {
+        name: "Pentavalente (DTP+Hib+HB)",
+        diseasesPrevented:
+          "Difteria, Tétano, Coqueluche, Haemophilus influenzae b, Hepatite B",
+        recommendedDoses: "1ª, 2ª, 3ª dose",
+        ageRange: "2, 4, 6 meses",
+      },
+      {
+        name: "VIP (Pólio Inativada)",
+        diseasesPrevented: "Poliomielite (paralisia infantil)",
+        recommendedDoses: "1ª, 2ª, 3ª dose",
+        ageRange: "2, 4, 6 meses",
+      },
+      {
+        name: "Pneumocócica 10-valente",
+        diseasesPrevented:
+          "Pneumonia, Meningite, Otite (doenças pneumocócicas)",
+        recommendedDoses: "1ª, 2ª dose + Reforço",
+        ageRange: "2, 4 meses + reforço 12 meses",
+      },
+      {
+        name: "Rotavírus Humano",
+        diseasesPrevented: "Diarreia grave por rotavírus",
+        recommendedDoses: "1ª, 2ª dose",
+        ageRange: "2, 4 meses",
+      },
+      {
+        name: "Meningocócica C (conjugada)",
+        diseasesPrevented:
+          "Meningite e infecção generalizada por meningococo C",
+        recommendedDoses: "1ª, 2ª dose + Reforço",
+        ageRange: "3, 5 meses + reforço 12 meses",
+      },
+      {
+        name: "Influenza (Gripe)",
+        diseasesPrevented: "Gripe e suas complicações",
+        recommendedDoses: "Dose anual (campanhas)",
+        ageRange: "A partir de 6 meses (campanhas anuais)",
+      },
+      {
+        name: "COVID-19 Infantil",
+        diseasesPrevented: "COVID-19",
+        recommendedDoses: "1ª dose, 2ª dose, 3ª dose",
+        ageRange: "6, 7, 9 meses",
+      },
+      {
+        name: "Febre Amarela",
+        diseasesPrevented: "Febre amarela",
+        recommendedDoses: "1ª dose + Reforço",
+        ageRange: "9 meses + reforço 4 anos",
+      },
+      {
+        name: "Tríplice Viral (SCR)",
+        diseasesPrevented: "Sarampo, Caxumba, Rubéola",
+        recommendedDoses: "1ª dose",
+        ageRange: "12 meses",
+      },
+      {
+        name: "Tetra Viral (SCRV)",
+        diseasesPrevented: "Sarampo, Caxumba, Rubéola, Varicela",
+        recommendedDoses: "Dose única (2ª SCR + 1ª Varicela)",
+        ageRange: "15 meses",
+      },
+      {
+        name: "DTP (Tríplice Bacteriana)",
+        diseasesPrevented: "Difteria, Tétano, Coqueluche",
+        recommendedDoses: "1º reforço",
+        ageRange: "15 meses",
+      },
+      {
+        name: "Hepatite A",
+        diseasesPrevented: "Hepatite A",
+        recommendedDoses: "Dose única",
+        ageRange: "15 meses",
+      },
+      {
+        name: "Reforço Pólio (VIP/VOP)",
+        diseasesPrevented: "Poliomielite (paralisia infantil)",
+        recommendedDoses: "1º reforço",
+        ageRange: "18 meses",
+      },
+      {
+        name: "DTP 2º Reforço",
+        diseasesPrevented: "Difteria, Tétano, Coqueluche",
+        recommendedDoses: "2º reforço",
+        ageRange: "4 anos",
+      },
+      {
+        name: "Reforço Pólio 4 anos",
+        diseasesPrevented: "Poliomielite (paralisia infantil)",
+        recommendedDoses: "2º reforço",
+        ageRange: "4 anos",
+      },
+      {
+        name: "Varicela (2ª dose)",
+        diseasesPrevented: "Catapora (varicela)",
+        recommendedDoses: "2ª dose",
+        ageRange: "4 anos",
+      },
+      {
+        name: "HPV Quadrivalente",
+        diseasesPrevented: "HPV (Papilomavírus Humano) - prevenção de cânceres",
+        recommendedDoses: "2 doses (intervalo 6 meses)",
+        ageRange: "9-14 anos (meninas) / 11-14 anos (meninos)",
+      },
+      {
+        name: "Meningocócica ACWY",
+        diseasesPrevented: "Meningite meningocócica A, C, W, Y",
+        recommendedDoses: "Reforço",
+        ageRange: "11-14 anos",
+      },
     ];
 
     if (needsReorder) {
-      console.log("[sus] Reordenando vacinas (v4): COVID-19 para posição cronológica correta");
-      const oldIdByName = new Map(existing.map(v => [v.name, v.id]));
+      console.log(
+        "[sus] Reordenando vacinas (v4): COVID-19 para posição cronológica correta",
+      );
+      const oldIdByName = new Map(existing.map((v) => [v.name, v.id]));
 
       await db.delete(susVaccines);
       await db.insert(susVaccines).values(vaccineList);
 
       const newVaccines = await db.select().from(susVaccines);
-      const newIdByName = new Map(newVaccines.map(v => [v.name, v.id]));
+      const newIdByName = new Map(newVaccines.map((v) => [v.name, v.id]));
 
       const allRecords = await db.select().from(vaccineRecords);
       for (const record of allRecords) {
-        const oldVaccine = existing.find(v => v.id === record.susVaccineId);
+        const oldVaccine = existing.find((v) => v.id === record.susVaccineId);
         if (oldVaccine) {
           const newId = newIdByName.get(oldVaccine.name);
           if (newId && newId !== record.susVaccineId) {
-            await db.update(vaccineRecords)
+            await db
+              .update(vaccineRecords)
               .set({ susVaccineId: newId })
               .where(eq(vaccineRecords.id, record.id));
           }
         }
       }
-      console.log("[sus] Vacinas reordenadas e registros remapeados com sucesso");
+      console.log(
+        "[sus] Vacinas reordenadas e registros remapeados com sucesso",
+      );
       _susVaccinesCache = null;
       _susVaccinesCacheAt = 0;
       return;
@@ -853,7 +1001,10 @@ export class DatabaseStorage implements IStorage {
     return photo;
   }
 
-  async createDailyPhoto(photo: InsertDailyPhoto, tx?: any): Promise<DailyPhoto> {
+  async createDailyPhoto(
+    photo: InsertDailyPhoto,
+    tx?: any,
+  ): Promise<DailyPhoto> {
     const ex = tx ?? db;
     const [newPhoto] = await ex.insert(dailyPhotos).values(photo).returning();
     return newPhoto;
@@ -1062,9 +1213,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getCommentsByChild(
-    childId: number,
-  ): Promise<
+  async getCommentsByChild(childId: number): Promise<
     Array<
       ActivityComment & {
         userFirstName: string | null;
@@ -1204,8 +1353,8 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(milestones.childId, childId),
-            sql`(${milestones.isPrivate} = false OR ${milestones.userId} = ${userId} OR ${milestones.userId} IS NULL)`
-          )
+            sql`(${milestones.isPrivate} = false OR ${milestones.userId} = ${userId} OR ${milestones.userId} IS NULL)`,
+          ),
         )
         .orderBy(desc(milestones.date), desc(milestones.createdAt))
         .limit(200),
@@ -1245,16 +1394,18 @@ export class DatabaseStorage implements IStorage {
       userLiked: userLikedSet.has(milestone.id),
     }));
   }
-  
-  async getMilestoneLikers(milestoneId: number): Promise<Array<{
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    profileImageUrl: string | null;
-    displayFirstName: string | null;
-    displayLastName: string | null;
-    displayPhotoUrl: string | null;
-  }>> {
+
+  async getMilestoneLikers(milestoneId: number): Promise<
+    Array<{
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      profileImageUrl: string | null;
+      displayFirstName: string | null;
+      displayLastName: string | null;
+      displayPhotoUrl: string | null;
+    }>
+  > {
     const likers = await db
       .select({
         id: users.id,
@@ -1344,9 +1495,7 @@ export class DatabaseStorage implements IStorage {
     return this.getDiaryLikeStatus(diaryEntryId, userId);
   }
 
-  async getDiaryLikers(
-    diaryEntryId: number,
-  ): Promise<
+  async getDiaryLikers(diaryEntryId: number): Promise<
     Array<{
       id: string;
       firstName: string | null;
