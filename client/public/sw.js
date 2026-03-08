@@ -1,5 +1,5 @@
-const CACHE_NAME = "filhos-v13";
-const IMAGE_CACHE_NAME = "filhos-images-v1";
+const CACHE_NAME = "filhos-v14";
+const IMAGE_CACHE_NAME = "filhos-images-v2";
 const MAX_IMAGE_CACHE_ENTRIES = 200;
 const STATIC_ASSETS = ["/manifest.json"];
 
@@ -168,7 +168,7 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body: data.body || "",
-    icon: data.icon || "/icons/icon-192x192.png",
+    icon: data.icon || "/icons/icon-notification-192x192.png",
     badge: data.badge || "/icons/badge-96x96.png",
     tag: data.tag || "filhos-notification",
     vibrate: [200, 100, 200],

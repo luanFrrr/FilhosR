@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, BellOff, X } from "lucide-react";
+import { Baby, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
@@ -59,7 +59,7 @@ export function NotificationPermissionBanner() {
             <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-4 pt-4 pb-3">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shrink-0 shadow-sm">
-                  <Bell className="w-5 h-5 text-white" />
+                  <Baby className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm text-foreground">
