@@ -6,20 +6,24 @@ import React, { useEffect } from "react";
 
 function syncThemeColor() {
   document.documentElement.style.removeProperty("background-color");
+  document.body.style.removeProperty("background-color");
 
   requestAnimationFrame(() => {
-    const rgb = getComputedStyle(document.documentElement).backgroundColor;
-    const match = rgb.match(/\d+/g);
-    if (!match || match.length < 3) return;
-    const hex =
-      "#" +
-      match
-        .slice(0, 3)
-        .map((n) => parseInt(n).toString(16).padStart(2, "0"))
-        .join("");
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", hex);
-    document.documentElement.style.backgroundColor = hex;
+    requestAnimationFrame(() => {
+      const rgb = getComputedStyle(document.documentElement).backgroundColor;
+      const match = rgb.match(/\d+/g);
+      if (!match || match.length < 3) return;
+      const hex =
+        "#" +
+        match
+          .slice(0, 3)
+          .map((n) => parseInt(n).toString(16).padStart(2, "0"))
+          .join("");
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", hex);
+      document.documentElement.style.backgroundColor = hex;
+      document.body.style.backgroundColor = hex;
+    });
   });
 }
 

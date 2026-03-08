@@ -27,6 +27,9 @@
       href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=DM+Sans:wght@400;500;700&family=Outfit:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style id="early-bg">
+      html, body { background-color: #090e1a; }
+    </style>
   </head>
   <body>
     <script>
@@ -41,8 +44,11 @@
         } else {
           document.documentElement.classList.remove("dark");
         }
+        var bgColor = isDark ? "#090e1a" : "#f8fbfa";
         var m = document.querySelector('meta[name="theme-color"]');
-        if (m) m.setAttribute("content", isDark ? "#090e1a" : "#f8fbfa");
+        if (m) m.setAttribute("content", bgColor);
+        document.documentElement.style.backgroundColor = bgColor;
+        document.body.style.backgroundColor = bgColor;
       })();
     </script>
     <div id="root"></div>
