@@ -74,7 +74,6 @@
 
 /* Pink Theme Override (light mode) */
 :root[data-theme="pink"] {
-  --background: 340 30% 98%;
   --primary: 340 60% 60%;
   --secondary: 340 30% 92%;
   --secondary-foreground: 340 60% 40%;
@@ -86,7 +85,6 @@
 
 /* Blue Theme Override (light mode) */
 :root[data-theme="blue"] {
-  --background: 210 30% 98%;
   --primary: 210 60% 55%;
   --secondary: 210 30% 92%;
   --secondary-foreground: 210 60% 35%;
@@ -153,7 +151,6 @@
     min-height: 100%;
     min-height: 100dvh;
   }
-
 
   h1,
   h2,

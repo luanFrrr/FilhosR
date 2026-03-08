@@ -4,20 +4,15 @@ import {
 } from "next-themes";
 import React, { useEffect } from "react";
 
+// Cores fixas do background neutral — nunca mudam por tema de criança
+const BG_LIGHT = "#f8fbfa"; // hsl(160, 30%, 98%)
+const BG_DARK = "#090e1a"; // hsl(222, 47%, 7%)
+
 function syncThemeColor() {
   requestAnimationFrame(() => {
-    document.documentElement.style.removeProperty("background-color");
-    document.body.style.removeProperty("background-color");
+    const isDark = document.documentElement.classList.contains("dark");
+    const hex = isDark ? BG_DARK : BG_LIGHT;
 
-    const rgb = getComputedStyle(document.documentElement).backgroundColor;
-    const match = rgb.match(/\d+/g);
-    if (!match || match.length < 3) return;
-    const hex =
-      "#" +
-      match
-        .slice(0, 3)
-        .map((n) => parseInt(n).toString(16).padStart(2, "0"))
-        .join("");
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", hex);
     document.documentElement.style.backgroundColor = hex;
