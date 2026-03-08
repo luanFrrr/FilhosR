@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-sky-50 dark:from-rose-950/30 dark:via-background dark:to-sky-950/30">
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-sky-50 dark:from-background dark:via-background dark:to-background">
       <div className="min-h-screen flex flex-col">
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
           <motion.div
@@ -16,7 +16,7 @@ export default function Landing() {
             className="w-full max-w-sm"
           >
             <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 mb-6 shadow-lg">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 dark:from-primary dark:to-primary mb-6 shadow-lg">
                 <Baby className="h-10 w-10 text-white" />
               </div>
               <h1 className="text-3xl font-bold text-foreground font-outfit mb-2">
