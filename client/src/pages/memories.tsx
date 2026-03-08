@@ -224,7 +224,7 @@ export default function Memories() {
         date: editingMilestone.date,
         title: editingMilestone.title,
         description: editingMilestone.description || "",
-        isPublic: editingMilestone.isPublic ?? false,
+        isPrivate: editingMilestone.isPrivate ?? false,
       });
       setMilestoneImage(editingMilestone.photoUrl || null);
     }
@@ -331,7 +331,7 @@ export default function Memories() {
         ...data,
         date,
         photoUrl,
-        isPublic: data.isPublic ?? editingMilestone.isPublic,
+        isPrivate: data.isPrivate ?? editingMilestone.isPrivate,
       });
       setEditingMilestone(null);
       editForm.reset();
@@ -370,7 +370,7 @@ export default function Memories() {
         date: editingDiary.date,
         content: editingDiary.content || "",
         moodEmoji: editingDiary.moodEmoji || "",
-        isPublic: editingDiary.isPublic ?? false,
+        isPrivate: editingDiary.isPrivate ?? false,
       });
     }
   }, [editingDiary, editDiaryForm]);
@@ -407,7 +407,7 @@ export default function Memories() {
         childId: activeChild.id,
         entryId: editingDiary.id,
         ...data,
-        isPublic: data.isPublic ?? editingDiary.isPublic,
+        isPrivate: data.isPrivate ?? editingDiary.isPrivate,
       });
       setEditingDiary(null);
       editDiaryForm.reset();
@@ -601,20 +601,20 @@ export default function Memories() {
 
                     <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
                       <div className="flex items-center gap-2">
-                        {milestoneForm.watch("isPublic") ? (
-                          <Globe className="w-4 h-4 text-primary" />
-                        ) : (
+                        {milestoneForm.watch("isPrivate") ? (
                           <Lock className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <Globe className="w-4 h-4 text-primary" />
                         )}
                         <div className="flex flex-col">
-                          <Label className="text-sm font-semibold">Momento Público</Label>
-                          <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                          <Label className="text-sm font-semibold">{milestoneForm.watch("isPrivate") ? "Momento Privado" : "Momento Público"}</Label>
+                          <span className="text-[10px] text-muted-foreground">{milestoneForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
                         </div>
                       </div>
                       <Switch
-                        checked={milestoneForm.watch("isPublic")}
-                        onCheckedChange={(val) => milestoneForm.setValue("isPublic", val)}
-                        data-testid="switch-milestone-public"
+                        checked={milestoneForm.watch("isPrivate")}
+                        onCheckedChange={(val) => milestoneForm.setValue("isPrivate", val)}
+                        data-testid="switch-milestone-private"
                       />
                     </div>
 
@@ -672,13 +672,13 @@ export default function Memories() {
                           {milestone.title}
                         </h3>
                         <div className="flex items-center gap-1.5 px-2 py-0.5 bg-muted/50 rounded-full shrink-0">
-                          {milestone.isPublic ? (
-                            <Globe className="w-3 h-3 text-primary" />
-                          ) : (
+                          {milestone.isPrivate ? (
                             <Lock className="w-3 h-3 text-muted-foreground" />
+                          ) : (
+                            <Globe className="w-3 h-3 text-primary" />
                           )}
                           <span className="text-[10px] text-muted-foreground">
-                            {milestone.isPublic ? "Público" : "Privado"}
+                            {milestone.isPrivate ? "Privado" : "Público"}
                           </span>
                         </div>
                       </div>
@@ -789,20 +789,20 @@ export default function Memories() {
                     </div>
                     <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
                       <div className="flex items-center gap-2">
-                        {diaryForm.watch("isPublic") ? (
-                          <Globe className="w-4 h-4 text-primary" />
-                        ) : (
+                        {diaryForm.watch("isPrivate") ? (
                           <Lock className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <Globe className="w-4 h-4 text-primary" />
                         )}
                         <div className="flex flex-col">
-                          <Label className="text-sm font-semibold">Registro Público</Label>
-                          <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                          <Label className="text-sm font-semibold">{diaryForm.watch("isPrivate") ? "Registro Privado" : "Registro Público"}</Label>
+                          <span className="text-[10px] text-muted-foreground">{diaryForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
                         </div>
                       </div>
                       <Switch
-                        checked={diaryForm.watch("isPublic")}
-                        onCheckedChange={(val) => diaryForm.setValue("isPublic", val)}
-                        data-testid="switch-diary-public"
+                        checked={diaryForm.watch("isPrivate")}
+                        onCheckedChange={(val) => diaryForm.setValue("isPrivate", val)}
+                        data-testid="switch-diary-private"
                       />
                     </div>
 
@@ -838,13 +838,13 @@ export default function Memories() {
                         )}
                       </span>
                       <div className="flex items-center gap-1.5 px-2 py-0.5 bg-muted/50 rounded-full w-fit">
-                        {entry.isPublic ? (
-                          <Globe className="w-3 h-3 text-primary" />
-                        ) : (
+                        {entry.isPrivate ? (
                           <Lock className="w-3 h-3 text-muted-foreground" />
+                        ) : (
+                          <Globe className="w-3 h-3 text-primary" />
                         )}
                         <span className="text-[10px] text-muted-foreground">
-                          {entry.isPublic ? "Público" : "Privado"}
+                          {entry.isPrivate ? "Privado" : "Público"}
                         </span>
                       </div>
                     </div>
@@ -1023,19 +1023,19 @@ export default function Memories() {
 
             <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
               <div className="flex items-center gap-2">
-                {editForm.watch("isPublic") ? (
-                  <Globe className="w-4 h-4 text-primary" />
-                ) : (
+                {editForm.watch("isPrivate") ? (
                   <Lock className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <Globe className="w-4 h-4 text-primary" />
                 )}
                 <div className="flex flex-col">
-                  <Label className="text-sm font-semibold">Momento Público</Label>
-                  <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                  <Label className="text-sm font-semibold">{editForm.watch("isPrivate") ? "Momento Privado" : "Momento Público"}</Label>
+                  <span className="text-[10px] text-muted-foreground">{editForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
                 </div>
               </div>
               <Switch
-                checked={editForm.watch("isPublic")}
-                onCheckedChange={(val) => editForm.setValue("isPublic", val)}
+                checked={editForm.watch("isPrivate")}
+                onCheckedChange={(val) => editForm.setValue("isPrivate", val)}
               />
             </div>
 
@@ -1172,19 +1172,19 @@ export default function Memories() {
             </div>
             <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl border border-border">
               <div className="flex items-center gap-2">
-                {editDiaryForm.watch("isPublic") ? (
-                  <Globe className="w-4 h-4 text-primary" />
-                ) : (
+                {editDiaryForm.watch("isPrivate") ? (
                   <Lock className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <Globe className="w-4 h-4 text-primary" />
                 )}
                 <div className="flex flex-col">
-                  <Label className="text-sm font-semibold">Registro Público</Label>
-                  <span className="text-[10px] text-muted-foreground">Visível para todos os cuidadores</span>
+                  <Label className="text-sm font-semibold">{editDiaryForm.watch("isPrivate") ? "Registro Privado" : "Registro Público"}</Label>
+                  <span className="text-[10px] text-muted-foreground">{editDiaryForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
                 </div>
               </div>
               <Switch
-                checked={editDiaryForm.watch("isPublic")}
-                onCheckedChange={(val) => editDiaryForm.setValue("isPublic", val)}
+                checked={editDiaryForm.watch("isPrivate")}
+                onCheckedChange={(val) => editDiaryForm.setValue("isPrivate", val)}
               />
             </div>
 

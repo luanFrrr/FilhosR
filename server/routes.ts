@@ -602,7 +602,7 @@ export async function registerRoutes(
         ...input,
         childId,
         userId,
-        isPublic: input.isPublic ?? false,
+        isPrivate: input.isPrivate ?? false,
       });
       await recordPoints(tx, childId, 20, 'milestone_create', 'milestone', record.id);
     });
@@ -611,7 +611,7 @@ export async function registerRoutes(
     res.status(201).json(record);
 
     // Background: notificações (apenas se público)
-    if (input.isPublic) {
+    if (!input.isPrivate) {
       (async () => {
         try {
           const [user, child] = await Promise.all([
@@ -646,7 +646,7 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    if (!existing.isPublic) {
+    if (existing.isPrivate) {
       if (existing.userId && existing.userId !== userId) {
         return res.status(403).json({ message: "Apenas o autor pode editar marcos privados" });
       }
@@ -681,7 +681,7 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    if (!existing.isPublic) {
+    if (existing.isPrivate) {
       if (existing.userId && existing.userId !== userId) {
         return res.status(403).json({ message: "Apenas o autor pode excluir marcos privados" });
       }
@@ -759,7 +759,7 @@ export async function registerRoutes(
           ...input,
           childId,
           userId,
-          isPublic: input.isPublic ?? false,
+          isPrivate: input.isPrivate ?? false,
         },
         tx,
       );
@@ -770,7 +770,7 @@ export async function registerRoutes(
     res.status(201).json(record);
 
     // Background: notificações (apenas se público)
-    if (input.isPublic) {
+    if (!input.isPrivate) {
       (async () => {
         try {
           const [user, child] = await Promise.all([

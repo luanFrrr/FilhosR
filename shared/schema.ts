@@ -88,7 +88,7 @@ export const milestones = pgTable("milestones", {
   description: text("description"),
   photoUrl: text("photo_url"),
   likesCount: integer("likes_count").notNull().default(0),
-  isPublic: boolean("is_public").notNull().default(false),
+  isPrivate: boolean("is_private").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -99,7 +99,7 @@ export const diaryEntries = pgTable("diary_entries", {
   content: text("content"),
   photoUrls: text("photo_urls").array(),
   likesCount: integer("likes_count").notNull().default(0),
-  isPublic: boolean("is_public").notNull().default(false),
+  isPrivate: boolean("is_private").notNull().default(false),
   userId: varchar("user_id"), // Permite null para retrocompatibilidade
   moodEmoji: text("mood_emoji"),
   createdAt: timestamp("created_at").defaultNow(),
