@@ -202,22 +202,28 @@ export const inviteCodes = pgTable("invite_codes", {
 });
 
 // Registros vacinais individuais
-export const vaccineRecords = pgTable("vaccine_records", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  susVaccineId: integer("sus_vaccine_id").notNull(),
-  dose: text("dose").notNull(), // Ex: "1ª dose", "2ª dose", "Reforço"
-  applicationDate: date("application_date"), // nullable = dose pendente (ainda não aplicada)
-  applicationPlace: text("application_place"),
-  notes: text("notes"),
-  photoUrls: text("photo_urls").array(),
-  createdAt: timestamp("created_at").defaultNow(),
-},
-(table) => ({
-  // Garante que a mesma dose de uma vacina não seja inserida duas vezes para a mesma criança
-  idempotency: uniqueIndex("vaccine_records_idempotency")
-    .on(table.childId, table.susVaccineId, table.dose),
-}));
+export const vaccineRecords = pgTable(
+  "vaccine_records",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id").notNull(),
+    susVaccineId: integer("sus_vaccine_id").notNull(),
+    dose: text("dose").notNull(), // Ex: "1ª dose", "2ª dose", "Reforço"
+    applicationDate: date("application_date"), // nullable = dose pendente (ainda não aplicada)
+    applicationPlace: text("application_place"),
+    notes: text("notes"),
+    photoUrls: text("photo_urls").array(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    // Garante que a mesma dose de uma vacina não seja inserida duas vezes para a mesma criança
+    idempotency: uniqueIndex("vaccine_records_idempotency").on(
+      table.childId,
+      table.susVaccineId,
+      table.dose,
+    ),
+  }),
+);
 
 // === RELATIONS ===
 
@@ -285,17 +291,20 @@ export const milestonesRelations = relations(milestones, ({ one, many }) => ({
   likes: many(milestoneLikes),
 }));
 
-export const diaryEntriesRelations = relations(diaryEntries, ({ one, many }) => ({
-  child: one(children, {
-    fields: [diaryEntries.childId],
-    references: [children.id],
+export const diaryEntriesRelations = relations(
+  diaryEntries,
+  ({ one, many }) => ({
+    child: one(children, {
+      fields: [diaryEntries.childId],
+      references: [children.id],
+    }),
+    user: one(users, {
+      fields: [diaryEntries.userId],
+      references: [users.id],
+    }),
+    likes: many(diaryLikes),
   }),
-  user: one(users, {
-    fields: [diaryEntries.userId],
-    references: [users.id],
-  }),
-  likes: many(diaryLikes),
-}));
+);
 
 export const gamificationRelations = relations(gamification, ({ one }) => ({
   child: one(children, {
@@ -304,12 +313,15 @@ export const gamificationRelations = relations(gamification, ({ one }) => ({
   }),
 }));
 
-export const gamificationEventsRelations = relations(gamificationEvents, ({ one }) => ({
-  child: one(children, {
-    fields: [gamificationEvents.childId],
-    references: [children.id],
+export const gamificationEventsRelations = relations(
+  gamificationEvents,
+  ({ one }) => ({
+    child: one(children, {
+      fields: [gamificationEvents.childId],
+      references: [children.id],
+    }),
   }),
-}));
+);
 
 export const susVaccinesRelations = relations(susVaccines, ({ many }) => ({
   records: many(vaccineRecords),
@@ -343,16 +355,19 @@ export const activityComments = pgTable("activity_comments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const activityCommentsRelations = relations(activityComments, ({ one }) => ({
-  child: one(children, {
-    fields: [activityComments.childId],
-    references: [children.id],
+export const activityCommentsRelations = relations(
+  activityComments,
+  ({ one }) => ({
+    child: one(children, {
+      fields: [activityComments.childId],
+      references: [children.id],
+    }),
+    user: one(users, {
+      fields: [activityComments.userId],
+      references: [users.id],
+    }),
   }),
-  user: one(users, {
-    fields: [activityComments.userId],
-    references: [users.id],
-  }),
-}));
+);
 
 // Likes em marcos (primeiras vezes)
 export const milestoneLikes = pgTable(
@@ -364,10 +379,9 @@ export const milestoneLikes = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
-    uniqueUserMilestone: uniqueIndex("milestone_likes_user_milestone_unique").on(
-      table.milestoneId,
-      table.userId,
-    ),
+    uniqueUserMilestone: uniqueIndex(
+      "milestone_likes_user_milestone_unique",
+    ).on(table.milestoneId, table.userId),
   }),
 );
 
@@ -501,14 +515,18 @@ export type InsertPushSubscription = z.infer<
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type InsertInviteCode = z.infer<typeof insertInviteCodeSchema>;
 
-export const insertActivityCommentSchema = createInsertSchema(activityComments).omit({
+export const insertActivityCommentSchema = createInsertSchema(
+  activityComments,
+).omit({
   id: true,
   createdAt: true,
 });
 export type ActivityComment = typeof activityComments.$inferSelect;
 export type InsertActivityComment = z.infer<typeof insertActivityCommentSchema>;
 
-export const insertMilestoneLikeSchema = createInsertSchema(milestoneLikes).omit({
+export const insertMilestoneLikeSchema = createInsertSchema(
+  milestoneLikes,
+).omit({
   id: true,
   createdAt: true,
 });
@@ -524,6 +542,8 @@ export type MilestoneWithSocial = Milestone & {
   likeCount: number;
   commentCount: number;
   userLiked: boolean;
+  creatorName: string | null;
+  creatorAvatar: string | null;
 };
 
 export const insertDiaryLikeSchema = createInsertSchema(diaryLikes).omit({
@@ -541,6 +561,8 @@ export type DiaryLikeStatus = {
 export type DiaryEntryWithSocial = DiaryEntry & {
   likeCount: number;
   userLiked: boolean;
+  creatorName: string | null;
+  creatorAvatar: string | null;
 };
 
 // Request Types

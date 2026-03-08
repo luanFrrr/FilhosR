@@ -51,6 +51,7 @@ import { parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhotoPicker } from "@/components/ui/photo-picker";
 import type { Milestone, DiaryEntry } from "@shared/schema";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -158,21 +159,25 @@ export default function Memories() {
   const updateDiary = useUpdateDiaryEntry();
   const deleteDiary = useDeleteDiaryEntry();
   const { data: childrenWithRoles } = useChildrenWithRoles();
-  
+
   const canManageMilestone = (milestone: Milestone) => {
     const isAuthor = milestone.userId ? milestone.userId === user?.id : false;
-    const roleInfo = childrenWithRoles?.find((c: any) => c.id === activeChild?.id);
+    const roleInfo = childrenWithRoles?.find(
+      (c: any) => c.id === activeChild?.id,
+    );
     const isOwner = roleInfo?.role === "owner";
     if (milestone.isPrivate) return milestone.userId ? isAuthor : isOwner;
-    return milestone.userId ? (isAuthor || isOwner) : isOwner;
+    return milestone.userId ? isAuthor || isOwner : isOwner;
   };
 
   const canManageDiary = (entry: DiaryEntry) => {
     const isAuthor = entry.userId ? entry.userId === user?.id : false;
-    const roleInfo = childrenWithRoles?.find((c: any) => c.id === activeChild?.id);
+    const roleInfo = childrenWithRoles?.find(
+      (c: any) => c.id === activeChild?.id,
+    );
     const isOwner = roleInfo?.role === "owner";
     if (entry.isPrivate) return entry.userId ? isAuthor : isOwner;
-    return entry.userId ? (isAuthor || isOwner) : isOwner;
+    return entry.userId ? isAuthor || isOwner : isOwner;
   };
 
   const { toast } = useToast();
@@ -626,13 +631,23 @@ export default function Memories() {
                           <Globe className="w-4 h-4 text-primary" />
                         )}
                         <div className="flex flex-col">
-                          <Label className="text-sm font-semibold">{milestoneForm.watch("isPrivate") ? "Momento Privado" : "Momento Público"}</Label>
-                          <span className="text-[10px] text-muted-foreground">{milestoneForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
+                          <Label className="text-sm font-semibold">
+                            {milestoneForm.watch("isPrivate")
+                              ? "Momento Privado"
+                              : "Momento Público"}
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {milestoneForm.watch("isPrivate")
+                              ? "Apenas você pode visualizar"
+                              : "Visível para todos os cuidadores"}
+                          </span>
                         </div>
                       </div>
                       <Switch
                         checked={milestoneForm.watch("isPrivate")}
-                        onCheckedChange={(val) => milestoneForm.setValue("isPrivate", val)}
+                        onCheckedChange={(val) =>
+                          milestoneForm.setValue("isPrivate", val)
+                        }
                         data-testid="switch-milestone-private"
                       />
                     </div>
@@ -675,6 +690,25 @@ export default function Memories() {
                       )}
                     </span>
                     <div className="bg-card p-4 rounded-xl border border-border shadow-sm group-hover:shadow-md transition-shadow">
+                      {/* Autor do marco */}
+                      {social?.creatorName && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <Avatar className="h-6 w-6">
+                            {social.creatorAvatar ? (
+                              <AvatarImage
+                                src={social.creatorAvatar}
+                                alt={social.creatorName}
+                              />
+                            ) : null}
+                            <AvatarFallback className="text-[10px] font-semibold">
+                              {social.creatorName.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {social.creatorName}
+                          </span>
+                        </div>
+                      )}
                       {milestone.photoUrl && (
                         <LazyImage
                           src={getTransformedImageUrl(milestone.photoUrl, {
@@ -814,13 +848,23 @@ export default function Memories() {
                           <Globe className="w-4 h-4 text-primary" />
                         )}
                         <div className="flex flex-col">
-                          <Label className="text-sm font-semibold">{diaryForm.watch("isPrivate") ? "Registro Privado" : "Registro Público"}</Label>
-                          <span className="text-[10px] text-muted-foreground">{diaryForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
+                          <Label className="text-sm font-semibold">
+                            {diaryForm.watch("isPrivate")
+                              ? "Registro Privado"
+                              : "Registro Público"}
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {diaryForm.watch("isPrivate")
+                              ? "Apenas você pode visualizar"
+                              : "Visível para todos os cuidadores"}
+                          </span>
                         </div>
                       </div>
                       <Switch
                         checked={diaryForm.watch("isPrivate")}
-                        onCheckedChange={(val) => diaryForm.setValue("isPrivate", val)}
+                        onCheckedChange={(val) =>
+                          diaryForm.setValue("isPrivate", val)
+                        }
                         data-testid="switch-diary-private"
                       />
                     </div>
@@ -848,6 +892,25 @@ export default function Memories() {
                   data-diary-id={entry.id}
                   data-testid={`card-diary-${entry.id}`}
                 >
+                  {/* Autor da entrada */}
+                  {(entry as any).creatorName && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <Avatar className="h-6 w-6">
+                        {(entry as any).creatorAvatar ? (
+                          <AvatarImage
+                            src={(entry as any).creatorAvatar}
+                            alt={(entry as any).creatorName}
+                          />
+                        ) : null}
+                        <AvatarFallback className="text-[10px] font-semibold">
+                          {(entry as any).creatorName.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {(entry as any).creatorName}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center mb-3 pb-3 border-b border-dashed border-border">
                     <div className="flex flex-col gap-1">
                       <span className="font-hand text-lg font-bold text-primary flex items-center gap-2">
@@ -941,72 +1004,98 @@ export default function Memories() {
         onOpenChange={(open) => !open && setViewMilestone(null)}
       >
         <DialogContent className="rounded-2xl max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
-          {viewMilestone && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-xl">
-                  {viewMilestone.title}
-                </DialogTitle>
-                <DialogDescription>
-                  {format(
-                    parseLocalDate(viewMilestone.date),
-                    "dd 'de' MMMM 'de' yyyy",
-                    { locale: ptBR },
+          {viewMilestone &&
+            (() => {
+              const viewSocial = milestonesWithSocial?.find(
+                (m) => m.id === viewMilestone.id,
+              );
+              return (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="text-xl">
+                      {viewMilestone.title}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {format(
+                        parseLocalDate(viewMilestone.date),
+                        "dd 'de' MMMM 'de' yyyy",
+                        { locale: ptBR },
+                      )}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {/* Autor do marco */}
+                  {viewSocial?.creatorName && (
+                    <div className="flex items-center gap-2.5 py-1">
+                      <Avatar className="h-7 w-7">
+                        {viewSocial.creatorAvatar ? (
+                          <AvatarImage
+                            src={viewSocial.creatorAvatar}
+                            alt={viewSocial.creatorName}
+                          />
+                        ) : null}
+                        <AvatarFallback className="text-[10px] font-semibold">
+                          {viewSocial.creatorName.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {viewSocial.creatorName}
+                      </span>
+                    </div>
                   )}
-                </DialogDescription>
-              </DialogHeader>
 
-              {viewMilestone.photoUrl && (
-                <LazyImage
-                  src={viewMilestone.photoUrl}
-                  alt={viewMilestone.title}
-                  className="w-full h-64 rounded-xl max-h-64"
-                />
-              )}
+                  {viewMilestone.photoUrl && (
+                    <LazyImage
+                      src={viewMilestone.photoUrl}
+                      alt={viewMilestone.title}
+                      className="w-full h-64 rounded-xl max-h-64"
+                    />
+                  )}
 
-              <p className="text-foreground leading-relaxed">
-                {viewMilestone.description}
-              </p>
+                  <p className="text-foreground leading-relaxed">
+                    {viewMilestone.description}
+                  </p>
 
-              {/* Social: Like + Comments */}
-              <div className="border-t border-border/50 pt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <LikeButton
-                    milestoneId={viewMilestone.id}
-                    childId={activeChild?.id || 0}
-                  />
-                </div>
-                <MilestoneComments
-                  childId={activeChild?.id || 0}
-                  milestoneId={viewMilestone.id}
-                />
-              </div>
+                  {/* Social: Like + Comments */}
+                  <div className="border-t border-border/50 pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <LikeButton
+                        milestoneId={viewMilestone.id}
+                        childId={activeChild?.id || 0}
+                      />
+                    </div>
+                    <MilestoneComments
+                      childId={activeChild?.id || 0}
+                      milestoneId={viewMilestone.id}
+                    />
+                  </div>
 
-              <DialogFooter className="flex gap-2 sm:gap-2">
-                {canManageMilestone(viewMilestone) && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setEditingMilestone(viewMilestone);
-                        setViewMilestone(null);
-                      }}
-                      data-testid="button-edit-milestone"
-                    >
-                      <Edit2 className="w-4 h-4 mr-2" /> Editar
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => setDeleteConfirm(viewMilestone)}
-                      data-testid="button-delete-milestone"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                    </Button>
-                  </>
-                )}
-              </DialogFooter>
-            </>
-          )}
+                  <DialogFooter className="flex gap-2 sm:gap-2">
+                    {canManageMilestone(viewMilestone) && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setEditingMilestone(viewMilestone);
+                            setViewMilestone(null);
+                          }}
+                          data-testid="button-edit-milestone"
+                        >
+                          <Edit2 className="w-4 h-4 mr-2" /> Editar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => setDeleteConfirm(viewMilestone)}
+                          data-testid="button-delete-milestone"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                        </Button>
+                      </>
+                    )}
+                  </DialogFooter>
+                </>
+              );
+            })()}
         </DialogContent>
       </Dialog>
 
@@ -1052,8 +1141,16 @@ export default function Memories() {
                   <Globe className="w-4 h-4 text-primary" />
                 )}
                 <div className="flex flex-col">
-                  <Label className="text-sm font-semibold">{editForm.watch("isPrivate") ? "Momento Privado" : "Momento Público"}</Label>
-                  <span className="text-[10px] text-muted-foreground">{editForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
+                  <Label className="text-sm font-semibold">
+                    {editForm.watch("isPrivate")
+                      ? "Momento Privado"
+                      : "Momento Público"}
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground">
+                    {editForm.watch("isPrivate")
+                      ? "Apenas você pode visualizar"
+                      : "Visível para todos os cuidadores"}
+                  </span>
                 </div>
               </div>
               <Switch
@@ -1201,13 +1298,23 @@ export default function Memories() {
                   <Globe className="w-4 h-4 text-primary" />
                 )}
                 <div className="flex flex-col">
-                  <Label className="text-sm font-semibold">{editDiaryForm.watch("isPrivate") ? "Registro Privado" : "Registro Público"}</Label>
-                  <span className="text-[10px] text-muted-foreground">{editDiaryForm.watch("isPrivate") ? "Apenas você pode visualizar" : "Visível para todos os cuidadores"}</span>
+                  <Label className="text-sm font-semibold">
+                    {editDiaryForm.watch("isPrivate")
+                      ? "Registro Privado"
+                      : "Registro Público"}
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground">
+                    {editDiaryForm.watch("isPrivate")
+                      ? "Apenas você pode visualizar"
+                      : "Visível para todos os cuidadores"}
+                  </span>
                 </div>
               </div>
               <Switch
                 checked={editDiaryForm.watch("isPrivate")}
-                onCheckedChange={(val) => editDiaryForm.setValue("isPrivate", val)}
+                onCheckedChange={(val) =>
+                  editDiaryForm.setValue("isPrivate", val)
+                }
               />
             </div>
 

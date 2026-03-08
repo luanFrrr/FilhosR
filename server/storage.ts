@@ -601,14 +601,24 @@ export class DatabaseStorage implements IStorage {
     const offset = (safePage - 1) * safeSize;
 
     const privacyFilter = sql`(${diaryEntries.isPrivate} = false OR ${diaryEntries.userId} = ${userId} OR ${diaryEntries.userId} IS NULL OR ${diaryEntries.userId} = '')`;
-    const [[countResult], pagedEntries] = await Promise.all([
+    const [[countResult], pagedRows] = await Promise.all([
       db
         .select({ total: count() })
         .from(diaryEntries)
         .where(and(eq(diaryEntries.childId, childId), privacyFilter)),
       db
-        .select()
+        .select({
+          entry: diaryEntries,
+          creatorFirstName: users.firstName,
+          creatorLastName: users.lastName,
+          creatorDisplayFirstName: users.displayFirstName,
+          creatorDisplayLastName: users.displayLastName,
+          creatorProfileImage: users.profileImageUrl,
+          creatorDisplayPhoto: users.displayPhotoUrl,
+          creatorProfileCustomized: users.profileCustomized,
+        })
         .from(diaryEntries)
+        .leftJoin(users, eq(diaryEntries.userId, users.id))
         .where(and(eq(diaryEntries.childId, childId), privacyFilter))
         .orderBy(desc(diaryEntries.date), desc(diaryEntries.createdAt))
         .limit(safeSize)
@@ -617,7 +627,7 @@ export class DatabaseStorage implements IStorage {
 
     const total = countResult?.total ?? 0;
 
-    if (pagedEntries.length === 0) {
+    if (pagedRows.length === 0) {
       return {
         data: [],
         total,
@@ -627,7 +637,7 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    const entryIds = pagedEntries.map((e) => e.id);
+    const entryIds = pagedRows.map((r) => r.entry.id);
 
     // Fetch user likes for the entries in this page
     const userLikes = await db
@@ -642,18 +652,33 @@ export class DatabaseStorage implements IStorage {
 
     const userLikedSet = new Set(userLikes.map((r) => r.diaryEntryId));
 
-    const data = pagedEntries.map((entry) => ({
-      ...entry,
-      likeCount: entry.likesCount,
-      userLiked: userLikedSet.has(entry.id),
-    }));
+    const data = pagedRows.map((r) => {
+      const name = r.creatorProfileCustomized
+        ? [r.creatorDisplayFirstName, r.creatorDisplayLastName]
+            .filter(Boolean)
+            .join(" ")
+        : [
+            r.creatorDisplayFirstName || r.creatorFirstName,
+            r.creatorDisplayLastName || r.creatorLastName,
+          ]
+            .filter(Boolean)
+            .join(" ");
+      const avatar = r.creatorDisplayPhoto || r.creatorProfileImage || null;
+      return {
+        ...r.entry,
+        likeCount: r.entry.likesCount,
+        userLiked: userLikedSet.has(r.entry.id),
+        creatorName: name || null,
+        creatorAvatar: avatar,
+      };
+    });
 
     return {
       data,
       total,
       page: safePage,
       pageSize: safeSize,
-      hasMore: offset + pagedEntries.length < total,
+      hasMore: offset + pagedRows.length < total,
     };
   }
 
@@ -1344,12 +1369,22 @@ export class DatabaseStorage implements IStorage {
     childId: number,
     userId: string,
   ): Promise<MilestoneWithSocial[]> {
-    // 3 queries paralelas — sem N+1, sem agg de likes
-    const [allMilestones, commentCounts, userLikes] = await Promise.all([
-      // 1) Marcos ordenados - Filtrando por privacidade
+    // 4 queries paralelas — sem N+1, sem agg de likes
+    const [milestoneRows, commentCounts, userLikes] = await Promise.all([
+      // 1) Marcos ordenados com LEFT JOIN em users para obter autor
       db
-        .select()
+        .select({
+          milestone: milestones,
+          creatorFirstName: users.firstName,
+          creatorLastName: users.lastName,
+          creatorDisplayFirstName: users.displayFirstName,
+          creatorDisplayLastName: users.displayLastName,
+          creatorProfileImage: users.profileImageUrl,
+          creatorDisplayPhoto: users.displayPhotoUrl,
+          creatorProfileCustomized: users.profileCustomized,
+        })
         .from(milestones)
+        .leftJoin(users, eq(milestones.userId, users.id))
         .where(
           and(
             eq(milestones.childId, childId),
@@ -1387,12 +1422,27 @@ export class DatabaseStorage implements IStorage {
     const commentMap = new Map(commentCounts.map((r) => [r.recordId, r.total]));
     const userLikedSet = new Set(userLikes.map((r) => r.milestoneId));
 
-    return allMilestones.map((milestone) => ({
-      ...milestone,
-      likeCount: milestone.likesCount,
-      commentCount: commentMap.get(milestone.id) ?? 0,
-      userLiked: userLikedSet.has(milestone.id),
-    }));
+    return milestoneRows.map((r) => {
+      const name = r.creatorProfileCustomized
+        ? [r.creatorDisplayFirstName, r.creatorDisplayLastName]
+            .filter(Boolean)
+            .join(" ")
+        : [
+            r.creatorDisplayFirstName || r.creatorFirstName,
+            r.creatorDisplayLastName || r.creatorLastName,
+          ]
+            .filter(Boolean)
+            .join(" ");
+      const avatar = r.creatorDisplayPhoto || r.creatorProfileImage || null;
+      return {
+        ...r.milestone,
+        likeCount: r.milestone.likesCount,
+        commentCount: commentMap.get(r.milestone.id) ?? 0,
+        userLiked: userLikedSet.has(r.milestone.id),
+        creatorName: name || null,
+        creatorAvatar: avatar,
+      };
+    });
   }
 
   async getMilestoneLikers(milestoneId: number): Promise<
