@@ -11,6 +11,7 @@ import {
   useUpdateDiaryEntry,
   useDeleteDiaryEntry,
 } from "@/hooks/use-memories";
+import { useChildrenWithRoles } from "@/hooks/use-children";
 import { Header } from "@/components/layout/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -156,17 +157,20 @@ export default function Memories() {
   const createDiary = useCreateDiaryEntry();
   const updateDiary = useUpdateDiaryEntry();
   const deleteDiary = useDeleteDiaryEntry();
+  const { data: childrenWithRoles } = useChildrenWithRoles();
   
   const canManageMilestone = (milestone: Milestone) => {
     const isAuthor = milestone.userId ? milestone.userId === user?.id : false;
-    const isOwner = (activeChild as any)?.role === "owner";
+    const roleInfo = childrenWithRoles?.find((c: any) => c.id === activeChild?.id);
+    const isOwner = roleInfo?.role === "owner";
     if (milestone.isPrivate) return milestone.userId ? isAuthor : isOwner;
     return milestone.userId ? (isAuthor || isOwner) : isOwner;
   };
 
   const canManageDiary = (entry: DiaryEntry) => {
     const isAuthor = entry.userId ? entry.userId === user?.id : false;
-    const isOwner = (activeChild as any)?.role === "owner";
+    const roleInfo = childrenWithRoles?.find((c: any) => c.id === activeChild?.id);
+    const isOwner = roleInfo?.role === "owner";
     if (entry.isPrivate) return entry.userId ? isAuthor : isOwner;
     return entry.userId ? (isAuthor || isOwner) : isOwner;
   };
