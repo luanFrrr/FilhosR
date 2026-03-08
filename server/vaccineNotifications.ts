@@ -286,8 +286,8 @@ function buildNotificationPayload(reminders: VaccineReminder[]): any {
   return {
     title,
     body,
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/icon-72x72.png",
+    icon: "/icons/icon-notification-192x192.png",
+    badge: "/icons/badge-96x96.png",
     tag: "vaccine-reminder",
     data: { url: "/vaccines" },
   };
@@ -411,8 +411,8 @@ export async function notifyCaregivers(
       const payload = JSON.stringify({
         title,
         body,
-        icon: "/icons/icon-192x192.png",
-        badge: "/icons/icon-72x72.png",
+        icon: "/icons/icon-notification-192x192.png",
+        badge: "/icons/badge-96x96.png",
         tag: `activity-${childId}`,
         data: { url },
       });
