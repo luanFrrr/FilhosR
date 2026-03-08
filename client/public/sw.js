@@ -1,5 +1,5 @@
-const CACHE_NAME = "filhos-v14";
-const IMAGE_CACHE_NAME = "filhos-images-v2";
+const CACHE_NAME = "filhos-v15";
+const IMAGE_CACHE_NAME = "filhos-images-v3";
 const MAX_IMAGE_CACHE_ENTRIES = 200;
 const STATIC_ASSETS = ["/manifest.json"];
 
