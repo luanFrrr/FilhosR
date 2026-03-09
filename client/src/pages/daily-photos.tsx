@@ -105,6 +105,11 @@ export default function DailyPhotos() {
   );
   const [isGeneratingShareClip, setIsGeneratingShareClip] = useState(false);
   const [shareClipProgress, setShareClipProgress] = useState(0);
+  const [preparedShareClip, setPreparedShareClip] = useState<{
+    file: File;
+    childId: number;
+    startPhotoId: number;
+  } | null>(null);
   const [storyItems, setStoryItems] = useState<DailyPhoto[]>([]);
   const [storyCurrentPos, setStoryCurrentPos] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
@@ -181,6 +186,21 @@ export default function DailyPhotos() {
   useEffect(() => {
     storyProgressRef.current = storyProgress;
   }, [storyProgress]);
+
+  useEffect(() => {
+    if (!preparedShareClip) return;
+    const selectedPhoto = sortedPhotos[currentIndex];
+    if (!selectedPhoto || !activeChild) {
+      setPreparedShareClip(null);
+      return;
+    }
+    const isSameContext =
+      preparedShareClip.childId === activeChild.id &&
+      preparedShareClip.startPhotoId === selectedPhoto.id;
+    if (!isSameContext) {
+      setPreparedShareClip(null);
+    }
+  }, [activeChild, currentIndex, preparedShareClip, sortedPhotos]);
 
   const getEmotionalMessage = useCallback(
     (currentStreak: number, hadRecentPhotos: boolean) => {
@@ -409,6 +429,27 @@ export default function DailyPhotos() {
     setStoryDisplayMode((prev) => (prev === "contain" ? "cover" : "contain"));
   }, []);
 
+  const downloadRetrospectiveFile = useCallback((file: File) => {
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = file.name;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }, []);
+
+  const isPreparedClipReady = useMemo(() => {
+    if (!preparedShareClip || !activeChild) return false;
+    const selectedPhoto = sortedPhotos[currentIndex];
+    if (!selectedPhoto) return false;
+    return (
+      preparedShareClip.childId === activeChild.id &&
+      preparedShareClip.startPhotoId === selectedPhoto.id
+    );
+  }, [activeChild, currentIndex, preparedShareClip, sortedPhotos]);
+
   const handleShareRetrospective = useCallback(async () => {
     if (!activeChild) return;
     if (totalPhotos < 7) return;
@@ -421,6 +462,56 @@ export default function DailyPhotos() {
         description:
           "Para compartilhar a retrospectiva, escolha um ponto com pelo menos 7 fotos em sequência.",
       });
+      return;
+    }
+
+    const selectedPhoto = sortedPhotos[currentIndex];
+    if (!selectedPhoto) return;
+
+    const nav = navigator as Navigator & {
+      canShare?: (data?: ShareData) => boolean;
+    };
+    const canNativeShareFile = (file: File) => {
+      if (typeof nav.share !== "function") return false;
+      if (typeof nav.canShare !== "function") return true;
+      try {
+        return nav.canShare({ files: [file] });
+      } catch {
+        return false;
+      }
+    };
+
+    if (isPreparedClipReady && preparedShareClip) {
+      try {
+        if (canNativeShareFile(preparedShareClip.file)) {
+          await nav.share({
+            title: `Retrospectiva de ${activeChild.name}`,
+            text: `Retrospectiva com ${queue.length} fotos no app Filhos.`,
+            files: [preparedShareClip.file],
+          });
+          toast({
+            title: "Compartilhado",
+            description: "Retrospectiva enviada com sucesso.",
+          });
+          return;
+        }
+
+        downloadRetrospectiveFile(preparedShareClip.file);
+        toast({
+          title: "Vídeo pronto",
+          description:
+            "O arquivo foi baixado. Você pode enviar pelo WhatsApp ou Instagram manualmente.",
+        });
+      } catch (error: any) {
+        if (error?.name === "AbortError") return;
+        console.error("[retrospectiva] erro ao compartilhar:", error);
+        toast({
+          title: "Não foi possível compartilhar",
+          description:
+            "Toque novamente em compartilhar ou envie o vídeo baixado manualmente.",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
@@ -439,7 +530,6 @@ export default function DailyPhotos() {
 
     try {
       const frameDurationMs = getRetrospectiveFrameDurationMs(queue.length);
-
       const file = await buildRetrospectiveVideo({
         frames: queue.map((photo) => ({
           src: getTransformedImageUrl(photo.photoUrl, {
@@ -454,50 +544,29 @@ export default function DailyPhotos() {
         onProgress: setShareClipProgress,
       });
 
-      const shareTitle = `Retrospectiva de ${activeChild.name}`;
-      const shareText = `Retrospectiva com ${queue.length} fotos no app Filhos.`;
-      const nav = navigator as Navigator & {
-        canShare?: (data?: ShareData) => boolean;
-      };
+      setPreparedShareClip({
+        file,
+        childId: activeChild.id,
+        startPhotoId: selectedPhoto.id,
+      });
 
-      let shared = false;
-
-      if (nav.share && nav.canShare?.({ files: [file] })) {
-        await nav.share({
-          title: shareTitle,
-          text: shareText,
-          files: [file],
-        });
-        shared = true;
-      }
-
-      if (!shared) {
-        const url = URL.createObjectURL(file);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = file.name;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-
+      if (canNativeShareFile(file)) {
         toast({
           title: "Vídeo pronto",
-          description:
-            "O arquivo foi baixado. Você pode enviar pelo WhatsApp ou Instagram manualmente.",
+          description: "Agora toque em Compartilhar agora.",
         });
         return;
       }
 
+      downloadRetrospectiveFile(file);
       toast({
-        title: "Compartilhado",
-        description: "Retrospectiva enviada com sucesso.",
+        title: "Vídeo pronto",
+        description:
+          "O arquivo foi baixado. Você pode enviar pelo WhatsApp ou Instagram manualmente.",
       });
     } catch (error: any) {
       console.error("[retrospectiva] erro ao gerar/compartilhar:", error);
-      if (error?.name === "AbortError") {
-        return;
-      }
+      if (error?.name === "AbortError") return;
       toast({
         title: "Erro ao gerar vídeo",
         description:
@@ -509,7 +578,16 @@ export default function DailyPhotos() {
       setIsGeneratingShareClip(false);
       setShareClipProgress(0);
     }
-  }, [activeChild, currentIndex, sortedPhotos, toast, totalPhotos]);
+  }, [
+    activeChild,
+    currentIndex,
+    downloadRetrospectiveFile,
+    isPreparedClipReady,
+    preparedShareClip,
+    sortedPhotos,
+    toast,
+    totalPhotos,
+  ]);
 
   useEffect(() => {
     if (!isStoryOpen || !isStoryPlaying || storyItems.length === 0) return;
@@ -832,7 +910,9 @@ export default function DailyPhotos() {
                     ) : (
                       <>
                         <Share2 className="w-4 h-4 mr-2" />
-                        Compartilhar vídeo
+                        {isPreparedClipReady
+                          ? "Compartilhar agora"
+                          : "Gerar vídeo"}
                       </>
                     )}
                   </Button>
