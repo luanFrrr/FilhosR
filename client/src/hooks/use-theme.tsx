@@ -9,15 +9,21 @@ const BG_LIGHT = "#f8fbfa"; // hsl(160, 30%, 98%)
 const BG_DARK = "#090e1a"; // hsl(222, 47%, 7%)
 
 function syncThemeColor() {
-  requestAnimationFrame(() => {
+  const apply = () => {
     const isDark = document.documentElement.classList.contains("dark");
     const hex = isDark ? BG_DARK : BG_LIGHT;
 
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", hex);
+    const metas = document.querySelectorAll('meta[name="theme-color"]');
+    metas.forEach((meta) => meta.setAttribute("content", hex));
     document.documentElement.style.backgroundColor = hex;
     document.body.style.backgroundColor = hex;
-  });
+    const root = document.getElementById("root");
+    if (root) root.style.backgroundColor = hex;
+    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+  };
+
+  apply();
+  requestAnimationFrame(apply);
 }
 
 function ThemeColorSync() {
@@ -41,6 +47,18 @@ function ThemeColorSync() {
       attributeFilter: ["data-theme", "class"],
     });
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const handle = () => syncThemeColor();
+    window.addEventListener("pageshow", handle);
+    document.addEventListener("visibilitychange", handle);
+    window.addEventListener("focus", handle);
+    return () => {
+      window.removeEventListener("pageshow", handle);
+      document.removeEventListener("visibilitychange", handle);
+      window.removeEventListener("focus", handle);
+    };
   }, []);
 
   return null;

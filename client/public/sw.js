@@ -1,7 +1,7 @@
-const CACHE_NAME = "filhos-v15";
+const CACHE_NAME = "filhos-v16";
 const IMAGE_CACHE_NAME = "filhos-images-v3";
 const MAX_IMAGE_CACHE_ENTRIES = 200;
-const STATIC_ASSETS = ["/manifest.json"];
+const STATIC_ASSETS = ["/manifest.json?v=20260309"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -104,6 +104,23 @@ self.addEventListener("fetch", (event) => {
             headers: { "Content-Type": "application/json" },
           });
         }),
+    );
+    return;
+  }
+
+  if (new URL(event.request.url).pathname === "/manifest.json") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request)),
     );
     return;
   }
