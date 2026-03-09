@@ -494,12 +494,14 @@ export default function DailyPhotos() {
         description: "Retrospectiva enviada com sucesso.",
       });
     } catch (error: any) {
+      console.error("[retrospectiva] erro ao gerar/compartilhar:", error);
       if (error?.name === "AbortError") {
         return;
       }
       toast({
         title: "Erro ao gerar vídeo",
         description:
+          error?.message ||
           "Não foi possível finalizar a retrospectiva agora. Tente novamente em instantes.",
         variant: "destructive",
       });

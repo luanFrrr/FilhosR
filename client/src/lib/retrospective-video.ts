@@ -14,10 +14,13 @@ const MIME_TYPES = [
   "video/webm;codecs=vp9",
   "video/webm;codecs=vp8",
   "video/webm",
+  "video/mp4;codecs=h264",
+  "video/mp4",
 ];
 
 function pickSupportedMimeType() {
   if (typeof MediaRecorder === "undefined") return null;
+  if (typeof MediaRecorder.isTypeSupported !== "function") return null;
   for (const mimeType of MIME_TYPES) {
     if (MediaRecorder.isTypeSupported(mimeType)) {
       return mimeType;
@@ -81,13 +84,33 @@ function drawFrame(
 }
 
 function loadImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
+  const tryLoad = (cors: boolean) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      if (cors) {
+        img.crossOrigin = "anonymous";
+      }
+      const timeoutId = window.setTimeout(() => {
+        reject(new Error("Timeout ao carregar imagem"));
+      }, 12000);
+      img.onload = () => {
+        window.clearTimeout(timeoutId);
+        resolve(img);
+      };
+      img.onerror = () => {
+        window.clearTimeout(timeoutId);
+        reject(new Error("Falha ao carregar imagem"));
+      };
+      img.src = src;
+    });
+
+  return tryLoad(true).catch(() => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () =>
-      reject(new Error(`Nao foi possivel carregar imagem para video: ${src}`));
-    img.src = src;
+    return tryLoad(false).catch(
+      () => new Promise<HTMLImageElement>((_, reject) => {
+        reject(new Error(`Nao foi possivel carregar imagem para video: ${src}`));
+      }),
+    );
   });
 }
 
@@ -96,7 +119,7 @@ export function isRetrospectiveVideoSupported() {
     typeof window !== "undefined" &&
     typeof HTMLCanvasElement !== "undefined" &&
     typeof MediaRecorder !== "undefined" &&
-    !!pickSupportedMimeType()
+    typeof HTMLCanvasElement.prototype.captureStream === "function"
   );
 }
 
@@ -118,9 +141,6 @@ export async function buildRetrospectiveVideo({
   }
 
   const mimeType = pickSupportedMimeType();
-  if (!mimeType) {
-    throw new Error("Seu navegador nao suporta geracao de video");
-  }
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -131,13 +151,25 @@ export async function buildRetrospectiveVideo({
     throw new Error("Nao foi possivel iniciar o renderizador de video");
   }
 
+  if (typeof canvas.captureStream !== "function") {
+    throw new Error("Seu navegador nao suporta captura de video no canvas");
+  }
+
   const stream = canvas.captureStream(30);
   const chunks: BlobPart[] = [];
-
-  const recorder = new MediaRecorder(stream, {
-    mimeType,
-    videoBitsPerSecond: 2_500_000,
-  });
+  let recorder: MediaRecorder;
+  try {
+    recorder = mimeType
+      ? new MediaRecorder(stream, {
+          mimeType,
+          videoBitsPerSecond: 2_500_000,
+        })
+      : new MediaRecorder(stream, {
+          videoBitsPerSecond: 2_500_000,
+        });
+  } catch {
+    recorder = new MediaRecorder(stream);
+  }
 
   const stopPromise = new Promise<Blob>((resolve, reject) => {
     recorder.ondataavailable = (event) => {
@@ -147,15 +179,24 @@ export async function buildRetrospectiveVideo({
     };
     recorder.onerror = () =>
       reject(new Error("Falha ao gravar o video da retrospectiva"));
-    recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+    recorder.onstop = () =>
+      resolve(new Blob(chunks, { type: mimeType || undefined }));
   });
 
   recorder.start(150);
+  let renderedFrames = 0;
 
   try {
     for (let i = 0; i < frames.length; i += 1) {
-      const image = await loadImage(frames[i].src);
-      drawFrame(ctx, image, width, height);
+      try {
+        const image = await loadImage(frames[i].src);
+        drawFrame(ctx, image, width, height);
+        renderedFrames += 1;
+      } catch {
+        // Mantem o video robusto: se uma foto falhar, segue para as demais.
+        ctx.fillStyle = "#111";
+        ctx.fillRect(0, 0, width, height);
+      }
       onProgress?.((i + 1) / frames.length);
       await wait(frameDurationMs);
     }
@@ -168,8 +209,13 @@ export async function buildRetrospectiveVideo({
   const blob = await stopPromise;
   stream.getTracks().forEach((track) => track.stop());
 
-  const extension = mimeType.includes("webm") ? "webm" : "mp4";
+  if (renderedFrames === 0 || blob.size === 0) {
+    throw new Error("Nao foi possivel montar o video neste dispositivo");
+  }
+
+  const outType = blob.type || mimeType || "video/webm";
+  const extension = outType.includes("mp4") ? "mp4" : "webm";
   return new File([blob], `retrospectiva-${Date.now()}.${extension}`, {
-    type: mimeType,
+    type: outType,
   });
 }

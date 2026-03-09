@@ -9,7 +9,8 @@
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "verify:daily-photos": "tsx scripts/verify-daily-photos-integrity.ts"
+    "verify:daily-photos": "tsx scripts/verify-daily-photos-integrity.ts",
+    "security:fix-rls": "tsx scripts/fix-rls-security-advisor.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
