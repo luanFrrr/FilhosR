@@ -306,6 +306,7 @@ export interface IStorage {
   toggleMilestoneLike(
     milestoneId: number,
     userId: string,
+    childId?: number,
   ): Promise<MilestoneLikeStatus>;
   getMilestonesWithSocialCounts(
     childId: number,
@@ -331,6 +332,7 @@ export interface IStorage {
   toggleDiaryLike(
     diaryEntryId: number,
     userId: string,
+    childId?: number,
   ): Promise<DiaryLikeStatus>;
   getDiaryLikers(diaryEntryId: number): Promise<
     Array<{
@@ -1622,6 +1624,7 @@ export class DatabaseStorage implements IStorage {
   async toggleMilestoneLike(
     milestoneId: number,
     userId: string,
+    childId?: number,
   ): Promise<MilestoneLikeStatus> {
     await db.transaction(async (tx) => {
       const existing = await tx
@@ -1650,7 +1653,21 @@ export class DatabaseStorage implements IStorage {
         );
       } else {
         // Add like
-        await tx.insert(milestoneLikes).values({ milestoneId, userId });
+        const resolvedChildId =
+          childId ??
+          (
+            await tx
+              .select({ childId: milestones.childId })
+              .from(milestones)
+              .where(eq(milestones.id, milestoneId))
+              .limit(1)
+          )[0]?.childId;
+
+        await tx.insert(milestoneLikes).values({
+          milestoneId,
+          userId,
+          childId: resolvedChildId ?? null,
+        });
         // Incrementar counter
         await tx.execute(
           sql`UPDATE milestones SET likes_count = likes_count + 1 WHERE id = ${milestoneId}`,
@@ -1802,6 +1819,7 @@ export class DatabaseStorage implements IStorage {
   async toggleDiaryLike(
     diaryEntryId: number,
     userId: string,
+    childId?: number,
   ): Promise<DiaryLikeStatus> {
     await db.transaction(async (tx) => {
       const existing = await tx
@@ -1830,7 +1848,21 @@ export class DatabaseStorage implements IStorage {
         );
       } else {
         // Add like
-        await tx.insert(diaryLikes).values({ diaryEntryId, userId });
+        const resolvedChildId =
+          childId ??
+          (
+            await tx
+              .select({ childId: diaryEntries.childId })
+              .from(diaryEntries)
+              .where(eq(diaryEntries.id, diaryEntryId))
+              .limit(1)
+          )[0]?.childId;
+
+        await tx.insert(diaryLikes).values({
+          diaryEntryId,
+          userId,
+          childId: resolvedChildId ?? null,
+        });
         // Incrementar counter
         await tx.execute(
           sql`UPDATE diary_entries SET likes_count = likes_count + 1 WHERE id = ${diaryEntryId}`,

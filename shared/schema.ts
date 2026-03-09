@@ -103,7 +103,15 @@ export const diaryEntries = pgTable("diary_entries", {
   userId: varchar("user_id"), // Permite null para retrocompatibilidade
   moodEmoji: text("mood_emoji"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  // Ordenação principal do feed de diário (keyset por child/date/createdAt/id)
+  childDateCreatedIdIdx: index("diary_entries_child_date_created_id_idx").on(
+    table.childId,
+    table.date,
+    table.createdAt,
+    table.id,
+  ),
+}));
 
 export const gamification = pgTable(
   "gamification",
@@ -407,6 +415,7 @@ export const milestoneLikes = pgTable(
   "milestone_likes",
   {
     id: serial("id").primaryKey(),
+    childId: integer("child_id"),
     milestoneId: integer("milestone_id").notNull(),
     userId: varchar("user_id").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
@@ -417,6 +426,10 @@ export const milestoneLikes = pgTable(
     ).on(table.milestoneId, table.userId),
     userMilestoneIdx: index("milestone_likes_user_milestone_idx").on(
       table.userId,
+      table.milestoneId,
+    ),
+    childMilestoneIdx: index("milestone_likes_child_milestone_idx").on(
+      table.childId,
       table.milestoneId,
     ),
   }),
@@ -437,6 +450,7 @@ export const diaryLikes = pgTable(
   "diary_likes",
   {
     id: serial("id").primaryKey(),
+    childId: integer("child_id"),
     diaryEntryId: integer("diary_entry_id").notNull(),
     userId: varchar("user_id").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
@@ -448,6 +462,10 @@ export const diaryLikes = pgTable(
     ),
     userDiaryEntryIdx: index("diary_likes_user_entry_idx").on(
       table.userId,
+      table.diaryEntryId,
+    ),
+    childDiaryEntryIdx: index("diary_likes_child_entry_idx").on(
+      table.childId,
       table.diaryEntryId,
     ),
   }),

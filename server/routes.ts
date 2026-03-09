@@ -1142,7 +1142,7 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const status = await storage.toggleDiaryLike(entryId, userId);
+    const status = await storage.toggleDiaryLike(entryId, userId, entry.childId);
     res.json(status);
 
     if (status.userLiked) {
@@ -2331,7 +2331,11 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado a marco privado" });
     }
 
-    const status = await storage.toggleMilestoneLike(milestoneId, userId);
+    const status = await storage.toggleMilestoneLike(
+      milestoneId,
+      userId,
+      milestone.childId,
+    );
     res.json(status);
 
     if (status.userLiked) {

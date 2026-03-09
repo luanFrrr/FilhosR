@@ -28,6 +28,7 @@ export function useRealtimeSocial(childId: number) {
           event: "*", // INSERT e DELETE
           schema: "public",
           table: "milestone_likes",
+          filter: `child_id=eq.${childId}`,
         },
         (payload) => {
           const milestoneId =
@@ -89,6 +90,7 @@ export function useRealtimeSocial(childId: number) {
           event: "*", // INSERT e DELETE
           schema: "public",
           table: "diary_likes",
+          filter: `child_id=eq.${childId}`,
         },
         (payload) => {
           const diaryEntryId =
