@@ -128,9 +128,8 @@ export function isRetrospectiveVideoSupported() {
 }
 
 export function getRetrospectiveFrameDurationMs(photoCount: number) {
-  if (photoCount >= 25) return 260;
-  if (photoCount >= 15) return 420;
-  return 650;
+  const TARGET_DURATION_MS = 15_000;
+  return Math.round(TARGET_DURATION_MS / photoCount);
 }
 
 export async function buildRetrospectiveVideo({
