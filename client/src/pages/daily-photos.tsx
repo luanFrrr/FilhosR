@@ -505,11 +505,11 @@ export default function DailyPhotos() {
       } catch (error: any) {
         if (error?.name === "AbortError") return;
         console.error("[retrospectiva] erro ao compartilhar:", error);
+        downloadRetrospectiveFile(preparedShareClip.file);
         toast({
-          title: "Não foi possível compartilhar",
+          title: "Vídeo baixado",
           description:
-            "Toque novamente em compartilhar ou envie o vídeo baixado manualmente.",
-          variant: "destructive",
+            "O compartilhamento direto não foi possível. O arquivo foi baixado para você enviar manualmente.",
         });
       }
       return;
