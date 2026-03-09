@@ -7,6 +7,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ChildProvider } from "@/hooks/use-child-context";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { useAuth } from "@/hooks/use-auth";
+import { useChildContext } from "@/hooks/use-child-context";
+import {
+  extractNotifyChildFromPath,
+  resolveNotifyChildId,
+} from "@/lib/notification-navigation";
 import { Loader2 } from "lucide-react";
 import { NotificationPermissionBanner } from "@/components/notifications/NotificationPermissionBanner";
 import { PermissionPrompt } from "@/components/permissions/PermissionPrompt";
@@ -34,19 +39,42 @@ function GrowthRedirect() {
 
 function AuthenticatedRouter() {
   const [location, setLocation] = useLocation();
+  const { setActiveChildId } = useChildContext();
   const isAuthPage = location === "/onboarding";
+
+  useEffect(() => {
+    if (!location.startsWith("/")) return;
+    const parsed = extractNotifyChildFromPath(location);
+    if (parsed.childId) {
+      setActiveChildId(parsed.childId);
+    }
+    if (parsed.path !== location) {
+      setLocation(parsed.path, { replace: true });
+    }
+  }, [location, setActiveChildId, setLocation]);
 
   // Escuta mensagens do Service Worker para navegar sem reload (notificações)
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === "NAVIGATE" && event.data?.url) {
-        setLocation(event.data.url);
+        const rawUrl = String(event.data.url);
+        const parsed = extractNotifyChildFromPath(rawUrl);
+        const payloadChildId = resolveNotifyChildId(event.data.childId);
+        const targetChildId = payloadChildId || parsed.childId;
+        if (targetChildId) {
+          setActiveChildId(targetChildId);
+        }
+        if (parsed.path.startsWith("/")) {
+          setLocation(parsed.path);
+        } else {
+          window.location.assign(parsed.path);
+        }
       }
     };
     navigator.serviceWorker?.addEventListener("message", handler);
     return () =>
       navigator.serviceWorker?.removeEventListener("message", handler);
-  }, [setLocation]);
+  }, [setActiveChildId, setLocation]);
 
   return (
     <>

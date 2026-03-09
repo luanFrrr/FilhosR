@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,7 @@ import {
   useNotifications,
   useUnreadNotificationsCount,
 } from "@/hooks/use-notifications";
+import { useChildContext } from "@/hooks/use-child-context";
 import { cn } from "@/lib/utils";
 
 function formatRelativeDate(value: string | null): string {
@@ -35,6 +37,8 @@ function formatRelativeDate(value: string | null): string {
 
 export function NotificationInbox() {
   const [open, setOpen] = useState(false);
+  const [, setLocation] = useLocation();
+  const { setActiveChildId } = useChildContext();
   const { data: unreadData } = useUnreadNotificationsCount();
   const unreadCount = unreadData?.count ?? 0;
   const { data: notifications, isLoading } = useNotifications({
@@ -52,6 +56,7 @@ export function NotificationInbox() {
 
   const handleOpenNotification = (notification: {
     id: number;
+    childId: number;
     deepLink: string;
     readAt: string | null;
   }) => {
@@ -59,11 +64,14 @@ export function NotificationInbox() {
       markRead.mutate(notification.id);
     }
 
+    if (notification.childId > 0) {
+      setActiveChildId(notification.childId);
+    }
+
     setOpen(false);
     const target = notification.deepLink || "/";
     if (target.startsWith("/")) {
-      window.history.pushState({}, "", target);
-      window.dispatchEvent(new PopStateEvent("popstate"));
+      setLocation(target);
       return;
     }
     window.location.assign(target);

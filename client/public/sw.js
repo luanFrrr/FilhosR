@@ -207,7 +207,21 @@ self.addEventListener("notificationclick", (event) => {
 
   if (event.action === "dismiss") return;
 
-  const urlPath = event.notification.data?.url || "/";
+  const rawData = event.notification.data || {};
+  let urlPath = rawData.url || "/";
+  const parsedChildId = Number.parseInt(String(rawData.childId || ""), 10);
+  const childId = Number.isInteger(parsedChildId) && parsedChildId > 0
+    ? parsedChildId
+    : null;
+
+  if (childId && typeof urlPath === "string" && urlPath.startsWith("/")) {
+    try {
+      const targetUrl = new URL(urlPath, self.location.origin);
+      targetUrl.searchParams.set("notifyChildId", String(childId));
+      urlPath = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+    } catch (_) {}
+  }
+
   const urlToOpen = new URL(urlPath, self.location.origin).href;
 
   event.waitUntil(
@@ -216,7 +230,7 @@ self.addEventListener("notificationclick", (event) => {
       .then((clientList) => {
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
-            client.postMessage({ type: "NAVIGATE", url: urlPath });
+            client.postMessage({ type: "NAVIGATE", url: urlPath, childId });
             return client.focus();
           }
         }

@@ -132,6 +132,7 @@ function isDoseRecorded(
 }
 
 interface VaccineReminder {
+  childId: number;
   childName: string;
   vaccineName: string;
   dose: string;
@@ -212,7 +213,7 @@ async function getVaccineReminders(): Promise<Map<string, VaccineReminder[]>> {
   for (const [userId, childMap] of userChildMap) {
     const reminders: VaccineReminder[] = [];
 
-    for (const [, childInfo] of childMap) {
+    for (const [childId, childInfo] of childMap) {
       const ageMonths = getChildAgeMonths(childInfo.birthDate);
 
       for (const vaccine of vaccines) {
@@ -226,6 +227,7 @@ async function getVaccineReminders(): Promise<Map<string, VaccineReminder[]>> {
 
           if (monthsDiff >= 0 && monthsDiff <= 1) {
             reminders.push({
+              childId,
               childName: childInfo.name,
               vaccineName: vaccine.name,
               dose,
@@ -233,6 +235,7 @@ async function getVaccineReminders(): Promise<Map<string, VaccineReminder[]>> {
             });
           } else if (monthsDiff < 0 && monthsDiff >= -2) {
             reminders.push({
+              childId,
               childName: childInfo.name,
               vaccineName: vaccine.name,
               dose,
@@ -283,13 +286,15 @@ function buildNotificationPayload(reminders: VaccineReminder[]): any {
     }
   }
 
+  const contextChildId = reminders[0].childId;
+
   return {
     title,
     body,
     icon: "/icons/icon-notification-192x192.png",
     badge: "/icons/badge-96x96.png",
     tag: "vaccine-reminder",
-    data: { url: "/vaccines" },
+    data: { url: "/vaccines", childId: contextChildId },
   };
 }
 
