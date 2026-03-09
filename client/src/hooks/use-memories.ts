@@ -102,19 +102,28 @@ export function useDeleteMilestone() {
 
 export function useDiary(childId: number, pageSize = 30) {
   return useInfiniteQuery({
-    queryKey: [api.diary.list.path, childId],
-    queryFn: async ({ pageParam = 1 }) => {
-      // Append query string values for page and pageSize
-      const url = `${buildUrl(api.diary.list.path, { childId })}?page=${pageParam}&pageSize=${pageSize}`;
+    queryKey: [api.diary.list.path, childId, "cursor", pageSize],
+    queryFn: async ({
+      pageParam = { cursor: null as string | null, includeTotal: true },
+    }) => {
+      const params = new URLSearchParams();
+      params.set("pageSize", String(pageSize));
+      params.set("includeTotal", pageParam.includeTotal ? "1" : "0");
+      if (pageParam.cursor) {
+        params.set("cursor", pageParam.cursor);
+      }
+      const url = `${buildUrl(api.diary.list.path, { childId })}?${params.toString()}`;
       const res = await fetch(url, FETCH_OPTS);
       if (!res.ok) throw new Error("Erro ao buscar diário");
       return api.diary.list.responses[200].parse(await res.json());
     },
     getNextPageParam: (lastPage) => {
-      if (lastPage.hasMore) return lastPage.page + 1;
+      if (lastPage.hasMore && lastPage.nextCursor) {
+        return { cursor: lastPage.nextCursor, includeTotal: false };
+      }
       return undefined;
     },
-    initialPageParam: 1,
+    initialPageParam: { cursor: null as string | null, includeTotal: true },
     enabled: !!childId,
     staleTime: 5_000,
   });

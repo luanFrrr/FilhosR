@@ -448,63 +448,74 @@ export async function notifyCaregivers(
           .map((c) => c.userId),
       ),
     ];
+    if (recipientIds.length === 0) return;
 
-    const recipientSubscriptions = await Promise.all(
-      recipientIds.map(async (recipientId) => ({
-        recipientId,
-        subs: await storage.getPushSubscriptionsByUserId(recipientId),
-      })),
-    );
-
-    const sender = await storage.getUser(senderId);
+    const [sender, allRecipientSubscriptions] = await Promise.all([
+      storage.getUser(senderId),
+      storage.getPushSubscriptionsByUserIds(recipientIds),
+    ]);
     const pushEnabled = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
     const eventType = toOptionalString(metadata.eventType) || "activity";
     const recordType = toOptionalString(metadata.recordType);
     const recordId = toOptionalNumber(metadata.recordId);
     const commentId = toOptionalNumber(metadata.commentId);
     const deepLink = url || "/";
+    const actorName = resolveActorName(sender);
+    const actorAvatar = resolveActorAvatar(sender);
+
+    await storage.createNotifications(
+      recipientIds.map((recipientId) => ({
+        recipientUserId: recipientId,
+        actorUserId: senderId,
+        actorName,
+        actorAvatar,
+        childId,
+        type: eventType,
+        title,
+        body,
+        deepLink,
+        recordType,
+        recordId,
+        commentId,
+        metadata,
+      })),
+    );
+
+    if (!pushEnabled || allRecipientSubscriptions.length === 0) return;
+
+    const subscriptionsByRecipient = new Map<string, typeof allRecipientSubscriptions>();
+    for (const sub of allRecipientSubscriptions) {
+      if (!subscriptionsByRecipient.has(sub.userId)) {
+        subscriptionsByRecipient.set(sub.userId, []);
+      }
+      subscriptionsByRecipient.get(sub.userId)!.push(sub);
+    }
 
     let sequence = 0;
-    for (const { recipientId, subs } of recipientSubscriptions) {
-      try {
-        await storage.createNotification({
-          recipientUserId: recipientId,
-          actorUserId: senderId,
-          actorName: resolveActorName(sender),
-          actorAvatar: resolveActorAvatar(sender),
+    const tasks: Array<() => Promise<void>> = [];
+    for (const recipientId of recipientIds) {
+      const subs = subscriptionsByRecipient.get(recipientId) ?? [];
+      const payload = JSON.stringify({
+        title,
+        body,
+        icon: "/icons/icon-notification-192x192.png",
+        badge: "/icons/badge-96x96.png",
+        tag: buildActivityTag({
           childId,
-          type: eventType,
-          title,
-          body,
-          deepLink,
-          recordType,
-          recordId,
-          commentId,
+          recipientId,
           metadata,
-        });
+          sequence: sequence++,
+        }),
+        data: {
+          childId,
+          actorId: senderId,
+          ...metadata,
+          url: deepLink,
+        },
+      });
 
-        if (!pushEnabled) continue;
-
-        const payload = JSON.stringify({
-          title,
-          body,
-          icon: "/icons/icon-notification-192x192.png",
-          badge: "/icons/badge-96x96.png",
-          tag: buildActivityTag({
-            childId,
-            recipientId,
-            metadata,
-            sequence: sequence++,
-          }),
-          data: {
-            childId,
-            actorId: senderId,
-            ...metadata,
-            url: deepLink,
-          },
-        });
-
-        for (const sub of subs) {
+      for (const sub of subs) {
+        tasks.push(async () => {
           try {
             await webpush.sendNotification(
               {
@@ -516,16 +527,18 @@ export async function notifyCaregivers(
           } catch (error: any) {
             if (error.statusCode === 404 || error.statusCode === 410) {
               await storage.deletePushSubscription(sub.endpoint);
+              return;
             }
+            console.error(
+              `[notifications] Failed to send to recipient ${recipientId}:`,
+              error?.message || error,
+            );
           }
-        }
-      } catch (error) {
-        console.error(
-          `[notifications] Error notifying recipient ${recipientId}:`,
-          error,
-        );
+        });
       }
     }
+
+    await sendInBatches(tasks, 20);
   } catch (error) {
     console.error(
       "[notifications] Error sending activity notification:",

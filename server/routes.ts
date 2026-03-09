@@ -897,16 +897,38 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const page = Number(req.query.page) || 1;
     const pageSize = Number(req.query.pageSize) || 30;
+    const hasLegacyPageParam = typeof req.query.page !== "undefined";
+    const cursor =
+      typeof req.query.cursor === "string" && req.query.cursor.length > 0
+        ? req.query.cursor
+        : undefined;
+    const includeTotalRaw =
+      typeof req.query.includeTotal === "string"
+        ? req.query.includeTotal.toLowerCase()
+        : "";
+    const includeTotal = includeTotalRaw
+      ? ["1", "true", "yes", "on"].includes(includeTotalRaw)
+      : !cursor;
 
-    const records = await storage.getDiaryEntries(
-      childId,
-      userId,
-      page,
+    // Compatibilidade: clientes antigos com page/pageSize continuam no modo OFFSET.
+    if (hasLegacyPageParam && !cursor) {
+      const page = Number(req.query.page) || 1;
+      const records = await storage.getDiaryEntries(
+        childId,
+        userId,
+        page,
+        pageSize,
+      );
+      return res.json(records);
+    }
+
+    const records = await storage.getDiaryEntriesByCursor(childId, userId, {
+      cursor,
       pageSize,
-    );
-    res.json(records); // records agora é um objeto com .data, .total, etc
+      includeTotal,
+    });
+    return res.json(records);
   });
 
   app.post(api.diary.create.path, isAuthenticated, async (req, res) => {

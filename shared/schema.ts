@@ -415,6 +415,10 @@ export const milestoneLikes = pgTable(
     uniqueUserMilestone: uniqueIndex(
       "milestone_likes_user_milestone_unique",
     ).on(table.milestoneId, table.userId),
+    userMilestoneIdx: index("milestone_likes_user_milestone_idx").on(
+      table.userId,
+      table.milestoneId,
+    ),
   }),
 );
 
@@ -441,6 +445,10 @@ export const diaryLikes = pgTable(
     uniqueUserDiaryEntry: uniqueIndex("diary_likes_entry_user_unique").on(
       table.diaryEntryId,
       table.userId,
+    ),
+    userDiaryEntryIdx: index("diary_likes_user_entry_idx").on(
+      table.userId,
+      table.diaryEntryId,
     ),
   }),
 );

@@ -52,7 +52,55 @@ import {
   type DiaryEntryWithSocial,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql, count, desc } from "drizzle-orm";
+import { eq, and, gt, sql, count, desc, inArray } from "drizzle-orm";
+
+type DiaryCursor = {
+  date: string;
+  createdAt: string;
+  id: number;
+};
+
+type DiaryEntriesPage = {
+  data: DiaryEntryWithSocial[];
+  total?: number;
+  page?: number;
+  pageSize: number;
+  hasMore: boolean;
+  nextCursor?: string | null;
+};
+
+function encodeDiaryCursor(cursor: DiaryCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodeDiaryCursor(raw?: string | null): DiaryCursor | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(raw, "base64url").toString("utf8"),
+    ) as Partial<DiaryCursor>;
+
+    if (
+      typeof parsed.date !== "string" ||
+      typeof parsed.createdAt !== "string" ||
+      typeof parsed.id !== "number"
+    ) {
+      return null;
+    }
+
+    if (Number.isNaN(new Date(parsed.createdAt).getTime())) {
+      return null;
+    }
+
+    return {
+      date: parsed.date,
+      createdAt: parsed.createdAt,
+      id: parsed.id,
+    };
+  } catch {
+    return null;
+  }
+}
 
 // ─── Cache em memória para dados estáticos ────────────────────────────────────
 let _susVaccinesCache: SusVaccine[] | null = null;
@@ -119,13 +167,16 @@ export interface IStorage {
     userId: string,
     page?: number,
     pageSize?: number,
-  ): Promise<{
-    data: DiaryEntryWithSocial[];
-    total: number;
-    page: number;
-    pageSize: number;
-    hasMore: boolean;
-  }>;
+  ): Promise<DiaryEntriesPage>;
+  getDiaryEntriesByCursor(
+    childId: number,
+    userId: string,
+    options?: {
+      cursor?: string;
+      pageSize?: number;
+      includeTotal?: boolean;
+    },
+  ): Promise<DiaryEntriesPage>;
   getDiaryEntryById(id: number): Promise<DiaryEntry | undefined>;
   createDiaryEntry(entry: InsertDiaryEntry, tx?: any): Promise<DiaryEntry>;
   updateDiaryEntry(
@@ -170,6 +221,7 @@ export interface IStorage {
 
   // Push Subscriptions
   getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]>;
+  getPushSubscriptionsByUserIds(userIds: string[]): Promise<PushSubscription[]>;
   getAllPushSubscriptions(): Promise<PushSubscription[]>;
   createPushSubscription(
     sub: InsertPushSubscription,
@@ -181,6 +233,9 @@ export interface IStorage {
   createNotification(
     notification: InsertAppNotification,
   ): Promise<AppNotification>;
+  createNotifications(
+    notificationsBatch: InsertAppNotification[],
+  ): Promise<AppNotification[]>;
   getNotificationsByUserId(
     userId: string,
     limit?: number,
@@ -608,13 +663,7 @@ export class DatabaseStorage implements IStorage {
     userId: string,
     page = 1,
     pageSize = 30,
-  ): Promise<{
-    data: DiaryEntryWithSocial[];
-    total: number;
-    page: number;
-    pageSize: number;
-    hasMore: boolean;
-  }> {
+  ): Promise<DiaryEntriesPage> {
     const safePage = Math.max(1, page);
     const safeSize = Math.min(Math.max(1, pageSize), 100); // max 100 por página
     const offset = (safePage - 1) * safeSize;
@@ -665,7 +714,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(diaryLikes.userId, userId),
-          sql`${diaryLikes.diaryEntryId} IN (${sql.raw(entryIds.join(","))})`,
+          inArray(diaryLikes.diaryEntryId, entryIds),
         ),
       );
 
@@ -698,6 +747,136 @@ export class DatabaseStorage implements IStorage {
       page: safePage,
       pageSize: safeSize,
       hasMore: offset + pagedRows.length < total,
+    };
+  }
+
+  async getDiaryEntriesByCursor(
+    childId: number,
+    userId: string,
+    options: {
+      cursor?: string;
+      pageSize?: number;
+      includeTotal?: boolean;
+    } = {},
+  ): Promise<DiaryEntriesPage> {
+    const safeSize = Math.min(Math.max(1, options.pageSize ?? 30), 100);
+    const includeTotal = !!options.includeTotal;
+    const decodedCursor = decodeDiaryCursor(options.cursor);
+
+    const privacyFilter = sql`(${diaryEntries.isPrivate} = false OR ${diaryEntries.userId} = ${userId} OR ${diaryEntries.userId} IS NULL OR ${diaryEntries.userId} = '')`;
+    const filters: any[] = [eq(diaryEntries.childId, childId), privacyFilter];
+
+    if (decodedCursor) {
+      const cursorCreatedAt = new Date(decodedCursor.createdAt);
+      filters.push(sql`(
+        ${diaryEntries.date} < ${decodedCursor.date}
+        OR (${diaryEntries.date} = ${decodedCursor.date} AND ${diaryEntries.createdAt} < ${cursorCreatedAt})
+        OR (${diaryEntries.date} = ${decodedCursor.date} AND ${diaryEntries.createdAt} = ${cursorCreatedAt} AND ${diaryEntries.id} < ${decodedCursor.id})
+      )`);
+    }
+
+    const [countResult, rows] = await Promise.all([
+      includeTotal
+        ? db
+            .select({ total: count() })
+            .from(diaryEntries)
+            .where(and(...filters))
+            .then((res) => res[0])
+        : Promise.resolve(undefined),
+      db
+        .select({
+          entry: diaryEntries,
+          creatorFirstName: users.firstName,
+          creatorLastName: users.lastName,
+          creatorDisplayFirstName: users.displayFirstName,
+          creatorDisplayLastName: users.displayLastName,
+          creatorProfileImage: users.profileImageUrl,
+          creatorDisplayPhoto: users.displayPhotoUrl,
+          creatorProfileCustomized: users.profileCustomized,
+        })
+        .from(diaryEntries)
+        .leftJoin(users, eq(diaryEntries.userId, users.id))
+        .where(and(...filters))
+        .orderBy(
+          desc(diaryEntries.date),
+          desc(diaryEntries.createdAt),
+          desc(diaryEntries.id),
+        )
+        .limit(safeSize + 1),
+    ]);
+
+    const hasMore = rows.length > safeSize;
+    const pagedRows = hasMore ? rows.slice(0, safeSize) : rows;
+
+    if (pagedRows.length === 0) {
+      return {
+        data: [],
+        total: countResult?.total,
+        page: 1,
+        pageSize: safeSize,
+        hasMore: false,
+        nextCursor: null,
+      };
+    }
+
+    const entryIds = pagedRows.map((r) => r.entry.id);
+    const userLikes =
+      entryIds.length > 0
+        ? await db
+            .select({ diaryEntryId: diaryLikes.diaryEntryId })
+            .from(diaryLikes)
+            .where(
+              and(
+                eq(diaryLikes.userId, userId),
+                inArray(diaryLikes.diaryEntryId, entryIds),
+              ),
+            )
+        : [];
+
+    const userLikedSet = new Set(userLikes.map((r) => r.diaryEntryId));
+
+    const data = pagedRows.map((r) => {
+      const name = r.creatorProfileCustomized
+        ? [r.creatorDisplayFirstName, r.creatorDisplayLastName]
+            .filter(Boolean)
+            .join(" ")
+        : [
+            r.creatorDisplayFirstName || r.creatorFirstName,
+            r.creatorDisplayLastName || r.creatorLastName,
+          ]
+            .filter(Boolean)
+            .join(" ");
+      const avatar = r.creatorDisplayPhoto || r.creatorProfileImage || null;
+      return {
+        ...r.entry,
+        likeCount: r.entry.likesCount,
+        userLiked: userLikedSet.has(r.entry.id),
+        creatorName: name || null,
+        creatorAvatar: avatar,
+      };
+    });
+
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      const lastEntry = pagedRows[pagedRows.length - 1].entry;
+      const createdAt =
+        lastEntry.createdAt instanceof Date
+          ? lastEntry.createdAt
+          : new Date(lastEntry.createdAt || 0);
+      nextCursor = encodeDiaryCursor({
+        date: String(lastEntry.date),
+        createdAt: createdAt.toISOString(),
+        id: lastEntry.id,
+      });
+    }
+
+    return {
+      data,
+      total: countResult?.total,
+      page: 1,
+      pageSize: safeSize,
+      hasMore,
+      nextCursor,
     };
   }
 
@@ -1068,6 +1247,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(pushSubscriptions.userId, userId));
   }
 
+  async getPushSubscriptionsByUserIds(
+    userIds: string[],
+  ): Promise<PushSubscription[]> {
+    if (userIds.length === 0) return [];
+    const uniqueUserIds = Array.from(new Set(userIds));
+    return await db
+      .select()
+      .from(pushSubscriptions)
+      .where(inArray(pushSubscriptions.userId, uniqueUserIds));
+  }
+
   async getAllPushSubscriptions(): Promise<PushSubscription[]> {
     return await db.select().from(pushSubscriptions);
   }
@@ -1113,6 +1303,13 @@ export class DatabaseStorage implements IStorage {
       .values(notification)
       .returning();
     return created;
+  }
+
+  async createNotifications(
+    notificationsBatch: InsertAppNotification[],
+  ): Promise<AppNotification[]> {
+    if (notificationsBatch.length === 0) return [];
+    return await db.insert(notifications).values(notificationsBatch).returning();
   }
 
   async getNotificationsByUserId(

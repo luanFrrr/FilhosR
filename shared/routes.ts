@@ -297,10 +297,11 @@ export const api = {
       responses: {
         200: z.object({
           data: z.array(z.custom<typeof diaryEntries.$inferSelect>()),
-          total: z.number(),
-          page: z.number(),
+          total: z.number().optional(),
+          page: z.number().optional(),
           pageSize: z.number(),
           hasMore: z.boolean(),
+          nextCursor: z.string().nullable().optional(),
         }),
       },
     },
