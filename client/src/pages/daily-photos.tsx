@@ -13,6 +13,9 @@ import {
   ChevronRight,
   Check,
   ImagePlus,
+  Pause,
+  Play,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
@@ -21,10 +24,10 @@ import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoView } from "@/components/ui/photo-view";
 import { PhotoPicker } from "@/components/ui/photo-picker";
-import { X } from "lucide-react";
 import { useUpload } from "@/hooks/use-upload";
 import { getTransformedImageUrl } from "@/lib/imageUtils";
 import { LazyImage } from "@/components/ui/lazy-image";
+import type { DailyPhoto } from "@shared/schema";
 import {
   Carousel,
   CarouselContent,
@@ -63,6 +66,9 @@ const MENSAGENS_RETORNO = [
   "Cada dia é uma nova chance de eternizar o agora.",
 ];
 
+const STORY_MAX_ITEMS = 30;
+const STORY_FRAME_DURATION_MS = 3000;
+
 export default function DailyPhotos() {
   const { activeChild } = useChildContext();
   const {
@@ -82,8 +88,14 @@ export default function DailyPhotos() {
     url: string;
     message: string;
   } | null>(null);
+  const [isStoryOpen, setIsStoryOpen] = useState(false);
+  const [isStoryPlaying, setIsStoryPlaying] = useState(false);
+  const [storyItems, setStoryItems] = useState<DailyPhoto[]>([]);
+  const [storyCurrentPos, setStoryCurrentPos] = useState(0);
+  const [storyProgress, setStoryProgress] = useState(0);
   const { upload } = useUpload();
   const pendingPrependBaseCountRef = useRef<number | null>(null);
+  const storyProgressRef = useRef(0);
 
   const photos = useMemo(
     () => pagedPhotos?.pages.flatMap((page) => page.data) || [],
@@ -150,6 +162,10 @@ export default function DailyPhotos() {
       setCarouselApi(undefined);
     }
   }, [shouldUseCarousel]);
+
+  useEffect(() => {
+    storyProgressRef.current = storyProgress;
+  }, [storyProgress]);
 
   const getEmotionalMessage = useCallback(
     (currentStreak: number, hadRecentPhotos: boolean) => {
@@ -286,6 +302,110 @@ export default function DailyPhotos() {
     pendingPrependBaseCountRef.current = photos.length;
     await fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, photos.length, fetchNextPage]);
+
+  const closeStory = useCallback(() => {
+    const currentStoryPhoto = storyItems[storyCurrentPos];
+    if (currentStoryPhoto) {
+      const indexInTimeline = sortedPhotos.findIndex(
+        (photo) => photo.id === currentStoryPhoto.id,
+      );
+      if (indexInTimeline >= 0) {
+        setCurrentIndex(indexInTimeline);
+      }
+    }
+
+    setIsStoryOpen(false);
+    setIsStoryPlaying(false);
+    setStoryItems([]);
+    setStoryCurrentPos(0);
+    setStoryProgress(0);
+  }, [storyItems, storyCurrentPos, sortedPhotos]);
+
+  const openStoryFromIndex = useCallback(
+    (startIndex: number) => {
+      if (startIndex < 0 || startIndex >= totalPhotos) return;
+      const queue = sortedPhotos.slice(startIndex, startIndex + STORY_MAX_ITEMS);
+      if (queue.length === 0) return;
+
+      setStoryItems(queue);
+      setStoryCurrentPos(0);
+      setStoryProgress(0);
+      setIsStoryPlaying(true);
+      setIsStoryOpen(true);
+    },
+    [sortedPhotos, totalPhotos],
+  );
+
+  const goStoryNext = useCallback(() => {
+    setStoryProgress(0);
+    if (storyCurrentPos >= storyItems.length - 1) {
+      closeStory();
+      return;
+    }
+    setStoryCurrentPos((prev) => prev + 1);
+  }, [closeStory, storyCurrentPos, storyItems.length]);
+
+  const goStoryPrevious = useCallback(() => {
+    setStoryProgress(0);
+    setStoryCurrentPos((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  const toggleStoryPlayback = useCallback(() => {
+    setIsStoryPlaying((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    if (!isStoryOpen || !isStoryPlaying || storyItems.length === 0) return;
+
+    const startedAt =
+      performance.now() - storyProgressRef.current * STORY_FRAME_DURATION_MS;
+    let rafId = 0;
+
+    const step = (now: number) => {
+      const nextProgress = Math.min(
+        (now - startedAt) / STORY_FRAME_DURATION_MS,
+        1,
+      );
+      setStoryProgress(nextProgress);
+
+      if (nextProgress >= 1) {
+        if (storyCurrentPos >= storyItems.length - 1) {
+          closeStory();
+        } else {
+          setStoryCurrentPos((prev) => prev + 1);
+          setStoryProgress(0);
+        }
+        return;
+      }
+
+      rafId = requestAnimationFrame(step);
+    };
+
+    rafId = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [
+    closeStory,
+    isStoryOpen,
+    isStoryPlaying,
+    storyCurrentPos,
+    storyItems.length,
+  ]);
+
+  useEffect(() => {
+    if (!isStoryOpen) return;
+    const nextPhoto = storyItems[storyCurrentPos + 1];
+    if (!nextPhoto) return;
+
+    const preload = new Image();
+    preload.src = getTransformedImageUrl(nextPhoto.photoUrl, {
+      width: 1200,
+      resize: "cover",
+    });
+  }, [isStoryOpen, storyCurrentPos, storyItems]);
+
+  const currentStoryPhoto = storyItems[storyCurrentPos] || null;
 
   if (!activeChild) {
     return (
@@ -524,6 +644,21 @@ export default function DailyPhotos() {
               </p>
             </div>
 
+            {totalPhotos > 0 && (
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => openStoryFromIndex(currentIndex)}
+                  className="rounded-full px-5"
+                  data-testid="button-story-play"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Play Stories
+                </Button>
+              </div>
+            )}
+
             {/* Thumbnail Strip - Timeline style */}
             {totalPhotos > 1 && (
               <div className="relative">
@@ -589,6 +724,119 @@ export default function DailyPhotos() {
           </div>
         )}
       </main>
+
+      <AnimatePresence>
+        {isStoryOpen && currentStoryPhoto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black"
+          >
+            <div className="absolute top-0 left-0 right-0 z-20 p-3 space-y-3">
+              <div className="flex items-center gap-1">
+                {storyItems.map((item, index) => {
+                  const progress =
+                    index < storyCurrentPos
+                      ? 1
+                      : index === storyCurrentPos
+                        ? storyProgress
+                        : 0;
+                  return (
+                    <div
+                      key={`story-progress-${item.id}`}
+                      className="flex-1 h-1 rounded-full bg-white/25 overflow-hidden"
+                    >
+                      <div
+                        className="h-full bg-white"
+                        style={{
+                          width: `${progress * 100}%`,
+                          transition: "width 120ms linear",
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between text-white">
+                <button
+                  onClick={toggleStoryPlayback}
+                  className="w-9 h-9 rounded-full bg-black/45 backdrop-blur flex items-center justify-center"
+                  aria-label={isStoryPlaying ? "Pausar stories" : "Reproduzir stories"}
+                  data-testid="button-story-pause-toggle"
+                >
+                  {isStoryPlaying ? (
+                    <Pause className="w-4 h-4" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                </button>
+
+                <p className="text-xs text-white/85">
+                  {storyCurrentPos + 1} de {storyItems.length}
+                </p>
+
+                <button
+                  onClick={closeStory}
+                  className="w-9 h-9 rounded-full bg-black/45 backdrop-blur flex items-center justify-center"
+                  aria-label="Fechar stories"
+                  data-testid="button-story-close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={goStoryPrevious}
+              className="absolute left-0 top-0 h-full w-1/3 z-10"
+              aria-label="Story anterior"
+              data-testid="button-story-prev"
+            />
+            <button
+              onClick={goStoryNext}
+              className="absolute right-0 top-0 h-full w-1/3 z-10"
+              aria-label="Próximo story"
+              data-testid="button-story-next"
+            />
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStoryPhoto.id}
+                initial={{ opacity: 0, scale: 1.05, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, y: -20 }}
+                transition={{ duration: 0.28, ease: "easeOut" }}
+                className="absolute inset-0"
+              >
+                <img
+                  src={getTransformedImageUrl(currentStoryPhoto.photoUrl, {
+                    width: 1200,
+                    resize: "cover",
+                  })}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/55" />
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="absolute left-0 right-0 bottom-7 z-20 text-center px-5">
+              <p className="text-white text-base font-semibold">
+                {format(
+                  parseISO(currentStoryPhoto.date),
+                  "EEEE, d 'de' MMMM",
+                  { locale: ptBR },
+                )}
+              </p>
+              <p className="text-xs text-white/75 mt-1">
+                Reprodução automática com limite de 30 fotos
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showFeedback && (
