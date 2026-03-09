@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,7 +34,6 @@ function formatRelativeDate(value: string | null): string {
 }
 
 export function NotificationInbox() {
-  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const { data: unreadData } = useUnreadNotificationsCount();
   const unreadCount = unreadData?.count ?? 0;
@@ -62,7 +60,13 @@ export function NotificationInbox() {
     }
 
     setOpen(false);
-    setLocation(notification.deepLink || "/");
+    const target = notification.deepLink || "/";
+    if (target.startsWith("/")) {
+      window.history.pushState({}, "", target);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return;
+    }
+    window.location.assign(target);
   };
 
   return (
@@ -160,4 +164,3 @@ export function NotificationInbox() {
     </Sheet>
   );
 }
-
