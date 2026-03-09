@@ -13,8 +13,10 @@ import {
   ChevronRight,
   Check,
   ImagePlus,
+  Loader2,
   Pause,
   Play,
+  Share2,
   Square,
   StretchHorizontal,
   X,
@@ -30,6 +32,11 @@ import { useUpload } from "@/hooks/use-upload";
 import { getTransformedImageUrl } from "@/lib/imageUtils";
 import { LazyImage } from "@/components/ui/lazy-image";
 import type { DailyPhoto } from "@shared/schema";
+import {
+  buildRetrospectiveVideo,
+  getRetrospectiveFrameDurationMs,
+  isRetrospectiveVideoSupported,
+} from "@/lib/retrospective-video";
 import {
   Carousel,
   CarouselContent,
@@ -96,6 +103,8 @@ export default function DailyPhotos() {
   const [storyDisplayMode, setStoryDisplayMode] = useState<"contain" | "cover">(
     "contain",
   );
+  const [isGeneratingShareClip, setIsGeneratingShareClip] = useState(false);
+  const [shareClipProgress, setShareClipProgress] = useState(0);
   const [storyItems, setStoryItems] = useState<DailyPhoto[]>([]);
   const [storyCurrentPos, setStoryCurrentPos] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
@@ -400,6 +409,106 @@ export default function DailyPhotos() {
     setStoryDisplayMode((prev) => (prev === "contain" ? "cover" : "contain"));
   }, []);
 
+  const handleShareRetrospective = useCallback(async () => {
+    if (!activeChild) return;
+    if (totalPhotos < 7) return;
+    if (currentIndex < 0 || currentIndex >= totalPhotos) return;
+
+    const queue = sortedPhotos.slice(currentIndex, currentIndex + STORY_MAX_ITEMS);
+    if (queue.length < 7) {
+      toast({
+        title: "Selecione uma foto mais antiga",
+        description:
+          "Para compartilhar a retrospectiva, escolha um ponto com pelo menos 7 fotos em sequência.",
+      });
+      return;
+    }
+
+    if (!isRetrospectiveVideoSupported()) {
+      toast({
+        title: "Seu navegador não suporta vídeo",
+        description:
+          "Neste dispositivo, gere o vídeo em um navegador mais recente para compartilhar no WhatsApp ou Instagram.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingShareClip(true);
+    setShareClipProgress(0);
+
+    try {
+      const frameDurationMs = getRetrospectiveFrameDurationMs(queue.length);
+
+      const file = await buildRetrospectiveVideo({
+        frames: queue.map((photo) => ({
+          src: getTransformedImageUrl(photo.photoUrl, {
+            width: 900,
+            resize: "contain",
+            quality: 82,
+          }),
+        })),
+        frameDurationMs,
+        width: 720,
+        height: 1280,
+        onProgress: setShareClipProgress,
+      });
+
+      const shareTitle = `Retrospectiva de ${activeChild.name}`;
+      const shareText = `Retrospectiva com ${queue.length} fotos no app Filhos.`;
+      const nav = navigator as Navigator & {
+        canShare?: (data?: ShareData) => boolean;
+      };
+
+      let shared = false;
+
+      if (nav.share && nav.canShare?.({ files: [file] })) {
+        await nav.share({
+          title: shareTitle,
+          text: shareText,
+          files: [file],
+        });
+        shared = true;
+      }
+
+      if (!shared) {
+        const url = URL.createObjectURL(file);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = file.name;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+
+        toast({
+          title: "Vídeo pronto",
+          description:
+            "O arquivo foi baixado. Você pode enviar pelo WhatsApp ou Instagram manualmente.",
+        });
+        return;
+      }
+
+      toast({
+        title: "Compartilhado",
+        description: "Retrospectiva enviada com sucesso.",
+      });
+    } catch (error: any) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+      toast({
+        title: "Erro ao gerar vídeo",
+        description:
+          "Não foi possível finalizar a retrospectiva agora. Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingShareClip(false);
+      setShareClipProgress(0);
+    }
+  }, [activeChild, currentIndex, sortedPhotos, toast, totalPhotos]);
+
   useEffect(() => {
     if (!isStoryOpen || !isStoryPlaying || storyItems.length === 0) return;
 
@@ -691,7 +800,7 @@ export default function DailyPhotos() {
             </div>
 
             {totalPhotos > 0 && (
-              <div className="flex justify-center">
+              <div className="flex justify-center gap-2 flex-wrap">
                 <Button
                   type="button"
                   variant="secondary"
@@ -703,7 +812,37 @@ export default function DailyPhotos() {
                   <Play className="w-4 h-4 mr-2" />
                   {isPreparingStory ? "Preparando..." : "Play Stories"}
                 </Button>
+
+                {totalPhotos >= 7 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleShareRetrospective}
+                    disabled={isGeneratingShareClip}
+                    className="rounded-full px-5"
+                    data-testid="button-share-retrospective"
+                  >
+                    {isGeneratingShareClip ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Gerando {Math.max(1, Math.round(shareClipProgress * 100))}%
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Compartilhar vídeo
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
+            )}
+
+            {totalPhotos >= 7 && (
+              <p className="text-[11px] text-muted-foreground text-center px-2">
+                Compartilha até 30 fotos em vídeo, com velocidade automática para
+                WhatsApp e Instagram.
+              </p>
             )}
 
             {/* Thumbnail Strip - Timeline style */}
