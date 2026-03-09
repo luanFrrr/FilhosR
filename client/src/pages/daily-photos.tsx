@@ -88,6 +88,7 @@ export default function DailyPhotos() {
     url: string;
     message: string;
   } | null>(null);
+  const [isPreparingStory, setIsPreparingStory] = useState(false);
   const [isStoryOpen, setIsStoryOpen] = useState(false);
   const [isStoryPlaying, setIsStoryPlaying] = useState(false);
   const [storyItems, setStoryItems] = useState<DailyPhoto[]>([]);
@@ -303,6 +304,19 @@ export default function DailyPhotos() {
     await fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, photos.length, fetchNextPage]);
 
+  const buildStoryQueue = useCallback(
+    (allPhotos: DailyPhoto[], startPhotoId: number) => {
+      const startIndex = allPhotos.findIndex((photo) => photo.id === startPhotoId);
+      if (startIndex < 0) return [];
+
+      // Stories tocam da foto selecionada para tras (mais antigas), para
+      // aproveitar o cursor que pagina historico sem carregar tudo.
+      const oldestAllowedIndex = Math.max(0, startIndex - (STORY_MAX_ITEMS - 1));
+      return allPhotos.slice(oldestAllowedIndex, startIndex + 1).reverse();
+    },
+    [],
+  );
+
   const closeStory = useCallback(() => {
     const currentStoryPhoto = storyItems[storyCurrentPos];
     if (currentStoryPhoto) {
@@ -322,18 +336,75 @@ export default function DailyPhotos() {
   }, [storyItems, storyCurrentPos, sortedPhotos]);
 
   const openStoryFromIndex = useCallback(
-    (startIndex: number) => {
-      if (startIndex < 0 || startIndex >= totalPhotos) return;
-      const queue = sortedPhotos.slice(startIndex, startIndex + STORY_MAX_ITEMS);
-      if (queue.length === 0) return;
+    async (startIndex: number) => {
+      if (
+        startIndex < 0 ||
+        startIndex >= totalPhotos ||
+        isPreparingStory ||
+        isFetchingNextPage
+      ) {
+        return;
+      }
 
-      setStoryItems(queue);
-      setStoryCurrentPos(0);
-      setStoryProgress(0);
-      setIsStoryPlaying(true);
-      setIsStoryOpen(true);
+      const selected = sortedPhotos[startIndex];
+      if (!selected) return;
+
+      setIsPreparingStory(true);
+      const startPhotoId = selected.id;
+
+      try {
+        let queue = buildStoryQueue(sortedPhotos, startPhotoId);
+        let workingPhotos = sortedPhotos;
+        let canFetchMore = !!hasNextPage;
+        let attempts = 0;
+
+        while (
+          queue.length < STORY_MAX_ITEMS &&
+          canFetchMore &&
+          attempts < 5
+        ) {
+          pendingPrependBaseCountRef.current = workingPhotos.length;
+          const result = await fetchNextPage();
+          attempts += 1;
+
+          const fetchedPages = result.data?.pages || [];
+          if (fetchedPages.length === 0) {
+            canFetchMore = false;
+            break;
+          }
+
+          workingPhotos = fetchedPages
+            .flatMap((page) => page.data)
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(a.date).getTime() - new Date(b.date).getTime(),
+            );
+
+          queue = buildStoryQueue(workingPhotos, startPhotoId);
+          canFetchMore = !!result.hasNextPage;
+        }
+
+        if (queue.length === 0) return;
+
+        setStoryItems(queue.slice(0, STORY_MAX_ITEMS));
+        setStoryCurrentPos(0);
+        setStoryProgress(0);
+        setIsStoryPlaying(true);
+        setIsStoryOpen(true);
+      } finally {
+        setIsPreparingStory(false);
+      }
     },
-    [sortedPhotos, totalPhotos],
+    [
+      buildStoryQueue,
+      fetchNextPage,
+      hasNextPage,
+      isFetchingNextPage,
+      isPreparingStory,
+      sortedPhotos,
+      totalPhotos,
+    ],
   );
 
   const goStoryNext = useCallback(() => {
@@ -651,10 +722,11 @@ export default function DailyPhotos() {
                   variant="secondary"
                   onClick={() => openStoryFromIndex(currentIndex)}
                   className="rounded-full px-5"
+                  disabled={isPreparingStory || isFetchingNextPage}
                   data-testid="button-story-play"
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  Play Stories
+                  {isPreparingStory ? "Preparando..." : "Play Stories"}
                 </Button>
               </div>
             )}
