@@ -108,9 +108,12 @@ function loadImage(src: string) {
   return tryLoad(true).catch(() => {
     const img = new Image();
     return tryLoad(false).catch(
-      () => new Promise<HTMLImageElement>((_, reject) => {
-        reject(new Error(`Nao foi possivel carregar imagem para video: ${src}`));
-      }),
+      () =>
+        new Promise<HTMLImageElement>((_, reject) => {
+          reject(
+            new Error(`Nao foi possivel carregar imagem para video: ${src}`),
+          );
+        }),
     );
   });
 }
@@ -133,8 +136,8 @@ export function getRetrospectiveFrameDurationMs(photoCount: number) {
 export async function buildRetrospectiveVideo({
   frames,
   frameDurationMs,
-  width = 720,
-  height = 1280,
+  width = 1080,
+  height = 1920,
   onProgress,
 }: BuildRetrospectiveVideoOptions) {
   if (frames.length === 0) {
@@ -163,10 +166,10 @@ export async function buildRetrospectiveVideo({
     recorder = mimeType
       ? new MediaRecorder(stream, {
           mimeType,
-          videoBitsPerSecond: 2_500_000,
+          videoBitsPerSecond: 5_000_000,
         })
       : new MediaRecorder(stream, {
-          videoBitsPerSecond: 2_500_000,
+          videoBitsPerSecond: 5_000_000,
         });
   } catch {
     recorder = new MediaRecorder(stream);

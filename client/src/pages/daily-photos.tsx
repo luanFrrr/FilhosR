@@ -285,44 +285,46 @@ export default function DailyPhotos() {
     ],
   );
 
-  const handleReplacePhoto = useCallback(async (file: File) => {
-    if (!activeChild) return;
+  const handleReplacePhoto = useCallback(
+    async (file: File) => {
+      if (!activeChild) return;
 
-    setIsUploading(true);
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      const photoUrl = await upload(file, {
-        bucket: "daily-photos",
-        path: `${activeChild.id}/${today}-${Date.now()}.jpg`,
-        maxSize: 1200,
-        quality: 0.8,
-      });
+      setIsUploading(true);
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const photoUrl = await upload(file, {
+          bucket: "daily-photos",
+          path: `${activeChild.id}/${today}-${Date.now()}.jpg`,
+          maxSize: 1200,
+          quality: 0.8,
+        });
 
-      if (!photoUrl) throw new Error("Falha no upload da foto");
+        if (!photoUrl) throw new Error("Falha no upload da foto");
 
-      await createPhoto.mutateAsync({
-        childId: activeChild.id,
-        date: today,
-        photoUrl,
-      });
+        await createPhoto.mutateAsync({
+          childId: activeChild.id,
+          date: today,
+          photoUrl,
+        });
 
-      toast({
-        title: "Foto trocada!",
-        description: "A foto do dia foi atualizada.",
-      });
+        toast({
+          title: "Foto trocada!",
+          description: "A foto do dia foi atualizada.",
+        });
 
-      setCurrentIndex(-1);
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível trocar a foto.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  }, [activeChild, upload, createPhoto, toast]);
-
+        setCurrentIndex(-1);
+      } catch (error: any) {
+        toast({
+          title: "Erro",
+          description: error.message || "Não foi possível trocar a foto.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [activeChild, upload, createPhoto, toast],
+  );
 
   const goToPrevious = () => {
     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
@@ -340,7 +342,9 @@ export default function DailyPhotos() {
 
   const buildStoryQueue = useCallback(
     (allPhotos: DailyPhoto[], startPhotoId: number) => {
-      const startIndex = allPhotos.findIndex((photo) => photo.id === startPhotoId);
+      const startIndex = allPhotos.findIndex(
+        (photo) => photo.id === startPhotoId,
+      );
       if (startIndex < 0) return [];
 
       // Stories tocam da foto selecionada para frente (mais recentes),
@@ -371,11 +375,7 @@ export default function DailyPhotos() {
 
   const openStoryFromIndex = useCallback(
     (startIndex: number) => {
-      if (
-        startIndex < 0 ||
-        startIndex >= totalPhotos ||
-        isPreparingStory
-      ) {
+      if (startIndex < 0 || startIndex >= totalPhotos || isPreparingStory) {
         return;
       }
 
@@ -399,12 +399,7 @@ export default function DailyPhotos() {
         setIsPreparingStory(false);
       }
     },
-    [
-      buildStoryQueue,
-      isPreparingStory,
-      sortedPhotos,
-      totalPhotos,
-    ],
+    [buildStoryQueue, isPreparingStory, sortedPhotos, totalPhotos],
   );
 
   const goStoryNext = useCallback(() => {
@@ -455,7 +450,10 @@ export default function DailyPhotos() {
     if (totalPhotos < 7) return;
     if (currentIndex < 0 || currentIndex >= totalPhotos) return;
 
-    const queue = sortedPhotos.slice(currentIndex, currentIndex + STORY_MAX_ITEMS);
+    const queue = sortedPhotos.slice(
+      currentIndex,
+      currentIndex + STORY_MAX_ITEMS,
+    );
     if (queue.length < 7) {
       toast({
         title: "Selecione uma foto mais antiga",
@@ -533,14 +531,14 @@ export default function DailyPhotos() {
       const file = await buildRetrospectiveVideo({
         frames: queue.map((photo) => ({
           src: getTransformedImageUrl(photo.photoUrl, {
-            width: 900,
+            width: 1200,
             resize: "contain",
-            quality: 82,
+            quality: 90,
           }),
         })),
         frameDurationMs,
-        width: 720,
-        height: 1280,
+        width: 1080,
+        height: 1920,
         onProgress: setShareClipProgress,
       });
 
@@ -905,7 +903,8 @@ export default function DailyPhotos() {
                     {isGeneratingShareClip ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Gerando {Math.max(1, Math.round(shareClipProgress * 100))}%
+                        Gerando{" "}
+                        {Math.max(1, Math.round(shareClipProgress * 100))}%
                       </>
                     ) : (
                       <>
@@ -922,8 +921,8 @@ export default function DailyPhotos() {
 
             {totalPhotos >= 7 && (
               <p className="text-[11px] text-muted-foreground text-center px-2">
-                Compartilha até 30 fotos em vídeo, com velocidade automática para
-                WhatsApp e Instagram.
+                Compartilha até 30 fotos em vídeo, com velocidade automática
+                para WhatsApp e Instagram.
               </p>
             )}
 
@@ -985,7 +984,9 @@ export default function DailyPhotos() {
                   disabled={isFetchingNextPage}
                   data-testid="button-load-more-daily-photos"
                 >
-                  {isFetchingNextPage ? "Carregando..." : "Carregar fotos antigas"}
+                  {isFetchingNextPage
+                    ? "Carregando..."
+                    : "Carregar fotos antigas"}
                 </Button>
               </div>
             )}
@@ -1031,7 +1032,9 @@ export default function DailyPhotos() {
                 <button
                   onClick={toggleStoryPlayback}
                   className="w-9 h-9 rounded-full bg-black/45 backdrop-blur flex items-center justify-center"
-                  aria-label={isStoryPlaying ? "Pausar stories" : "Reproduzir stories"}
+                  aria-label={
+                    isStoryPlaying ? "Pausar stories" : "Reproduzir stories"
+                  }
                   data-testid="button-story-pause-toggle"
                 >
                   {isStoryPlaying ? (
@@ -1127,11 +1130,9 @@ export default function DailyPhotos() {
 
             <div className="absolute left-0 right-0 bottom-7 z-20 text-center px-5">
               <p className="text-white text-base font-semibold">
-                {format(
-                  parseISO(currentStoryPhoto.date),
-                  "EEEE, d 'de' MMMM",
-                  { locale: ptBR },
-                )}
+                {format(parseISO(currentStoryPhoto.date), "EEEE, d 'de' MMMM", {
+                  locale: ptBR,
+                })}
               </p>
               <p className="text-xs text-white/75 mt-1">
                 Reprodução automática com limite de 30 fotos
