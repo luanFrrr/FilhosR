@@ -25,6 +25,14 @@ import { X } from "lucide-react";
 import { useUpload } from "@/hooks/use-upload";
 import { getTransformedImageUrl } from "@/lib/imageUtils";
 import { LazyImage } from "@/components/ui/lazy-image";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 
 const MENSAGENS_MOMENTO = [
   "Esse momento não volta. Ainda bem que você guardou.",
@@ -62,6 +70,7 @@ export default function DailyPhotos() {
   const createPhoto = useCreateDailyPhoto();
   const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = useState(-1);
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [isUploading, setIsUploading] = useState(false);
   const [showFeedback, setShowFeedback] = useState<{
     url: string;
@@ -80,6 +89,7 @@ export default function DailyPhotos() {
   const totalPhotos = sortedPhotos.length;
   const streakDays = calculateStreak(sortedPhotos.map((p) => p.date));
   const newestIndex = totalPhotos - 1; // Last item is the newest (chronological order)
+  const shouldUseCarousel = totalPhotos >= 7;
 
   // Initialize to newest photo when photos load
   useEffect(() => {
@@ -87,6 +97,35 @@ export default function DailyPhotos() {
       setCurrentIndex(newestIndex);
     }
   }, [totalPhotos, currentIndex, newestIndex]);
+
+  useEffect(() => {
+    if (!carouselApi) return;
+    const syncSelectedIndex = () => {
+      setCurrentIndex(carouselApi.selectedScrollSnap());
+    };
+
+    syncSelectedIndex();
+    carouselApi.on("select", syncSelectedIndex);
+    carouselApi.on("reInit", syncSelectedIndex);
+
+    return () => {
+      carouselApi.off("select", syncSelectedIndex);
+      carouselApi.off("reInit", syncSelectedIndex);
+    };
+  }, [carouselApi]);
+
+  useEffect(() => {
+    if (!carouselApi || currentIndex < 0) return;
+    if (carouselApi.selectedScrollSnap() !== currentIndex) {
+      carouselApi.scrollTo(currentIndex);
+    }
+  }, [carouselApi, currentIndex]);
+
+  useEffect(() => {
+    if (!shouldUseCarousel) {
+      setCarouselApi(undefined);
+    }
+  }, [shouldUseCarousel]);
 
   const getEmotionalMessage = useCallback(
     (currentStreak: number, hadRecentPhotos: boolean) => {
@@ -331,55 +370,115 @@ export default function DailyPhotos() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {/* Main Photo Viewer */}
-            <div className="relative">
-              <div className="aspect-square rounded-2xl overflow-hidden bg-muted">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={currentIndex}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="w-full h-full"
-                  >
-                    <PhotoView
-                      src={sortedPhotos[currentIndex]?.photoUrl}
-                      alt={`Foto do dia ${format(parseISO(sortedPhotos[currentIndex]?.date), "d 'de' MMMM", { locale: ptBR })}`}
-                    >
-                      <img
-                        src={sortedPhotos[currentIndex]?.photoUrl}
-                        alt=""
-                        className="w-full h-full object-cover cursor-pointer"
-                        data-testid={`img-daily-photo-${currentIndex}`}
+            {shouldUseCarousel ? (
+              <div className="space-y-4">
+                <Carousel
+                  setApi={setCarouselApi}
+                  opts={{ align: "start", loop: false }}
+                  className="w-full"
+                >
+                  <CarouselContent className="-ml-0">
+                    {sortedPhotos.map((photo, index) => (
+                      <CarouselItem key={photo.id} className="pl-0">
+                        <div className="aspect-square rounded-2xl overflow-hidden bg-muted">
+                          <PhotoView
+                            src={photo.photoUrl}
+                            alt={`Foto do dia ${format(parseISO(photo.date), "d 'de' MMMM", { locale: ptBR })}`}
+                          >
+                            <img
+                              src={photo.photoUrl}
+                              alt=""
+                              className="w-full h-full object-cover cursor-pointer"
+                              data-testid={`img-daily-photo-${index}`}
+                            />
+                          </PhotoView>
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  {totalPhotos > 1 && (
+                    <>
+                      <CarouselPrevious
+                        className="left-2 top-1/2 -translate-y-1/2 h-10 w-10 bg-background/80 backdrop-blur border-border/60 hover:bg-background"
+                        data-testid="button-photo-prev"
                       />
-                    </PhotoView>
-                  </motion.div>
-                </AnimatePresence>
-              </div>
+                      <CarouselNext
+                        className="right-2 top-1/2 -translate-y-1/2 h-10 w-10 bg-background/80 backdrop-blur border-border/60 hover:bg-background"
+                        data-testid="button-photo-next"
+                      />
+                    </>
+                  )}
+                </Carousel>
 
-              {/* Navigation Arrows */}
-              {totalPhotos > 1 && (
-                <>
-                  <button
-                    onClick={goToPrevious}
-                    disabled={currentIndex === 0}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
-                    data-testid="button-photo-prev"
-                  >
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
-                  <button
-                    onClick={goToNext}
-                    disabled={currentIndex === totalPhotos - 1}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
-                    data-testid="button-photo-next"
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </>
-              )}
-            </div>
+                <div className="flex items-center justify-center gap-1.5">
+                  {sortedPhotos.map((photo, index) => (
+                    <button
+                      key={`dot-${photo.id}`}
+                      onClick={() => setCurrentIndex(index)}
+                      className={`h-1.5 rounded-full transition-all ${
+                        index === currentIndex
+                          ? "w-6 bg-primary"
+                          : "w-2 bg-muted-foreground/35 hover:bg-muted-foreground/55"
+                      }`}
+                      aria-label={`Ir para foto ${index + 1}`}
+                      data-testid={`button-carousel-dot-${index}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Main Photo Viewer */}
+                <div className="relative">
+                  <div className="aspect-square rounded-2xl overflow-hidden bg-muted">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentIndex}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full h-full"
+                      >
+                        <PhotoView
+                          src={sortedPhotos[currentIndex]?.photoUrl}
+                          alt={`Foto do dia ${format(parseISO(sortedPhotos[currentIndex]?.date), "d 'de' MMMM", { locale: ptBR })}`}
+                        >
+                          <img
+                            src={sortedPhotos[currentIndex]?.photoUrl}
+                            alt=""
+                            className="w-full h-full object-cover cursor-pointer"
+                            data-testid={`img-daily-photo-${currentIndex}`}
+                          />
+                        </PhotoView>
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Navigation Arrows */}
+                  {totalPhotos > 1 && (
+                    <>
+                      <button
+                        onClick={goToPrevious}
+                        disabled={currentIndex === 0}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
+                        data-testid="button-photo-prev"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={goToNext}
+                        disabled={currentIndex === totalPhotos - 1}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center disabled:opacity-30 transition-opacity"
+                        data-testid="button-photo-next"
+                      >
+                        <ChevronRight className="w-6 h-6" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Photo Date */}
             <div className="text-center">
