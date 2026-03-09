@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
+import { Link, useLocation, useSearch } from "wouter";
 import { compressImage, getTransformedImageUrl } from "@/lib/imageUtils";
 import { cn, parseLocalDate } from "@/lib/utils";
 import { PhotoPicker } from "@/components/ui/photo-picker";
@@ -102,6 +103,11 @@ export default function VaccineCard() {
   const updateRecord = useUpdateVaccineRecord();
   const deleteRecord = useDeleteVaccineRecord();
   const { toast } = useToast();
+  
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const idParam = searchParams.get("id");
+  const [, setLocation] = useLocation();
 
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("create");
@@ -143,6 +149,34 @@ export default function VaccineCard() {
       notes: "",
     },
   });
+
+  const [highlightRecordId, setHighlightRecordId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (idParam) {
+      setHighlightRecordId(Number(idParam));
+      setLocation(`/vaccines`, { replace: true });
+    }
+  }, [idParam, setLocation]);
+
+  useEffect(() => {
+    if (highlightRecordId && vaccineRecords) {
+      const timeoutId = setTimeout(() => {
+        const element = document.querySelector(`[data-testid="vaccine-card-${highlightRecordId}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+          
+          element.classList.add("ring-2", "ring-primary", "transition-all", "duration-1000");
+          setTimeout(() => {
+            element.classList.remove("ring-2", "ring-primary");
+            setHighlightRecordId(null);
+          }, 4000);
+        }
+      }, 300);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [highlightRecordId, vaccineRecords]);
 
   useEffect(() => {
     if (editingRecord && formMode === "edit") {

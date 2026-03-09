@@ -380,7 +380,14 @@ export async function registerRoutes(
           userId,
           "📏 Novo registro de crescimento",
           `${userName} registrou peso/altura do ${childName}`,
-          "/health?tab=growth",
+          `/health?tab=growth&id=${record.id}`,
+          {
+            eventType: "growth_created",
+            entityType: "growth_record",
+            entityId: record.id,
+            recordType: "growth",
+            recordId: record.id,
+          },
         );
       } catch (err) {
         console.error("[bg] Erro pós-criação de crescimento:", err);
@@ -528,7 +535,19 @@ export async function registerRoutes(
           userId,
           "💉 Nova vacina adicionada",
           `${userName} adicionou a vacina "${vaccine.name}" para o ${childName}${dosesInfo}`,
-          "/vaccines",
+          createdDoses.length > 0
+            ? `/vaccines?id=${createdDoses[0].id}`
+            : "/vaccines",
+          {
+            eventType: "vaccine_created",
+            entityType: "vaccine",
+            entityId: vaccine.id,
+            recordType: "vaccine",
+            recordId: vaccine.id,
+            dosesCreated: createdDoses.length,
+            firstDoseId:
+              createdDoses.length > 0 ? Number(createdDoses[0].id) : null,
+          },
         );
       } catch (err) {
         console.error("[bg] Erro pós-criação de vacina:", err);
@@ -597,7 +616,14 @@ export async function registerRoutes(
           userId,
           "🤒 Novo registro de saúde",
           `${userName} registrou um evento de saúde para ${childName}`,
-          "/health?tab=history",
+          `/health?tab=history&id=${record.id}`,
+          {
+            eventType: "health_created",
+            entityType: "health_record",
+            entityId: record.id,
+            recordType: "health",
+            recordId: record.id,
+          },
         );
       } catch (err) {
         console.error("[bg] Erro pós-criação de saúde:", err);
@@ -1230,7 +1256,14 @@ export async function registerRoutes(
             userId,
             "💉 Nova vacina registrada",
             `${userName} registrou a vacina ${susVaccine?.name || record.dose} para o ${childName}`,
-            "/vaccines",
+            `/vaccines?id=${record.id}`,
+            {
+              eventType: "vaccine_record_created",
+              entityType: "vaccine_record",
+              entityId: record.id,
+              recordType: "vaccine_record",
+              recordId: record.id,
+            },
           );
         } catch (err) {
           console.error("[bg] Erro pós-criação de vacina:", err);

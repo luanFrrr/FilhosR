@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import {
   useHealthRecords,
@@ -58,7 +58,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { Link, useSearch } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import {
   cn,
   parseLocalDate,
@@ -82,6 +82,8 @@ export default function Health() {
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
   const tabParam = searchParams.get("tab") || "vaccines";
+  const idParam = searchParams.get("id");
+  const [, setLocation] = useLocation();
   const { data: sickRecords } = useHealthRecords(activeChild?.id || 0);
   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
   const { data: growthRecords } = useGrowthRecords(activeChild?.id || 0);
@@ -103,6 +105,38 @@ export default function Health() {
   const [activeChartTab, setActiveChartTab] = useState<"weight" | "height">(
     "weight",
   );
+  const [highlightRecordId, setHighlightRecordId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (idParam) {
+      setHighlightRecordId(Number(idParam));
+      // Limpa os params para evitar trigger extra on reload
+      setLocation(`/health?tab=${tabParam}`, { replace: true });
+    }
+  }, [idParam, tabParam, setLocation]);
+
+  useEffect(() => {
+    if (highlightRecordId && (growthRecords || sickRecords)) {
+      // Pequeno timeout pro DOM renderizar a tab correta se for necessário
+      const timeoutId = setTimeout(() => {
+        let prefix = "health-record";
+        if (tabParam === "growth") prefix = "growth-record";
+        
+        const element = document.querySelector(`[data-testid="${prefix}-${highlightRecordId}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+          
+          element.classList.add("ring-2", "ring-primary", "bg-primary/5", "transition-all", "duration-1000");
+          setTimeout(() => {
+            element.classList.remove("ring-2", "ring-primary", "bg-primary/5");
+            setHighlightRecordId(null);
+          }, 3000);
+        }
+      }, 300);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [highlightRecordId, growthRecords, sickRecords, tabParam]);
 
   const sickForm = useForm({
     defaultValues: {
