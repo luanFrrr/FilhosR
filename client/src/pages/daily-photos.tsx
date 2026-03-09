@@ -15,6 +15,8 @@ import {
   ImagePlus,
   Pause,
   Play,
+  Square,
+  StretchHorizontal,
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -91,6 +93,9 @@ export default function DailyPhotos() {
   const [isPreparingStory, setIsPreparingStory] = useState(false);
   const [isStoryOpen, setIsStoryOpen] = useState(false);
   const [isStoryPlaying, setIsStoryPlaying] = useState(false);
+  const [storyDisplayMode, setStoryDisplayMode] = useState<"contain" | "cover">(
+    "contain",
+  );
   const [storyItems, setStoryItems] = useState<DailyPhoto[]>([]);
   const [storyCurrentPos, setStoryCurrentPos] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
@@ -332,6 +337,7 @@ export default function DailyPhotos() {
     setStoryItems([]);
     setStoryCurrentPos(0);
     setStoryProgress(0);
+    setStoryDisplayMode("contain");
   }, [storyItems, storyCurrentPos, sortedPhotos]);
 
   const openStoryFromIndex = useCallback(
@@ -388,6 +394,10 @@ export default function DailyPhotos() {
 
   const toggleStoryPlayback = useCallback(() => {
     setIsStoryPlaying((prev) => !prev);
+  }, []);
+
+  const toggleStoryDisplayMode = useCallback(() => {
+    setStoryDisplayMode((prev) => (prev === "contain" ? "cover" : "contain"));
   }, []);
 
   useEffect(() => {
@@ -813,15 +823,38 @@ export default function DailyPhotos() {
                 <p className="text-xs text-white/85">
                   {storyCurrentPos + 1} de {storyItems.length}
                 </p>
-
-                <button
-                  onClick={closeStory}
-                  className="w-9 h-9 rounded-full bg-black/45 backdrop-blur flex items-center justify-center"
-                  aria-label="Fechar stories"
-                  data-testid="button-story-close"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleStoryDisplayMode}
+                    className="h-9 rounded-full px-3 bg-black/45 backdrop-blur flex items-center justify-center gap-1.5 text-[11px] font-medium"
+                    aria-label={
+                      storyDisplayMode === "contain"
+                        ? "Trocar para preencher"
+                        : "Trocar para ajustar"
+                    }
+                    data-testid="button-story-display-mode"
+                  >
+                    {storyDisplayMode === "contain" ? (
+                      <>
+                        <StretchHorizontal className="w-3.5 h-3.5" />
+                        Ajustar
+                      </>
+                    ) : (
+                      <>
+                        <Square className="w-3.5 h-3.5" />
+                        Preencher
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={closeStory}
+                    className="w-9 h-9 rounded-full bg-black/45 backdrop-blur flex items-center justify-center"
+                    aria-label="Fechar stories"
+                    data-testid="button-story-close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -849,11 +882,23 @@ export default function DailyPhotos() {
               >
                 <img
                   src={getTransformedImageUrl(currentStoryPhoto.photoUrl, {
-                    width: 1200,
+                    width: 400,
                     resize: "cover",
                   })}
                   alt=""
-                  className="w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover opacity-35 scale-105"
+                />
+                <img
+                  src={getTransformedImageUrl(currentStoryPhoto.photoUrl, {
+                    width: 800,
+                    resize: storyDisplayMode,
+                  })}
+                  alt=""
+                  className={`absolute inset-0 w-full h-full ${
+                    storyDisplayMode === "contain"
+                      ? "object-contain"
+                      : "object-cover"
+                  }`}
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/55" />
               </motion.div>
