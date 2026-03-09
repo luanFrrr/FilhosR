@@ -309,10 +309,9 @@ export default function DailyPhotos() {
       const startIndex = allPhotos.findIndex((photo) => photo.id === startPhotoId);
       if (startIndex < 0) return [];
 
-      // Stories tocam da foto selecionada para tras (mais antigas), para
-      // aproveitar o cursor que pagina historico sem carregar tudo.
-      const oldestAllowedIndex = Math.max(0, startIndex - (STORY_MAX_ITEMS - 1));
-      return allPhotos.slice(oldestAllowedIndex, startIndex + 1).reverse();
+      // Stories tocam da foto selecionada para frente (mais recentes),
+      // preservando a narrativa de crescimento no tempo.
+      return allPhotos.slice(startIndex, startIndex + STORY_MAX_ITEMS);
     },
     [],
   );
@@ -336,12 +335,11 @@ export default function DailyPhotos() {
   }, [storyItems, storyCurrentPos, sortedPhotos]);
 
   const openStoryFromIndex = useCallback(
-    async (startIndex: number) => {
+    (startIndex: number) => {
       if (
         startIndex < 0 ||
         startIndex >= totalPhotos ||
-        isPreparingStory ||
-        isFetchingNextPage
+        isPreparingStory
       ) {
         return;
       }
@@ -354,36 +352,6 @@ export default function DailyPhotos() {
 
       try {
         let queue = buildStoryQueue(sortedPhotos, startPhotoId);
-        let workingPhotos = sortedPhotos;
-        let canFetchMore = !!hasNextPage;
-        let attempts = 0;
-
-        while (
-          queue.length < STORY_MAX_ITEMS &&
-          canFetchMore &&
-          attempts < 5
-        ) {
-          pendingPrependBaseCountRef.current = workingPhotos.length;
-          const result = await fetchNextPage();
-          attempts += 1;
-
-          const fetchedPages = result.data?.pages || [];
-          if (fetchedPages.length === 0) {
-            canFetchMore = false;
-            break;
-          }
-
-          workingPhotos = fetchedPages
-            .flatMap((page) => page.data)
-            .slice()
-            .sort(
-              (a, b) =>
-                new Date(a.date).getTime() - new Date(b.date).getTime(),
-            );
-
-          queue = buildStoryQueue(workingPhotos, startPhotoId);
-          canFetchMore = !!result.hasNextPage;
-        }
 
         if (queue.length === 0) return;
 
@@ -398,9 +366,6 @@ export default function DailyPhotos() {
     },
     [
       buildStoryQueue,
-      fetchNextPage,
-      hasNextPage,
-      isFetchingNextPage,
       isPreparingStory,
       sortedPhotos,
       totalPhotos,
@@ -722,7 +687,7 @@ export default function DailyPhotos() {
                   variant="secondary"
                   onClick={() => openStoryFromIndex(currentIndex)}
                   className="rounded-full px-5"
-                  disabled={isPreparingStory || isFetchingNextPage}
+                  disabled={isPreparingStory}
                   data-testid="button-story-play"
                 >
                   <Play className="w-4 h-4 mr-2" />
