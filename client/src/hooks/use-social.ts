@@ -21,14 +21,18 @@ type LikeStatus = {
 type MilestoneWithSocial = {
   id: number;
   childId: number;
+  userId?: string | null;
   date: string;
   title: string;
   description: string | null;
   photoUrl: string | null;
+  isPrivate?: boolean;
   createdAt: string | null;
   likeCount: number;
   commentCount: number;
   userLiked: boolean;
+  creatorName: string | null;
+  creatorAvatar: string | null;
 };
 
 // ============================================================

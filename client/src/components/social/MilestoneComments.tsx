@@ -17,11 +17,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface MilestoneCommentsProps {
   childId: number;
   milestoneId: number;
+  highlightCommentId?: number | null;
 }
 
 export function MilestoneComments({
   childId,
   milestoneId,
+  highlightCommentId = null,
 }: MilestoneCommentsProps) {
   const { user } = useAuth();
   const { data: comments, isLoading } = useComments(
@@ -110,6 +112,24 @@ export function MilestoneComments({
     }
   };
 
+  useEffect(() => {
+    if (!highlightCommentId || !comments?.length) return;
+
+    const target = document.querySelector(
+      `[data-comment-id="${highlightCommentId}"]`,
+    ) as HTMLElement | null;
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.add("ring-2", "ring-primary", "ring-offset-1");
+
+    const timer = window.setTimeout(() => {
+      target.classList.remove("ring-2", "ring-primary", "ring-offset-1");
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightCommentId, comments]);
+
   return (
     <div className="mt-4">
       <div className="flex items-center gap-2 mb-3">
@@ -146,7 +166,8 @@ export function MilestoneComments({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="bg-muted/40 rounded-xl px-3 py-2 group"
+                className="bg-muted/40 rounded-xl px-3 py-2 group transition-shadow"
+                data-comment-id={comment.id}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">

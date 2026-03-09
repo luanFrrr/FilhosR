@@ -13,6 +13,7 @@ import {
   vaccineRecords,
   dailyPhotos,
   pushSubscriptions,
+  notifications,
   inviteCodes,
   activityComments,
   milestoneLikes,
@@ -39,6 +40,8 @@ import {
   type InsertDailyPhoto,
   type PushSubscription,
   type InsertPushSubscription,
+  type AppNotification,
+  type InsertAppNotification,
   type InviteCode,
   type InsertInviteCode,
   type ActivityComment,
@@ -173,6 +176,22 @@ export interface IStorage {
   ): Promise<PushSubscription>;
   deletePushSubscription(endpoint: string): Promise<void>;
   deletePushSubscriptionByUser(userId: string, endpoint: string): Promise<void>;
+
+  // Notifications (in-app inbox)
+  createNotification(
+    notification: InsertAppNotification,
+  ): Promise<AppNotification>;
+  getNotificationsByUserId(
+    userId: string,
+    limit?: number,
+    offset?: number,
+  ): Promise<AppNotification[]>;
+  getUnreadNotificationsCount(userId: string): Promise<number>;
+  markNotificationAsRead(
+    id: number,
+    userId: string,
+  ): Promise<AppNotification | undefined>;
+  markAllNotificationsAsRead(userId: string): Promise<number>;
 
   // Invite Codes
   createInviteCode(data: InsertInviteCode): Promise<InviteCode>;
@@ -1084,6 +1103,86 @@ export class DatabaseStorage implements IStorage {
           eq(pushSubscriptions.endpoint, endpoint),
         ),
       );
+  }
+
+  async createNotification(
+    notification: InsertAppNotification,
+  ): Promise<AppNotification> {
+    const [created] = await db
+      .insert(notifications)
+      .values(notification)
+      .returning();
+    return created;
+  }
+
+  async getNotificationsByUserId(
+    userId: string,
+    limit = 50,
+    offset = 0,
+  ): Promise<AppNotification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.recipientUserId, userId))
+      .orderBy(desc(notifications.createdAt), desc(notifications.id))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getUnreadNotificationsCount(userId: string): Promise<number> {
+    const [row] = await db
+      .select({ total: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientUserId, userId),
+          sql`${notifications.readAt} IS NULL`,
+        ),
+      );
+    return Number(row?.total ?? 0);
+  }
+
+  async markNotificationAsRead(
+    id: number,
+    userId: string,
+  ): Promise<AppNotification | undefined> {
+    const [updated] = await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.recipientUserId, userId),
+          sql`${notifications.readAt} IS NULL`,
+        ),
+      )
+      .returning();
+
+    if (updated) return updated;
+
+    const [existing] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(eq(notifications.id, id), eq(notifications.recipientUserId, userId)),
+      )
+      .limit(1);
+    return existing;
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<number> {
+    const updated = await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(notifications.recipientUserId, userId),
+          sql`${notifications.readAt} IS NULL`,
+        ),
+      )
+      .returning({ id: notifications.id });
+
+    return updated.length;
   }
 
   // Invite Codes

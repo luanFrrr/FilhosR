@@ -723,6 +723,13 @@ export async function registerRoutes(
             "✨ Novo marco registrado!",
             `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
             `/memories?tab=milestones&id=${record.id}`,
+            {
+              eventType: "milestone_created",
+              entityType: "milestone",
+              entityId: record.id,
+              recordType: "milestone",
+              recordId: record.id,
+            },
           );
         } catch (err) {
           console.error("[bg] Erro pós-criação de marco:", err);
@@ -928,6 +935,13 @@ export async function registerRoutes(
             "📖 Nova nota no diário",
             `${userName} escreveu uma nova nota no diário do ${childName}`,
             `/memories?tab=diary&id=${record.id}`,
+            {
+              eventType: "diary_created",
+              entityType: "diary",
+              entityId: record.id,
+              recordType: "diary",
+              recordId: record.id,
+            },
           );
         } catch (err) {
           console.error("[bg] Erro pós-criação de diário:", err);
@@ -1098,6 +1112,14 @@ export async function registerRoutes(
             "❤️ Novo coraçãozinho no diário!",
             `${userName} amou uma anotação de ${childName}`,
             `/memories?tab=diary&id=${entry.id}`,
+            {
+              eventType: "diary_liked",
+              entityType: "diary_like",
+              entityId: entry.id,
+              recordType: "diary",
+              recordId: entry.id,
+              focus: "likes",
+            },
           );
         } catch (err) {
           console.error("[bg] Erro pós-like no diário:", err);
@@ -1682,6 +1704,66 @@ export async function registerRoutes(
     },
   );
 
+  // Notifications Inbox (persistidas no banco)
+  app.get(api.notifications.list.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const notifications = await storage.getNotificationsByUserId(
+      userId,
+      limit,
+      offset,
+    );
+    res.json(notifications);
+  });
+
+  app.get(
+    api.notifications.unreadCount.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const count = await storage.getUnreadNotificationsCount(userId);
+      res.json({ count });
+    },
+  );
+
+  app.patch(
+    api.notifications.markRead.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const id = Number(req.params.id);
+      if (!id || isNaN(id)) {
+        return res.status(400).json({ message: "ID inválido" });
+      }
+
+      const notification = await storage.markNotificationAsRead(id, userId);
+      if (!notification) {
+        return res.status(404).json({ message: "Notificação não encontrada" });
+      }
+
+      res.json(notification);
+    },
+  );
+
+  app.post(
+    api.notifications.markAllRead.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const updated = await storage.markAllNotificationsAsRead(userId);
+      res.json({ updated });
+    },
+  );
+
   // === INVITE CODES (Compartilhar crianças entre cuidadores) ===
 
   // Gerar código de convite
@@ -2025,6 +2107,10 @@ export async function registerRoutes(
           const ms = await storage.getMilestoneById(input.recordId);
           return !ms?.isPrivate;
         }
+        if (input.recordType === "diary") {
+          const entry = await storage.getDiaryEntryById(input.recordId);
+          return !entry?.isPrivate;
+        }
         return true;
       })();
 
@@ -2037,12 +2123,31 @@ export async function registerRoutes(
             ]);
             const userName = resolveUserName(user);
             const childName = child?.name || "seu filho(a)";
+            const isDiaryComment = input.recordType === "diary";
+            const targetLabel = isDiaryComment
+              ? "uma anotação no diário"
+              : "um marco";
+            const deepLink = isDiaryComment
+              ? `/memories?tab=diary&id=${comment.recordId}&commentId=${comment.id}`
+              : `/memories?tab=milestones&id=${comment.recordId}&commentId=${comment.id}`;
             notifyCaregivers(
               childId,
               userId,
               "💬 Novo comentário",
-              `${userName} comentou em um marco de ${childName}`,
-              `/memories?tab=milestones&id=${comment.recordId}`,
+              `${userName} comentou em ${targetLabel} de ${childName}`,
+              deepLink,
+              {
+                eventType: isDiaryComment
+                  ? "diary_comment_created"
+                  : "milestone_comment_created",
+                entityType: isDiaryComment
+                  ? "diary_comment"
+                  : "milestone_comment",
+                entityId: comment.id,
+                recordType: input.recordType,
+                recordId: comment.recordId,
+                commentId: comment.id,
+              },
             );
           } catch (err) {
             console.error("[bg] Erro pós-criação de comentário:", err);
@@ -2189,6 +2294,14 @@ export async function registerRoutes(
             "❤️ Novo coraçãozinho!",
             `${userName} amou o marco "${milestone.title}" de ${childName}`,
             `/memories?tab=milestones&id=${milestone.id}`,
+            {
+              eventType: "milestone_liked",
+              entityType: "milestone_like",
+              entityId: milestone.id,
+              recordType: "milestone",
+              recordId: milestone.id,
+              focus: "likes",
+            },
           );
         } catch (err) {
           console.error("[bg] Erro pós-like:", err);

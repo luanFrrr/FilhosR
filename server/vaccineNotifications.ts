@@ -381,15 +381,58 @@ export async function sendVaccineNotifications(): Promise<number> {
 
 let notificationInterval: NodeJS.Timeout | null = null;
 
+type CaregiverNotificationMetadata = {
+  eventType?: string;
+  entityType?: string;
+  entityId?: number;
+  recordType?: string;
+  recordId?: number;
+  commentId?: number;
+  [key: string]: unknown;
+};
+
+function resolveActorName(user: any): string | null {
+  if (!user) return null;
+
+  const first = user.displayFirstName || user.firstName || null;
+  const last = user.displayLastName || user.lastName || null;
+  const fullName = [first, last].filter(Boolean).join(" ").trim();
+  return fullName || null;
+}
+
+function resolveActorAvatar(user: any): string | null {
+  if (!user) return null;
+  return user.displayPhotoUrl || user.profileImageUrl || null;
+}
+
+function toOptionalString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function toOptionalNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function buildActivityTag(params: {
+  childId: number;
+  recipientId: string;
+  metadata: CaregiverNotificationMetadata;
+  sequence: number;
+}): string {
+  const eventType = params.metadata.eventType || "activity";
+  const entityType = params.metadata.entityType || "generic";
+  const entityId = params.metadata.entityId ?? params.childId;
+  return `activity-${eventType}-${entityType}-${entityId}-${params.recipientId}-${Date.now()}-${params.sequence}`;
+}
+
 export async function notifyCaregivers(
   childId: number,
   senderId: string,
   title: string,
   body: string,
   url: string = "/",
+  metadata: CaregiverNotificationMetadata = {},
 ): Promise<void> {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
-
   try {
     const child = await storage.getChild(childId);
     if (!child) return;
@@ -406,31 +449,81 @@ export async function notifyCaregivers(
       ),
     ];
 
-    for (const userId of recipientIds) {
-      const subs = await storage.getPushSubscriptionsByUserId(userId);
-      const payload = JSON.stringify({
-        title,
-        body,
-        icon: "/icons/icon-notification-192x192.png",
-        badge: "/icons/badge-96x96.png",
-        tag: `activity-${childId}`,
-        data: { url },
-      });
+    const recipientSubscriptions = await Promise.all(
+      recipientIds.map(async (recipientId) => ({
+        recipientId,
+        subs: await storage.getPushSubscriptionsByUserId(recipientId),
+      })),
+    );
 
-      for (const sub of subs) {
-        try {
-          await webpush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth },
-            },
-            payload,
-          );
-        } catch (error: any) {
-          if (error.statusCode === 404 || error.statusCode === 410) {
-            await storage.deletePushSubscription(sub.endpoint);
+    const sender = await storage.getUser(senderId);
+    const pushEnabled = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+    const eventType = toOptionalString(metadata.eventType) || "activity";
+    const recordType = toOptionalString(metadata.recordType);
+    const recordId = toOptionalNumber(metadata.recordId);
+    const commentId = toOptionalNumber(metadata.commentId);
+    const deepLink = url || "/";
+
+    let sequence = 0;
+    for (const { recipientId, subs } of recipientSubscriptions) {
+      try {
+        await storage.createNotification({
+          recipientUserId: recipientId,
+          actorUserId: senderId,
+          actorName: resolveActorName(sender),
+          actorAvatar: resolveActorAvatar(sender),
+          childId,
+          type: eventType,
+          title,
+          body,
+          deepLink,
+          recordType,
+          recordId,
+          commentId,
+          metadata,
+        });
+
+        if (!pushEnabled) continue;
+
+        const payload = JSON.stringify({
+          title,
+          body,
+          icon: "/icons/icon-notification-192x192.png",
+          badge: "/icons/badge-96x96.png",
+          tag: buildActivityTag({
+            childId,
+            recipientId,
+            metadata,
+            sequence: sequence++,
+          }),
+          data: {
+            childId,
+            actorId: senderId,
+            ...metadata,
+            url: deepLink,
+          },
+        });
+
+        for (const sub of subs) {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              },
+              payload,
+            );
+          } catch (error: any) {
+            if (error.statusCode === 404 || error.statusCode === 410) {
+              await storage.deletePushSubscription(sub.endpoint);
+            }
           }
         }
+      } catch (error) {
+        console.error(
+          `[notifications] Error notifying recipient ${recipientId}:`,
+          error,
+        );
       }
     }
   } catch (error) {

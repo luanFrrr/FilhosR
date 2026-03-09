@@ -201,10 +201,14 @@ export default function Memories() {
   const searchParams = new URLSearchParams(search);
   const tabParam = searchParams.get("tab") || "milestones";
   const idParam = searchParams.get("id");
+  const commentIdParam = searchParams.get("commentId");
 
   const [activeTab, setActiveTab] = useState(tabParam);
   const [, setLocation] = useLocation();
   const deepLinkHandled = useRef<string | null>(null);
+  const [highlightCommentId, setHighlightCommentId] = useState<number | null>(
+    null,
+  );
 
   // Deep link: abre o marco específico quando vindo de uma notificação
   useEffect(() => {
@@ -214,13 +218,20 @@ export default function Memories() {
     if (tabParam === "milestones" && milestones) {
       const target = milestones.find((m) => m.id === Number(idParam));
       if (target) {
+        const parsedCommentId = Number(commentIdParam);
+        const validCommentId =
+          Number.isInteger(parsedCommentId) && parsedCommentId > 0
+            ? parsedCommentId
+            : null;
         deepLinkHandled.current = idParam;
+        setHighlightCommentId(validCommentId);
         setViewMilestone(target);
         setLocation("/memories?tab=milestones", { replace: true });
       }
     }
     if (tabParam === "diary" && allDiaryEntries.length > 0) {
       deepLinkHandled.current = idParam;
+      setHighlightCommentId(null);
       setLocation("/memories?tab=diary", { replace: true });
       setTimeout(() => {
         const el = document.querySelector(`[data-diary-id="${idParam}"]`);
@@ -235,7 +246,7 @@ export default function Memories() {
         }
       }, 300);
     }
-  }, [idParam, tabParam, milestones, allDiaryEntries]);
+  }, [idParam, tabParam, milestones, allDiaryEntries, commentIdParam]);
 
   const milestoneForm = useForm();
   const editForm = useForm();
@@ -678,7 +689,10 @@ export default function Memories() {
                   <div
                     key={milestone.id}
                     className="relative pl-6 cursor-pointer group"
-                    onClick={() => setViewMilestone(milestone)}
+                    onClick={() => {
+                      setHighlightCommentId(null);
+                      setViewMilestone(milestone);
+                    }}
                     data-testid={`milestone-item-${milestone.id}`}
                   >
                     <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
@@ -1001,7 +1015,12 @@ export default function Memories() {
 
       <Dialog
         open={!!viewMilestone}
-        onOpenChange={(open) => !open && setViewMilestone(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewMilestone(null);
+            setHighlightCommentId(null);
+          }
+        }}
       >
         <DialogContent className="rounded-2xl max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
           {viewMilestone &&
@@ -1067,6 +1086,7 @@ export default function Memories() {
                     <MilestoneComments
                       childId={activeChild?.id || 0}
                       milestoneId={viewMilestone.id}
+                      highlightCommentId={highlightCommentId}
                     />
                   </div>
 

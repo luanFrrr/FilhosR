@@ -109,7 +109,8 @@ export function usePushNotifications() {
       setIsSubscribed(true);
       toast({
         title: "Notificações ativadas!",
-        description: "Você receberá lembretes quando as vacinas dos seus filhos estiverem próximas.",
+        description:
+          "Você receberá avisos de vacinas e interações em marcos/diário.",
       });
     } catch (error: any) {
       console.error("Push subscription failed:", error);

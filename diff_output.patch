@@ -1,0 +1,357 @@
+diff --git a/client/src/components/social/MilestoneComments.tsx b/client/src/components/social/MilestoneComments.tsx
+index d538324..66d72fb 100644
+--- a/client/src/components/social/MilestoneComments.tsx
++++ b/client/src/components/social/MilestoneComments.tsx
+@@ -17,11 +17,13 @@ import { Skeleton } from "@/components/ui/skeleton";
+ interface MilestoneCommentsProps {
+   childId: number;
+   milestoneId: number;
++  highlightCommentId?: number | null;
+ }
+ 
+ export function MilestoneComments({
+   childId,
+   milestoneId,
++  highlightCommentId = null,
+ }: MilestoneCommentsProps) {
+   const { user } = useAuth();
+   const { data: comments, isLoading } = useComments(
+@@ -110,6 +112,24 @@ export function MilestoneComments({
+     }
+   };
+ 
++  useEffect(() => {
++    if (!highlightCommentId || !comments?.length) return;
++
++    const target = document.querySelector(
++      `[data-comment-id="${highlightCommentId}"]`,
++    ) as HTMLElement | null;
++    if (!target) return;
++
++    target.scrollIntoView({ behavior: "smooth", block: "center" });
++    target.classList.add("ring-2", "ring-primary", "ring-offset-1");
++
++    const timer = window.setTimeout(() => {
++      target.classList.remove("ring-2", "ring-primary", "ring-offset-1");
++    }, 3000);
++
++    return () => window.clearTimeout(timer);
++  }, [highlightCommentId, comments]);
++
+   return (
+     <div className="mt-4">
+       <div className="flex items-center gap-2 mb-3">
+@@ -146,7 +166,8 @@ export function MilestoneComments({
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, scale: 0.95 }}
+                 transition={{ duration: 0.15 }}
+-                className="bg-muted/40 rounded-xl px-3 py-2 group"
++                className="bg-muted/40 rounded-xl px-3 py-2 group transition-shadow"
++                data-comment-id={comment.id}
+               >
+                 <div className="flex items-start justify-between gap-2">
+                   <div className="flex-1 min-w-0">
+diff --git a/client/src/hooks/use-push-notifications.ts b/client/src/hooks/use-push-notifications.ts
+index 4cc9c3e..0edb86a 100644
+--- a/client/src/hooks/use-push-notifications.ts
++++ b/client/src/hooks/use-push-notifications.ts
+@@ -109,7 +109,8 @@ export function usePushNotifications() {
+       setIsSubscribed(true);
+       toast({
+         title: "Notificações ativadas!",
+-        description: "Você receberá lembretes quando as vacinas dos seus filhos estiverem próximas.",
++        description:
++          "Você receberá avisos de vacinas e interações em marcos/diário.",
+       });
+     } catch (error: any) {
+       console.error("Push subscription failed:", error);
+diff --git a/client/src/hooks/use-social.ts b/client/src/hooks/use-social.ts
+index ca9c5c6..e697d78 100644
+--- a/client/src/hooks/use-social.ts
++++ b/client/src/hooks/use-social.ts
+@@ -21,14 +21,18 @@ type LikeStatus = {
+ type MilestoneWithSocial = {
+   id: number;
+   childId: number;
++  userId?: string | null;
+   date: string;
+   title: string;
+   description: string | null;
+   photoUrl: string | null;
++  isPrivate?: boolean;
+   createdAt: string | null;
+   likeCount: number;
+   commentCount: number;
+   userLiked: boolean;
++  creatorName: string | null;
++  creatorAvatar: string | null;
+ };
+ 
+ // ============================================================
+diff --git a/client/src/pages/memories.tsx b/client/src/pages/memories.tsx
+index 236b20b..2a7e802 100644
+--- a/client/src/pages/memories.tsx
++++ b/client/src/pages/memories.tsx
+@@ -201,10 +201,14 @@ export default function Memories() {
+   const searchParams = new URLSearchParams(search);
+   const tabParam = searchParams.get("tab") || "milestones";
+   const idParam = searchParams.get("id");
++  const commentIdParam = searchParams.get("commentId");
+ 
+   const [activeTab, setActiveTab] = useState(tabParam);
+   const [, setLocation] = useLocation();
+   const deepLinkHandled = useRef<string | null>(null);
++  const [highlightCommentId, setHighlightCommentId] = useState<number | null>(
++    null,
++  );
+ 
+   // Deep link: abre o marco específico quando vindo de uma notificação
+   useEffect(() => {
+@@ -214,13 +218,20 @@ export default function Memories() {
+     if (tabParam === "milestones" && milestones) {
+       const target = milestones.find((m) => m.id === Number(idParam));
+       if (target) {
++        const parsedCommentId = Number(commentIdParam);
++        const validCommentId =
++          Number.isInteger(parsedCommentId) && parsedCommentId > 0
++            ? parsedCommentId
++            : null;
+         deepLinkHandled.current = idParam;
++        setHighlightCommentId(validCommentId);
+         setViewMilestone(target);
+         setLocation("/memories?tab=milestones", { replace: true });
+       }
+     }
+     if (tabParam === "diary" && allDiaryEntries.length > 0) {
+       deepLinkHandled.current = idParam;
++      setHighlightCommentId(null);
+       setLocation("/memories?tab=diary", { replace: true });
+       setTimeout(() => {
+         const el = document.querySelector(`[data-diary-id="${idParam}"]`);
+@@ -235,7 +246,7 @@ export default function Memories() {
+         }
+       }, 300);
+     }
+-  }, [idParam, tabParam, milestones, allDiaryEntries]);
++  }, [idParam, tabParam, milestones, allDiaryEntries, commentIdParam]);
+ 
+   const milestoneForm = useForm();
+   const editForm = useForm();
+@@ -678,7 +689,10 @@ export default function Memories() {
+                   <div
+                     key={milestone.id}
+                     className="relative pl-6 cursor-pointer group"
+-                    onClick={() => setViewMilestone(milestone)}
++                    onClick={() => {
++                      setHighlightCommentId(null);
++                      setViewMilestone(milestone);
++                    }}
+                     data-testid={`milestone-item-${milestone.id}`}
+                   >
+                     <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
+@@ -1001,7 +1015,12 @@ export default function Memories() {
+ 
+       <Dialog
+         open={!!viewMilestone}
+-        onOpenChange={(open) => !open && setViewMilestone(null)}
++        onOpenChange={(open) => {
++          if (!open) {
++            setViewMilestone(null);
++            setHighlightCommentId(null);
++          }
++        }}
+       >
+         <DialogContent className="rounded-2xl max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
+           {viewMilestone &&
+@@ -1067,6 +1086,7 @@ export default function Memories() {
+                     <MilestoneComments
+                       childId={activeChild?.id || 0}
+                       milestoneId={viewMilestone.id}
++                      highlightCommentId={highlightCommentId}
+                     />
+                   </div>
+ 
+diff --git a/server/routes.ts b/server/routes.ts
+index a6baf64..4080f85 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -723,6 +723,13 @@ export async function registerRoutes(
+             "✨ Novo marco registrado!",
+             `${userName} adicionou um novo marco ao ${childName}: "${record.title}"`,
+             `/memories?tab=milestones&id=${record.id}`,
++            {
++              eventType: "milestone_created",
++              entityType: "milestone",
++              entityId: record.id,
++              recordType: "milestone",
++              recordId: record.id,
++            },
+           );
+         } catch (err) {
+           console.error("[bg] Erro pós-criação de marco:", err);
+@@ -928,6 +935,13 @@ export async function registerRoutes(
+             "📖 Nova nota no diário",
+             `${userName} escreveu uma nova nota no diário do ${childName}`,
+             `/memories?tab=diary&id=${record.id}`,
++            {
++              eventType: "diary_created",
++              entityType: "diary",
++              entityId: record.id,
++              recordType: "diary",
++              recordId: record.id,
++            },
+           );
+         } catch (err) {
+           console.error("[bg] Erro pós-criação de diário:", err);
+@@ -1098,6 +1112,14 @@ export async function registerRoutes(
+             "❤️ Novo coraçãozinho no diário!",
+             `${userName} amou uma anotação de ${childName}`,
+             `/memories?tab=diary&id=${entry.id}`,
++            {
++              eventType: "diary_liked",
++              entityType: "diary_like",
++              entityId: entry.id,
++              recordType: "diary",
++              recordId: entry.id,
++              focus: "likes",
++            },
+           );
+         } catch (err) {
+           console.error("[bg] Erro pós-like no diário:", err);
+@@ -2025,6 +2047,10 @@ export async function registerRoutes(
+           const ms = await storage.getMilestoneById(input.recordId);
+           return !ms?.isPrivate;
+         }
++        if (input.recordType === "diary") {
++          const entry = await storage.getDiaryEntryById(input.recordId);
++          return !entry?.isPrivate;
++        }
+         return true;
+       })();
+ 
+@@ -2037,12 +2063,31 @@ export async function registerRoutes(
+             ]);
+             const userName = resolveUserName(user);
+             const childName = child?.name || "seu filho(a)";
++            const isDiaryComment = input.recordType === "diary";
++            const targetLabel = isDiaryComment
++              ? "uma anotação no diário"
++              : "um marco";
++            const deepLink = isDiaryComment
++              ? `/memories?tab=diary&id=${comment.recordId}&commentId=${comment.id}`
++              : `/memories?tab=milestones&id=${comment.recordId}&commentId=${comment.id}`;
+             notifyCaregivers(
+               childId,
+               userId,
+               "💬 Novo comentário",
+-              `${userName} comentou em um marco de ${childName}`,
+-              `/memories?tab=milestones&id=${comment.recordId}`,
++              `${userName} comentou em ${targetLabel} de ${childName}`,
++              deepLink,
++              {
++                eventType: isDiaryComment
++                  ? "diary_comment_created"
++                  : "milestone_comment_created",
++                entityType: isDiaryComment
++                  ? "diary_comment"
++                  : "milestone_comment",
++                entityId: comment.id,
++                recordType: input.recordType,
++                recordId: comment.recordId,
++                commentId: comment.id,
++              },
+             );
+           } catch (err) {
+             console.error("[bg] Erro pós-criação de comentário:", err);
+@@ -2189,6 +2234,14 @@ export async function registerRoutes(
+             "❤️ Novo coraçãozinho!",
+             `${userName} amou o marco "${milestone.title}" de ${childName}`,
+             `/memories?tab=milestones&id=${milestone.id}`,
++            {
++              eventType: "milestone_liked",
++              entityType: "milestone_like",
++              entityId: milestone.id,
++              recordType: "milestone",
++              recordId: milestone.id,
++              focus: "likes",
++            },
+           );
+         } catch (err) {
+           console.error("[bg] Erro pós-like:", err);
+diff --git a/server/vaccineNotifications.ts b/server/vaccineNotifications.ts
+index cb91dbb..303522e 100644
+--- a/server/vaccineNotifications.ts
++++ b/server/vaccineNotifications.ts
+@@ -381,12 +381,35 @@ export async function sendVaccineNotifications(): Promise<number> {
+ 
+ let notificationInterval: NodeJS.Timeout | null = null;
+ 
++type CaregiverNotificationMetadata = {
++  eventType?: string;
++  entityType?: string;
++  entityId?: number;
++  recordType?: string;
++  recordId?: number;
++  commentId?: number;
++  [key: string]: unknown;
++};
++
++function buildActivityTag(params: {
++  childId: number;
++  recipientId: string;
++  metadata: CaregiverNotificationMetadata;
++  sequence: number;
++}): string {
++  const eventType = params.metadata.eventType || "activity";
++  const entityType = params.metadata.entityType || "generic";
++  const entityId = params.metadata.entityId ?? params.childId;
++  return `activity-${eventType}-${entityType}-${entityId}-${params.recipientId}-${Date.now()}-${params.sequence}`;
++}
++
+ export async function notifyCaregivers(
+   childId: number,
+   senderId: string,
+   title: string,
+   body: string,
+   url: string = "/",
++  metadata: CaregiverNotificationMetadata = {},
+ ): Promise<void> {
+   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+ 
+@@ -406,15 +429,32 @@ export async function notifyCaregivers(
+       ),
+     ];
+ 
+-    for (const userId of recipientIds) {
+-      const subs = await storage.getPushSubscriptionsByUserId(userId);
++    const recipientSubscriptions = await Promise.all(
++      recipientIds.map(async (recipientId) => ({
++        recipientId,
++        subs: await storage.getPushSubscriptionsByUserId(recipientId),
++      })),
++    );
++
++    let sequence = 0;
++    for (const { recipientId, subs } of recipientSubscriptions) {
+       const payload = JSON.stringify({
+         title,
+         body,
+         icon: "/icons/icon-notification-192x192.png",
+         badge: "/icons/badge-96x96.png",
+-        tag: `activity-${childId}`,
+-        data: { url },
++        tag: buildActivityTag({
++          childId,
++          recipientId,
++          metadata,
++          sequence: sequence++,
++        }),
++        data: {
++          childId,
++          actorId: senderId,
++          ...metadata,
++          url,
++        },
+       });
+ 
+       for (const sub of subs) {

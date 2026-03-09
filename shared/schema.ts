@@ -188,6 +188,39 @@ export const pushSubscriptions = pgTable(
   }),
 );
 
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: serial("id").primaryKey(),
+    recipientUserId: varchar("recipient_user_id").notNull(),
+    actorUserId: varchar("actor_user_id"),
+    actorName: text("actor_name"),
+    actorAvatar: text("actor_avatar"),
+    childId: integer("child_id").notNull(),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    deepLink: text("deep_link").notNull().default("/"),
+    recordType: text("record_type"),
+    recordId: integer("record_id"),
+    commentId: integer("comment_id"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    recipientCreatedIdx: index("notifications_recipient_created_idx").on(
+      table.recipientUserId,
+      table.createdAt,
+    ),
+    recipientUnreadIdx: index("notifications_recipient_unread_idx").on(
+      table.recipientUserId,
+      table.readAt,
+    ),
+    childIdx: index("notifications_child_idx").on(table.childId),
+  }),
+);
+
 // Códigos de convite para compartilhar crianças entre cuidadores
 export const inviteCodes = pgTable("invite_codes", {
   id: serial("id").primaryKey(),
@@ -466,6 +499,10 @@ export const insertDailyPhotoSchema = createInsertSchema(dailyPhotos).omit({
 export const insertPushSubscriptionSchema = createInsertSchema(
   pushSubscriptions,
 ).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
 export const insertInviteCodeSchema = createInsertSchema(inviteCodes).omit({
   id: true,
   createdAt: true,
@@ -511,6 +548,9 @@ export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertPushSubscription = z.infer<
   typeof insertPushSubscriptionSchema
 >;
+
+export type AppNotification = typeof notifications.$inferSelect;
+export type InsertAppNotification = z.infer<typeof insertNotificationSchema>;
 
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type InsertInviteCode = z.infer<typeof insertInviteCodeSchema>;

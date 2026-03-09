@@ -20,9 +20,10 @@ import {
   vaccineRecords,
   dailyPhotos,
   inviteCodes,
-  caregivers,
-  activityComments,
-} from "./schema";
+    caregivers,
+    activityComments,
+    notifications,
+  } from "./schema";
 
 // ============================================
 // SHARED ERROR SCHEMAS
@@ -598,6 +599,38 @@ export const api = {
       path: "/api/milestones/:milestoneId/like",
       responses: {
         200: z.object({ count: z.number(), userLiked: z.boolean() }),
+      },
+    },
+  },
+
+  notifications: {
+    list: {
+      method: "GET" as const,
+      path: "/api/notifications",
+      responses: {
+        200: z.array(z.custom<typeof notifications.$inferSelect>()),
+      },
+    },
+    unreadCount: {
+      method: "GET" as const,
+      path: "/api/notifications/unread-count",
+      responses: {
+        200: z.object({ count: z.number() }),
+      },
+    },
+    markRead: {
+      method: "PATCH" as const,
+      path: "/api/notifications/:id/read",
+      responses: {
+        200: z.custom<typeof notifications.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    markAllRead: {
+      method: "POST" as const,
+      path: "/api/notifications/read-all",
+      responses: {
+        200: z.object({ updated: z.number() }),
       },
     },
   },

@@ -14,6 +14,7 @@ import { Link } from "wouter";
 
 import { PhotoView } from "@/components/ui/photo-view";
 import { getTransformedImageUrl } from "@/lib/imageUtils";
+import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 
 export function Header({
   title,
@@ -128,6 +129,7 @@ export function Header({
             {title}
           </h1>
         )}
+        <NotificationInbox />
       </div>
     </header>
   );
