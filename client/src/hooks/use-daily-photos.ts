@@ -32,17 +32,41 @@ export function useDailyPhotosPaged(childId: number, pageSize = 30) {
   return useInfiniteQuery({
     queryKey: [api.dailyPhotos.paged.path, childId, "cursor", pageSize],
     queryFn: async ({ pageParam = { cursor: null as string | null } }) => {
-      const params = new URLSearchParams();
-      params.set("pageSize", String(pageSize));
-      if (pageParam.cursor) {
-        params.set("cursor", pageParam.cursor);
+      const fetchCursorPage = async () => {
+        const params = new URLSearchParams();
+        params.set("pageSize", String(pageSize));
+        if (pageParam.cursor) {
+          params.set("cursor", pageParam.cursor);
+        }
+        const url = `${buildUrl(api.dailyPhotos.paged.path, { childId })}?${params.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to fetch paged daily photos");
+        return api.dailyPhotos.paged.responses[200].parse(
+          (await res.json()) as DailyPhotosPage,
+        );
+      };
+
+      try {
+        return await fetchCursorPage();
+      } catch (err) {
+        // Compatibilidade: se backend ainda nao expuser /paged, cai para endpoint legado.
+        if (pageParam.cursor) throw err;
+
+        const legacyUrl = buildUrl(api.dailyPhotos.list.path, { childId });
+        const legacyRes = await fetch(legacyUrl);
+        if (!legacyRes.ok) throw err;
+
+        const legacyRows = api.dailyPhotos.list.responses[200].parse(
+          await legacyRes.json(),
+        );
+
+        return {
+          data: legacyRows,
+          pageSize: legacyRows.length || pageSize,
+          hasMore: false,
+          nextCursor: null,
+        } satisfies DailyPhotosPage;
       }
-      const url = `${buildUrl(api.dailyPhotos.paged.path, { childId })}?${params.toString()}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch paged daily photos");
-      return api.dailyPhotos.paged.responses[200].parse(
-        (await res.json()) as DailyPhotosPage,
-      );
     },
     getNextPageParam: (lastPage) => {
       if (lastPage.hasMore && lastPage.nextCursor) {
