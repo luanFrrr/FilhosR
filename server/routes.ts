@@ -1408,6 +1408,29 @@ export async function registerRoutes(
     res.json(photos);
   });
 
+  app.get(api.dailyPhotos.paged.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const childId = Number(req.params.childId);
+
+    if (!(await hasChildAccess(userId, childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const pageSize = Number(req.query.pageSize) || 30;
+    const cursor =
+      typeof req.query.cursor === "string" && req.query.cursor.length > 0
+        ? req.query.cursor
+        : undefined;
+
+    const page = await storage.getDailyPhotosByCursor(childId, {
+      cursor,
+      pageSize,
+    });
+    res.json(page);
+  });
+
   app.get(api.dailyPhotos.today.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Não autenticado" });

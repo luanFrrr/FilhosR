@@ -419,6 +419,18 @@ export const api = {
         200: z.array(z.custom<typeof dailyPhotos.$inferSelect>()),
       },
     },
+    paged: {
+      method: "GET" as const,
+      path: "/api/children/:childId/daily-photos/paged",
+      responses: {
+        200: z.object({
+          data: z.array(z.custom<typeof dailyPhotos.$inferSelect>()),
+          pageSize: z.number(),
+          hasMore: z.boolean(),
+          nextCursor: z.string().nullable(),
+        }),
+      },
+    },
     today: {
       method: "GET" as const,
       path: "/api/children/:childId/daily-photos/today",

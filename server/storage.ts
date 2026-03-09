@@ -69,6 +69,18 @@ type DiaryEntriesPage = {
   nextCursor?: string | null;
 };
 
+type DailyPhotosCursor = {
+  date: string;
+  id: number;
+};
+
+type DailyPhotosPage = {
+  data: DailyPhoto[];
+  pageSize: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
 function encodeDiaryCursor(cursor: DiaryCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
@@ -95,6 +107,34 @@ function decodeDiaryCursor(raw?: string | null): DiaryCursor | null {
     return {
       date: parsed.date,
       createdAt: parsed.createdAt,
+      id: parsed.id,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function encodeDailyPhotosCursor(cursor: DailyPhotosCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodeDailyPhotosCursor(raw?: string | null): DailyPhotosCursor | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(raw, "base64url").toString("utf8"),
+    ) as Partial<DailyPhotosCursor>;
+
+    if (typeof parsed.date !== "string" || typeof parsed.id !== "number") {
+      return null;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) {
+      return null;
+    }
+
+    return {
+      date: parsed.date,
       id: parsed.id,
     };
   } catch {
@@ -211,6 +251,13 @@ export interface IStorage {
     limit?: number,
     offset?: number,
   ): Promise<DailyPhoto[]>;
+  getDailyPhotosByCursor(
+    childId: number,
+    options?: {
+      cursor?: string;
+      pageSize?: number;
+    },
+  ): Promise<DailyPhotosPage>;
   getDailyPhotoByDate(
     childId: number,
     date: string,
@@ -1326,6 +1373,52 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .limit(limit)
       .offset(offset);
+  }
+
+  async getDailyPhotosByCursor(
+    childId: number,
+    options: {
+      cursor?: string;
+      pageSize?: number;
+    } = {},
+  ): Promise<DailyPhotosPage> {
+    const safeSize = Math.min(Math.max(1, options.pageSize ?? 30), 100);
+    const decodedCursor = decodeDailyPhotosCursor(options.cursor);
+
+    const filters: any[] = [eq(dailyPhotos.childId, childId)];
+
+    if (decodedCursor) {
+      filters.push(sql`(
+        ${dailyPhotos.date} < ${decodedCursor.date}
+        OR (${dailyPhotos.date} = ${decodedCursor.date} AND ${dailyPhotos.id} < ${decodedCursor.id})
+      )`);
+    }
+
+    const rows = await db
+      .select()
+      .from(dailyPhotos)
+      .where(and(...filters))
+      .orderBy(desc(dailyPhotos.date), desc(dailyPhotos.id))
+      .limit(safeSize + 1);
+
+    const hasMore = rows.length > safeSize;
+    const data = hasMore ? rows.slice(0, safeSize) : rows;
+
+    let nextCursor: string | null = null;
+    if (hasMore && data.length > 0) {
+      const last = data[data.length - 1];
+      nextCursor = encodeDailyPhotosCursor({
+        date: String(last.date),
+        id: last.id,
+      });
+    }
+
+    return {
+      data,
+      pageSize: safeSize,
+      hasMore,
+      nextCursor,
+    };
   }
 
   async getUnreadNotificationsCount(userId: string): Promise<number> {

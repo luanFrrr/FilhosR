@@ -1,6 +1,6 @@
 import { useChildContext } from "@/hooks/use-child-context";
 import {
-  useDailyPhotos,
+  useDailyPhotosPaged,
   useCreateDailyPhoto,
   useTodayPhoto,
 } from "@/hooks/use-daily-photos";
@@ -15,7 +15,7 @@ import {
   ImagePlus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -65,7 +65,13 @@ const MENSAGENS_RETORNO = [
 
 export default function DailyPhotos() {
   const { activeChild } = useChildContext();
-  const { data: photos, isLoading } = useDailyPhotos(activeChild?.id || 0);
+  const {
+    data: pagedPhotos,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useDailyPhotosPaged(activeChild?.id || 0, 30);
   const { data: todayPhoto } = useTodayPhoto(activeChild?.id || 0);
   const createPhoto = useCreateDailyPhoto();
   const { toast } = useToast();
@@ -77,6 +83,12 @@ export default function DailyPhotos() {
     message: string;
   } | null>(null);
   const { upload } = useUpload();
+  const pendingPrependBaseCountRef = useRef<number | null>(null);
+
+  const photos = useMemo(
+    () => pagedPhotos?.pages.flatMap((page) => page.data) || [],
+    [pagedPhotos],
+  );
 
   // Cronological order: oldest first, newest last (timeline style)
   const sortedPhotos =
@@ -97,6 +109,18 @@ export default function DailyPhotos() {
       setCurrentIndex(newestIndex);
     }
   }, [totalPhotos, currentIndex, newestIndex]);
+
+  useEffect(() => {
+    const previousCount = pendingPrependBaseCountRef.current;
+    if (previousCount == null) return;
+
+    if (photos.length > previousCount) {
+      const addedCount = photos.length - previousCount;
+      setCurrentIndex((prev) => (prev >= 0 ? prev + addedCount : prev));
+    }
+
+    pendingPrependBaseCountRef.current = null;
+  }, [photos.length]);
 
   useEffect(() => {
     if (!carouselApi) return;
@@ -256,6 +280,12 @@ export default function DailyPhotos() {
   const goToNext = () => {
     if (currentIndex < totalPhotos - 1) setCurrentIndex(currentIndex + 1);
   };
+
+  const handleLoadMore = useCallback(async () => {
+    if (!hasNextPage || isFetchingNextPage) return;
+    pendingPrependBaseCountRef.current = photos.length;
+    await fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, photos.length, fetchNextPage]);
 
   if (!activeChild) {
     return (
@@ -540,6 +570,20 @@ export default function DailyPhotos() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {hasNextPage && (
+              <div className="flex justify-center pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleLoadMore}
+                  disabled={isFetchingNextPage}
+                  data-testid="button-load-more-daily-photos"
+                >
+                  {isFetchingNextPage ? "Carregando..." : "Carregar fotos antigas"}
+                </Button>
               </div>
             )}
           </div>
