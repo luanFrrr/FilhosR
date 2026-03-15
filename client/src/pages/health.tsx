@@ -426,6 +426,9 @@ export default function Health() {
                 data={activeChartTab === "weight" ? weightData : heightData}
                 color={activeChartTab === "weight" ? "#3b82f6" : "#10b981"}
                 unit={activeChartTab === "weight" ? "kg" : "cm"}
+                birthDate={activeChild?.birthDate}
+                gender={activeChild?.gender}
+                metric={activeChartTab}
               />
             </div>
 

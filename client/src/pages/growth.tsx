@@ -257,6 +257,9 @@ export default function Growth() {
             data={activeTab === "weight" ? weightData : heightData}
             color={activeTab === "weight" ? "#3b82f6" : "#10b981"}
             unit={activeTab === "weight" ? "kg" : "cm"}
+            birthDate={activeChild?.birthDate}
+            gender={activeChild?.gender}
+            metric={activeTab}
           />
         </div>
 

@@ -17,7 +17,7 @@ Preferred communication style: Simple, everyday language.
 - **UI Components**: Shadcn/ui component library built on Radix UI primitives
 - **Styling**: Tailwind CSS with CSS variables for theming (supports neutral, pink, and blue themes per child)
 - **Animations**: Framer Motion for smooth mobile-like transitions
-- **Charts**: Recharts for growth visualization
+- **Charts**: Recharts for growth visualization with WHO percentile curves (P3, P15, P50, P85, P97) for weight-for-age and height-for-age (0-60 months, boys & girls). Reference data in `client/src/lib/who-growth-data.ts`.
 - **Forms**: React Hook Form with Zod validation
 
 ### Backend Architecture
