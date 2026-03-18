@@ -60,17 +60,13 @@ import {
 import { useForm, Controller } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation, useSearch } from "wouter";
-import { compressImage, getTransformedImageUrl } from "@/lib/imageUtils";
 import { cn, parseLocalDate } from "@/lib/utils";
-import { PhotoPicker } from "@/components/ui/photo-picker";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   getPendingVaccines,
   getPendingDosesByVaccine,
 } from "@/lib/vaccineCheck";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
-import { useUpload } from "@/hooks/use-upload";
-import { LazyImage } from "@/components/ui/lazy-image";
 
 const encouragingMessages = [
   "Cada vacina é um abraço de proteção!",
@@ -119,10 +115,6 @@ export default function VaccineCard() {
   const [recordToDelete, setRecordToDelete] = useState<VaccineRecord | null>(
     null,
   );
-  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
-  const { upload, isUploading: isUploadingToStorage } = useUpload();
-  const [isUploading, setIsUploading] = useState(false);
   const [selectedVaccine, setSelectedVaccine] = useState<SusVaccine | null>(
     null,
   );
@@ -187,34 +179,12 @@ export default function VaccineCard() {
         applicationPlace: editingRecord.applicationPlace || "",
         notes: editingRecord.notes || "",
       });
-      setPhotoUrls(editingRecord.photoUrls || []);
       const vaccine = susVaccines?.find(
         (v) => v.id === editingRecord.susVaccineId,
       );
       setSelectedVaccine(vaccine || null);
     }
   }, [editingRecord, formMode, susVaccines, form]);
-
-  const handleImageFile = async (file: File) => {
-    if (file.size > 15 * 1024 * 1024) {
-      toast({
-        title: "Imagem muito grande",
-        description: "Escolha uma imagem menor que 15MB",
-        variant: "destructive",
-      });
-      return;
-    }
-    // Adicionamos o arquivo para upload posterior (evita crash de base64 em memória)
-    setNewPhotoFiles((prev) => [...prev, file]);
-  };
-
-  const removePhoto = (index: number, isNew: boolean) => {
-    if (isNew) {
-      setNewPhotoFiles((prev) => prev.filter((_, i) => i !== index));
-    } else {
-      setPhotoUrls((prev) => prev.filter((_, i) => i !== index));
-    }
-  };
 
   const openCreateForm = () => {
     setFormMode("create");
@@ -226,8 +196,6 @@ export default function VaccineCard() {
       applicationPlace: "",
       notes: "",
     });
-    setPhotoUrls([]);
-    setNewPhotoFiles([]);
     setSelectedVaccine(null);
     setBatchMode(false);
     setBatchDoses("2");
@@ -238,8 +206,6 @@ export default function VaccineCard() {
     setFormMode("edit");
     setEditingRecord(record);
     setDetailRecord(null);
-    // Limpamos arquivos novos ao abrir edição para não misturar com o que já foi salvo
-    setNewPhotoFiles([]);
     setFormOpen(true);
   };
 
@@ -274,37 +240,14 @@ export default function VaccineCard() {
   const onSubmit = async (data: any) => {
     if (!activeChild) return;
 
-    setIsUploading(true);
     try {
-      let currentPhotos = [...photoUrls];
-
-      // Upload das novas fotos para o Supabase
-      if (newPhotoFiles.length > 0) {
-        const uploadedUrls = await Promise.all(
-          newPhotoFiles.map((file) =>
-            upload(file, {
-              bucket: "vaccine-photos",
-              path: `${activeChild.id}/vaccine-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`,
-              maxSize: 1200,
-              quality: 0.8,
-            }),
-          ),
-        );
-        currentPhotos = [
-          ...currentPhotos,
-          ...uploadedUrls.filter((url): url is string => !!url),
-        ];
-      }
-
       if (formMode === "edit" && editingRecord) {
-        // Modo edição — igual ao anterior
         const payload = {
           susVaccineId: parseInt(data.susVaccineId),
           dose: data.dose,
           applicationDate: data.applicationDate,
           applicationPlace: data.applicationPlace || null,
           notes: data.notes || null,
-          photoUrls: currentPhotos.length > 0 ? currentPhotos : null,
         };
         if (payload.applicationDate?.includes("T")) {
           payload.applicationDate = payload.applicationDate.split("T")[0];
@@ -315,8 +258,6 @@ export default function VaccineCard() {
             onSuccess: () => {
               setFormOpen(false);
               form.reset();
-              setPhotoUrls([]);
-              setNewPhotoFiles([]);
               setSelectedVaccine(null);
               setEditingRecord(null);
               toast({ title: "Vacina atualizada!" });
@@ -326,7 +267,6 @@ export default function VaccineCard() {
           },
         );
       } else if (batchMode) {
-        // Modo batch — criar N doses pendentes sem data de aplicação
         const count = parseInt(batchDoses);
         const susVaccineId = parseInt(data.susVaccineId);
         const vaccineName = selectedVaccine?.name || "Vacina";
@@ -339,7 +279,6 @@ export default function VaccineCard() {
             dose: DOSE_LABELS[i] ?? `${i + 1}ª dose`,
             applicationDate: null as any,
             notes: null,
-            photoUrls: null,
           }),
         );
 
@@ -349,9 +288,8 @@ export default function VaccineCard() {
           if (result.status === "fulfilled") {
             created++;
           } else if (!result.reason?.message?.includes("já foi registrada")) {
-            throw result.reason; // erro inesperado — relança
+            throw result.reason;
           }
-          // duplicata → ignora silenciosamente
         }
 
         setFormOpen(false);
@@ -363,14 +301,12 @@ export default function VaccineCard() {
         );
         setShowCelebration(true);
       } else {
-        // Modo criação simples — usa mutateAsync para estar dentro do try/catch
         const payload = {
           susVaccineId: parseInt(data.susVaccineId),
           dose: data.dose,
           applicationDate: data.applicationDate,
           applicationPlace: data.applicationPlace || null,
           notes: data.notes || null,
-          photoUrls: currentPhotos.length > 0 ? currentPhotos : null,
         };
         if (payload.applicationDate?.includes("T")) {
           payload.applicationDate = payload.applicationDate.split("T")[0];
@@ -379,8 +315,6 @@ export default function VaccineCard() {
         await createRecord.mutateAsync({ childId: activeChild.id, ...payload });
         setFormOpen(false);
         form.reset();
-        setPhotoUrls([]);
-        setNewPhotoFiles([]);
         setSelectedVaccine(null);
         setCelebrationVaccine(vaccineName);
         setShowCelebration(true);
@@ -391,8 +325,6 @@ export default function VaccineCard() {
         description: error.message || "Não foi possível concluir o registro.",
         variant: "destructive",
       });
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -601,11 +533,7 @@ export default function VaccineCard() {
                                   </span>
                                 )}
                               </span>
-                              {record.photoUrls &&
-                                record.photoUrls.length > 0 && (
-                                  <Camera className="w-3 h-3 text-muted-foreground ml-auto" />
-                                )}
-                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                              <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
                             </button>
                           ))}
                         </div>
@@ -638,8 +566,6 @@ export default function VaccineCard() {
           setFormOpen(isOpen);
           if (!isOpen) {
             form.reset();
-            setPhotoUrls([]);
-            setNewPhotoFiles([]);
             setSelectedVaccine(null);
             setEditingRecord(null);
             setBatchMode(false);
@@ -819,100 +745,19 @@ export default function VaccineCard() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Fotos do comprovante (opcional)</Label>
-
-              {(photoUrls.length > 0 || newPhotoFiles.length > 0) && (
-                <div className="flex gap-2 flex-wrap">
-                  {/* Fotos já salvas (URLs) */}
-                  {photoUrls.map((url, index) => (
-                    <div key={`saved-${index}`} className="relative">
-                      <img
-                        src={getTransformedImageUrl(url, {
-                          width: 150,
-                          resize: "cover",
-                        })}
-                        alt={`Foto salva ${index + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border shadow-sm"
-                        loading="lazy"
-                      />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="destructive"
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                        onClick={() => removePhoto(index, false)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
-
-                  {/* Novas fotos selecionadas (Files) */}
-                  {newPhotoFiles.map((file, index) => (
-                    <div key={`new-${index}`} className="relative">
-                      <div className="w-20 h-20 rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
-                        <img
-                          src={URL.createObjectURL(file)}
-                          alt={`Nova foto ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                          <Plus className="w-4 h-4 text-white" />
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="destructive"
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                        onClick={() => removePhoto(index, true)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <PhotoPicker onPhotoSelected={handleImageFile}>
-                {(openPicker) => (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-12 border-dashed border-2 hover:bg-muted/50"
-                    onClick={openPicker}
-                    disabled={isUploading || isUploadingToStorage}
-                    data-testid="button-add-photo"
-                  >
-                    <Camera className="w-4 h-4 mr-2" />
-                    {isUploading
-                      ? "Enviando..."
-                      : "Adicionar foto do comprovante"}
-                  </Button>
-                )}
-              </PhotoPicker>
-              <p className="text-[10px] text-muted-foreground text-center">
-                Dica: Você pode adicionar várias fotos do cartão de vacinação.
-              </p>
-            </div>
-
             <Button
               type="submit"
               className="w-full"
-              disabled={isPending || isUploading || isUploadingToStorage}
+              disabled={isPending}
               data-testid="button-save-vaccine"
             >
-              {isUploading || isUploadingToStorage
-                ? "Enviando fotos..."
-                : isPending
-                  ? "Salvando..."
-                  : formMode === "edit"
-                    ? "Salvar Alterações"
-                    : batchMode
-                      ? "Criar Doses"
-                      : "Registrar Vacina"}
+              {isPending
+                ? "Salvando..."
+                : formMode === "edit"
+                  ? "Salvar Alterações"
+                  : batchMode
+                    ? "Criar Doses"
+                    : "Registrar Vacina"}
             </Button>
           </form>
         </DialogContent>
@@ -974,36 +819,6 @@ export default function VaccineCard() {
                     </div>
                   )}
                 </div>
-
-                {detailRecord.photoUrls &&
-                  detailRecord.photoUrls.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Image className="w-4 h-4" />
-                        <span>Fotos do comprovante</span>
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        {detailRecord.photoUrls.map((url, index) => (
-                          <a
-                            key={index}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block"
-                          >
-                            <LazyImage
-                              src={getTransformedImageUrl(url, {
-                                width: 400,
-                                resize: "cover",
-                              })}
-                              alt={`Comprovante ${index + 1}`}
-                              className="w-24 h-24 rounded-lg border hover:opacity-80 transition-opacity"
-                            />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                 <div className="flex gap-2 pt-2">
                   <Button

@@ -253,7 +253,6 @@ export const vaccineRecords = pgTable(
     applicationDate: date("application_date"), // nullable = dose pendente (ainda não aplicada)
     applicationPlace: text("application_place"),
     notes: text("notes"),
-    photoUrls: text("photo_urls").array(),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({

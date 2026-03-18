@@ -33,7 +33,7 @@ import {
   deleteFileFromStorage,
   type UploadBucket,
 } from "./supabaseStorage";
-import { medicalRecords } from "@shared/schema";
+import { medicalRecords, type InsertMedicalRecord } from "@shared/schema";
 import rateLimit from "express-rate-limit";
 import { recordPoints } from "./gamificationHelper";
 
@@ -313,12 +313,10 @@ export async function registerRoutes(
     }
 
     const vaccineRows = await db
-      .select({ photoUrls: vaccineRecords.photoUrls })
+      .select({ id: vaccineRecords.id })
       .from(vaccineRecords)
       .where(drizzleEq(vaccineRecords.childId, id));
-    for (const r of vaccineRows) {
-      if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls);
-    }
+    // Sem fotos para remover no Storage para vacinas
 
     const medicalRows = await db
       .select({ filePath: medicalRecords.filePath })
@@ -1577,15 +1575,6 @@ export async function registerRoutes(
       const input = api.vaccineRecords.update.input.parse(req.body);
       const record = await storage.updateVaccineRecord(id, input);
 
-      if ("photoUrls" in input && existing.photoUrls?.length) {
-        const newSet = new Set(input.photoUrls || []);
-        for (const oldUrl of existing.photoUrls) {
-          if (!newSet.has(oldUrl)) {
-            deleteFromStorage(oldUrl).catch(() => {});
-          }
-        }
-      }
-
       res.json(record);
     },
   );
@@ -1619,12 +1608,6 @@ export async function registerRoutes(
           id,
         );
       });
-
-      if (existing.photoUrls?.length) {
-        for (const url of existing.photoUrls) {
-          deleteFromStorage(url).catch(() => {});
-        }
-      }
 
       res.status(204).end();
     },
