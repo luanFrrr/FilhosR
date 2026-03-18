@@ -216,12 +216,26 @@ export default function Dashboard() {
 
   // Calculations
   const birthDate = parseLocalDate(activeChild.birthDate);
-  const age = formatDistanceToNow(birthDate, {
-    locale: ptBR,
-    addSuffix: false,
-  });
   const months = differenceInMonths(new Date(), birthDate);
   const totalDays = differenceInDays(new Date(), birthDate);
+
+  const getExactAge = () => {
+    if (months < 1) {
+      if (totalDays === 0) return "Menos de 1 dia";
+      return `${totalDays} dia${totalDays !== 1 ? "s" : ""}`;
+    }
+    if (months < 12) {
+      return `${months} mês${months !== 1 ? "es" : ""}`;
+    }
+    const years = Math.floor(months / 12);
+    const extraMonths = months % 12;
+    if (extraMonths === 0) {
+      return `${years} ano${years !== 1 ? "s" : ""}`;
+    }
+    return `${years} ano${years !== 1 ? "s" : ""} e ${extraMonths} mês${extraMonths !== 1 ? "es" : ""}`;
+  };
+
+  const age = getExactAge();
 
   // Emotional age subtitle
   const getAgeSubtitle = () => {
