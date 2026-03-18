@@ -824,7 +824,7 @@ export async function registerRoutes(
       }
 
       try {
-        const { type, title, description, examDate, fileBase64, fileMimeType, fileName } = req.body;
+        const { type, title, description, examDate, fileBase64, fileMimeType, fileName, removeFile } = req.body;
 
         const updates: Partial<InsertMedicalRecord> = {};
         if (type) updates.type = type;
@@ -832,7 +832,12 @@ export async function registerRoutes(
         if (description !== undefined) updates.description = description || null;
         if (examDate) updates.examDate = examDate;
 
-        if (fileBase64 && fileMimeType && fileName) {
+        if (removeFile && !fileBase64) {
+          if (existing.filePath) {
+            await deleteFileFromStorage("health-files", existing.filePath).catch(console.error);
+          }
+          updates.filePath = null;
+        } else if (fileBase64 && fileMimeType && fileName) {
           const allowedMimes = [
             "application/pdf",
             "image/jpeg",

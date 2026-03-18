@@ -89,6 +89,7 @@ export function MedicalTimeline() {
   const [formDescription, setFormDescription] = useState("");
   const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
   const [formFile, setFormFile] = useState<File | null>(null);
+  const [removeExistingFile, setRemoveExistingFile] = useState(false);
 
   const resetForm = () => {
     setFormType("consulta");
@@ -96,6 +97,7 @@ export function MedicalTimeline() {
     setFormDescription("");
     setFormDate(new Date().toISOString().split("T")[0]);
     setFormFile(null);
+    setRemoveExistingFile(false);
     setEditingRecord(null);
   };
 
@@ -106,6 +108,7 @@ export function MedicalTimeline() {
     setFormDescription(record.description || "");
     setFormDate(parseLocalDate(record.examDate).toISOString().split("T")[0]);
     setFormFile(null);
+    setRemoveExistingFile(false);
     setOpen(true);
   };
 
@@ -156,6 +159,7 @@ export function MedicalTimeline() {
           fileBase64,
           fileMimeType,
           fileName,
+          removeFile: removeExistingFile && !formFile ? true : undefined,
         },
         {
           onSuccess: () => {
@@ -335,38 +339,105 @@ export function MedicalTimeline() {
                     Arquivo{" "}
                     <span className="text-muted-foreground text-xs">(PDF ou imagem, máx 10MB)</span>
                   </Label>
-                  <div className="flex items-center gap-2">
-                    <label
-                      className={cn(
-                        "flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
-                        formFile
-                          ? "border-primary bg-primary/5"
-                          : "border-muted hover:border-primary/50",
-                      )}
-                    >
-                      <Paperclip className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground truncate">
-                        {formFile ? formFile.name : "Escolher arquivo..."}
-                      </span>
+
+                  {editingRecord?.filePath && !removeExistingFile && !formFile && (
+                    <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-border bg-muted/30">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-foreground truncate">Arquivo atual anexado</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs h-7 px-2"
+                          data-testid="button-replace-file"
+                          onClick={() => {
+                            const input = document.getElementById("file-input-edit") as HTMLInputElement;
+                            input?.click();
+                          }}
+                        >
+                          Substituir
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          data-testid="button-remove-file"
+                          onClick={() => setRemoveExistingFile(true)}
+                          title="Remover arquivo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                       <input
+                        id="file-input-edit"
                         type="file"
                         accept="application/pdf,image/jpeg,image/png,image/webp"
                         className="hidden"
-                        data-testid="input-file"
-                        onChange={(e) => setFormFile(e.target.files?.[0] || null)}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null;
+                          if (f) { setFormFile(f); setRemoveExistingFile(false); }
+                        }}
                       />
-                    </label>
-                    {formFile && (
+                    </div>
+                  )}
+
+                  {removeExistingFile && !formFile && (
+                    <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-dashed border-destructive/30 bg-destructive/5">
+                      <span className="text-sm text-muted-foreground">Arquivo será removido ao salvar</span>
                       <Button
                         type="button"
-                        size="icon"
+                        size="sm"
                         variant="ghost"
-                        onClick={() => setFormFile(null)}
+                        className="text-xs h-7"
+                        onClick={() => setRemoveExistingFile(false)}
                       >
-                        <X className="w-4 h-4" />
+                        Desfazer
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {(!editingRecord?.filePath || removeExistingFile || formFile) && (
+                    <div className="flex items-center gap-2">
+                      <label
+                        className={cn(
+                          "flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
+                          formFile
+                            ? "border-primary bg-primary/5"
+                            : "border-muted hover:border-primary/50",
+                        )}
+                      >
+                        <Paperclip className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground truncate">
+                          {formFile ? formFile.name : (removeExistingFile ? "Anexar novo arquivo..." : "Escolher arquivo...")}
+                        </span>
+                        <input
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          data-testid="input-file"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] || null;
+                            if (f) setRemoveExistingFile(false);
+                            setFormFile(f);
+                          }}
+                        />
+                      </label>
+                      {formFile && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setFormFile(null)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <Button
                   type="submit"

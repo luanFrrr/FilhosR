@@ -66,7 +66,8 @@ export function useCreateMedicalRecord() {
 
 interface UpdateMedicalRecordInput extends Partial<CreateMedicalRecordInput> {
   id: number;
-  childId: number; 
+  childId: number;
+  removeFile?: boolean;
 }
 
 export function useUpdateMedicalRecord() {
@@ -77,7 +78,9 @@ export function useUpdateMedicalRecord() {
       if (input.title) payload.title = input.title;
       if (input.description !== undefined) payload.description = input.description;
       if (input.examDate) payload.examDate = input.examDate;
-      if (input.fileBase64) {
+      if (input.removeFile) {
+        payload.removeFile = true;
+      } else if (input.fileBase64) {
         payload.fileBase64 = input.fileBase64;
         payload.fileMimeType = input.fileMimeType;
         payload.fileName = input.fileName;
