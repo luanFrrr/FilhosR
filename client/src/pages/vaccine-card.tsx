@@ -441,7 +441,7 @@ export default function VaccineCard() {
   if (!activeChild) {
     return (
       <div className="min-h-screen bg-background pb-24">
-        <Header title="Carteira Vacinal" showChildSelector={false} />
+        <Header title="Carteira Vacinal" showChildSelector={false} showBackButton />
         <div className="flex items-center justify-center p-6 text-center">
           <p className="text-muted-foreground">
             Selecione uma criança para ver a carteira vacinal.
@@ -453,7 +453,7 @@ export default function VaccineCard() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <Header title="Carteira Vacinal" showChildSelector={false} />
+      <Header title="Carteira Vacinal" showChildSelector={false} showBackButton />
 
       <main className="max-w-md mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">

@@ -374,7 +374,7 @@ export default function Health() {
       <Header title="Saúde" showChildSelector={false} />
 
       <main className="max-w-md mx-auto px-4 py-6">
-        <Tabs defaultValue={tabParam} className="w-full">
+        <Tabs value={tabParam} onValueChange={(v) => setLocation(`/health?tab=${v}`, { replace: true })} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
             <TabsTrigger
               value="growth"

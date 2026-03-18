@@ -2,7 +2,7 @@ import { useChildContext } from "@/hooks/use-child-context";
 import { useChildren } from "@/hooks/use-children";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Baby, ChevronDown } from "lucide-react";
+import { Baby, ChevronDown, ChevronLeft } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,15 +19,24 @@ import { NotificationInbox } from "@/components/notifications/NotificationInbox"
 export function Header({
   title,
   showChildSelector = true,
+  showBackButton = false,
+  onBack,
 }: {
   title?: string;
   showChildSelector?: boolean;
+  showBackButton?: boolean;
+  onBack?: () => void;
 }) {
   const { activeChild, setActiveChildId } = useChildContext();
   const { data: children } = useChildren();
 
   const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
   const displayDate = today.charAt(0).toUpperCase() + today.slice(1);
+
+  const handleBack = () => {
+    if (onBack) onBack();
+    else window.history.back();
+  };
 
   return (
     <header
@@ -125,9 +134,19 @@ export function Header({
             </DropdownMenu>
           </div>
         ) : (
-          <h1 className="text-xl font-display font-bold text-foreground">
-            {title}
-          </h1>
+          <div className="flex items-center gap-2">
+            {showBackButton && (
+              <button
+                onClick={handleBack}
+                className="p-1 -ml-1 rounded-full hover:bg-muted/50 transition-colors"
+              >
+                <ChevronLeft className="w-6 h-6 text-foreground" />
+              </button>
+            )}
+            <h1 className="text-xl font-display font-bold text-foreground">
+              {title}
+            </h1>
+          </div>
         )}
         <NotificationInbox />
       </div>
