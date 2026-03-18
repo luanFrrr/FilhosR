@@ -735,6 +735,9 @@ export async function registerRoutes(
         const filePaths: string[] = [];
 
         if (Array.isArray(files) && files.length > 0) {
+          if (files.length > 5) {
+            return res.status(400).json({ message: "Máximo de 5 arquivos por registro" });
+          }
           const allowedMimes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 
           for (const file of files) {
@@ -838,6 +841,9 @@ export async function registerRoutes(
         }
 
         if (Array.isArray(newFiles) && newFiles.length > 0) {
+          if (currentPaths.length + newFiles.length > 5) {
+            return res.status(400).json({ message: "Máximo de 5 arquivos por registro" });
+          }
           const allowedMimes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
           for (const file of newFiles) {
             if (!file.fileBase64 || !file.fileMimeType || !file.fileName) continue;
