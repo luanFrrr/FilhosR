@@ -3,6 +3,7 @@ import { useChildContext } from "@/hooks/use-child-context";
 import {
   useMedicalRecords,
   useCreateMedicalRecord,
+  useUpdateMedicalRecord,
   useDeleteMedicalRecord,
   getMedicalFileUrl,
 } from "@/hooks/use-medical-records";
@@ -43,6 +44,7 @@ import {
   Paperclip,
   ExternalLink,
   Trash2,
+  Pencil,
   Loader2,
   X,
   ChevronDown,
@@ -73,11 +75,13 @@ export function MedicalTimeline() {
   } = useMedicalRecords(activeChild?.id || 0, filters);
 
   const createRecord = useCreateMedicalRecord();
+  const updateRecord = useUpdateMedicalRecord();
   const deleteRecord = useDeleteMedicalRecord();
 
   const [open, setOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [editingRecord, setEditingRecord] = useState<MedicalRecord | null>(null);
   const [loadingFileId, setLoadingFileId] = useState<number | null>(null);
 
   const [formType, setFormType] = useState<string>("consulta");
@@ -92,6 +96,17 @@ export function MedicalTimeline() {
     setFormDescription("");
     setFormDate(new Date().toISOString().split("T")[0]);
     setFormFile(null);
+    setEditingRecord(null);
+  };
+
+  const handleEdit = (record: MedicalRecord) => {
+    setEditingRecord(record);
+    setFormType(record.type);
+    setFormTitle(record.title);
+    setFormDescription(record.description || "");
+    setFormDate(parseLocalDate(record.examDate).toISOString().split("T")[0]);
+    setFormFile(null);
+    setOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,31 +144,60 @@ export function MedicalTimeline() {
       fileName = formFile.name;
     }
 
-    createRecord.mutate(
-      {
-        childId: activeChild.id,
-        type: formType,
-        title: formTitle,
-        description: formDescription || undefined,
-        examDate: formDate,
-        fileBase64,
-        fileMimeType,
-        fileName,
-      },
-      {
-        onSuccess: () => {
-          setOpen(false);
-          resetForm();
-          toast({
-            title: "Registro salvo!",
-            className: "bg-green-500 text-white border-none",
-          });
+    if (editingRecord) {
+      updateRecord.mutate(
+        {
+          id: editingRecord.id,
+          childId: activeChild.id,
+          type: formType,
+          title: formTitle,
+          description: formDescription || undefined,
+          examDate: formDate,
+          fileBase64,
+          fileMimeType,
+          fileName,
         },
-        onError: () => {
-          toast({ title: "Erro ao salvar", variant: "destructive" });
+        {
+          onSuccess: () => {
+            setOpen(false);
+            resetForm();
+            toast({
+              title: "Registro atualizado!",
+              className: "bg-green-500 text-white border-none",
+            });
+          },
+          onError: () => {
+             toast({ title: "Erro ao atualizar", variant: "destructive" });
+          },
+        }
+      );
+    } else {
+      createRecord.mutate(
+        {
+          childId: activeChild.id,
+          type: formType,
+          title: formTitle,
+          description: formDescription || undefined,
+          examDate: formDate,
+          fileBase64,
+          fileMimeType,
+          fileName,
         },
-      },
-    );
+        {
+          onSuccess: () => {
+            setOpen(false);
+            resetForm();
+            toast({
+              title: "Registro salvo!",
+              className: "bg-green-500 text-white border-none",
+            });
+          },
+          onError: () => {
+            toast({ title: "Erro ao salvar", variant: "destructive" });
+          },
+        },
+      );
+    }
   };
 
   const handleViewFile = async (record: MedicalRecord) => {
@@ -233,9 +277,9 @@ export function MedicalTimeline() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Novo Registro Médico</DialogTitle>
+                <DialogTitle>{editingRecord ? "Editar Registro" : "Novo Registro Médico"}</DialogTitle>
                 <DialogDescription>
-                  Registre uma consulta ou exame.
+                  {editingRecord ? "Modifique as informações do registro." : "Registre uma consulta ou exame."}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 pt-4">
@@ -328,9 +372,9 @@ export function MedicalTimeline() {
                   type="submit"
                   data-testid="button-save-medical"
                   className="w-full btn-primary"
-                  disabled={createRecord.isPending || !formTitle || !formDate}
+                  disabled={createRecord.isPending || updateRecord.isPending || !formTitle || !formDate}
                 >
-                  {createRecord.isPending ? "Salvando..." : "Salvar Registro"}
+                  {createRecord.isPending || updateRecord.isPending ? "Salvando..." : "Salvar Registro"}
                 </Button>
               </form>
             </DialogContent>
@@ -408,8 +452,18 @@ export function MedicalTimeline() {
                       <Button
                         size="icon"
                         variant="ghost"
+                        onClick={() => handleEdit(record)}
+                        data-testid={`button-edit-medical-${record.id}`}
+                        title="Editar registro"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
                         onClick={() => handleDelete(record)}
                         data-testid={`button-delete-medical-${record.id}`}
+                        title="Excluir registro"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

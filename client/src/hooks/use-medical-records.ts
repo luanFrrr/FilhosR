@@ -64,6 +64,40 @@ export function useCreateMedicalRecord() {
   });
 }
 
+interface UpdateMedicalRecordInput extends Partial<CreateMedicalRecordInput> {
+  id: number;
+  childId: number; 
+}
+
+export function useUpdateMedicalRecord() {
+  return useMutation({
+    mutationFn: async (input: UpdateMedicalRecordInput) => {
+      const payload: Record<string, any> = {};
+      if (input.type) payload.type = input.type;
+      if (input.title) payload.title = input.title;
+      if (input.description !== undefined) payload.description = input.description;
+      if (input.examDate) payload.examDate = input.examDate;
+      if (input.fileBase64) {
+        payload.fileBase64 = input.fileBase64;
+        payload.fileMimeType = input.fileMimeType;
+        payload.fileName = input.fileName;
+      }
+
+      const res = await apiRequest(
+        "PATCH",
+        `/api/medical-records/${input.id}`,
+        payload,
+      );
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/children", variables.childId, "medical-records"],
+      });
+    },
+  });
+}
+
 export function useDeleteMedicalRecord() {
   return useMutation({
     mutationFn: async ({ id, childId }: { id: number; childId: number }) => {

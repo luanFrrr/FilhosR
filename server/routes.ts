@@ -808,6 +808,72 @@ export async function registerRoutes(
     },
   );
 
+  app.patch(
+    api.medicalRecords.update.path,
+    isAuthenticated,
+    uploadLimiter,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const id = Number(req.params.id);
+      const existing = await storage.getMedicalRecordById(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Registro não encontrado" });
+      }
+      if (!(await hasChildAccess(userId, existing.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      try {
+        const { type, title, description, examDate, fileBase64, fileMimeType, fileName } = req.body;
+
+        const updates: Partial<InsertMedicalRecord> = {};
+        if (type) updates.type = type;
+        if (title) updates.title = title;
+        if (description !== undefined) updates.description = description || null;
+        if (examDate) updates.examDate = examDate;
+
+        if (fileBase64 && fileMimeType && fileName) {
+          const allowedMimes = [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+          ];
+          if (!allowedMimes.includes(fileMimeType)) {
+            return res.status(400).json({
+              message: "Tipo de arquivo não permitido. Use PDF ou imagens.",
+            });
+          }
+
+          const buffer = Buffer.from(fileBase64, "base64");
+          if (buffer.length > 10 * 1024 * 1024) {
+            return res.status(400).json({ message: "Arquivo muito grande (máx 10MB)" });
+          }
+
+          const ext = fileName.split(".").pop() || "bin";
+          const safeName = `${Date.now()}.${ext}`;
+          const storagePath = `${existing.childId}/${safeName}`;
+
+          await uploadFileBuffer("health-files", storagePath, buffer, fileMimeType);
+          
+          if (existing.filePath) {
+            await deleteFileFromStorage("health-files", existing.filePath).catch(console.error);
+          }
+          
+          updates.filePath = storagePath;
+        }
+
+        const record = await storage.updateMedicalRecord(id, updates);
+        res.json(record);
+      } catch (err: any) {
+        console.error("Error updating medical record:", err);
+        res.status(500).json({ message: "Erro ao atualizar registro" });
+      }
+    },
+  );
+
   app.get(
     api.medicalRecords.getFileUrl.path,
     isAuthenticated,

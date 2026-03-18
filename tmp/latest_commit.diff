@@ -1,0 +1,886 @@
+commit 03eafda0918c41c6fdb7c287e3a095e9f53b496a
+Author: Luan-FerreiraFe <20233503-Luan-FerreiraFe@users.noreply.replit.com>
+Date:   Wed Mar 18 15:41:53 2026 +0000
+
+    Add date filtering and pagination to health and medical records
+    
+    Implement cursor-based pagination and date range filtering for health and medical records, improving data retrieval and user experience.
+    
+    Replit-Commit-Author: Agent
+    Replit-Commit-Session-Id: f548c33b-05ea-42aa-bf99-590e47b16454
+    Replit-Commit-Checkpoint-Type: full_checkpoint
+    Replit-Commit-Event-Id: 3e8417d4-4368-4a14-bb43-347dba1d71c2
+    Replit-Commit-Screenshot-Url: https://storage.googleapis.com/screenshot-production-us-central1/c376a60e-80d3-43a2-bfbc-358d249435c4/f548c33b-05ea-42aa-bf99-590e47b16454/bc8EDDW
+    Replit-Helium-Checkpoint-Created: true
+
+diff --git a/client/src/components/medical/medical-timeline.tsx b/client/src/components/medical/medical-timeline.tsx
+index 7135919..b79e4e2 100644
+--- a/client/src/components/medical/medical-timeline.tsx
++++ b/client/src/components/medical/medical-timeline.tsx
+@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+ import { Textarea } from "@/components/ui/textarea";
++import { DateRangeFilter } from "@/components/ui/date-range-filter";
+ import {
+   Dialog,
+   DialogContent,
+@@ -44,6 +45,7 @@ import {
+   Trash2,
+   Loader2,
+   X,
++  ChevronDown,
+ } from "lucide-react";
+ import { format } from "date-fns";
+ import { ptBR } from "date-fns/locale";
+@@ -53,10 +55,25 @@ import type { MedicalRecord } from "@shared/schema";
+ 
+ export function MedicalTimeline() {
+   const { activeChild } = useChildContext();
+-  const { data, isLoading } = useMedicalRecords(activeChild?.id || 0);
++  const { toast } = useToast();
++
++  const [filterStart, setFilterStart] = useState<string | undefined>();
++  const [filterEnd, setFilterEnd] = useState<string | undefined>();
++
++  const filters = filterStart || filterEnd
++    ? { startDate: filterStart, endDate: filterEnd }
++    : undefined;
++
++  const {
++    data,
++    isLoading,
++    fetchNextPage,
++    hasNextPage,
++    isFetchingNextPage,
++  } = useMedicalRecords(activeChild?.id || 0, filters);
++
+   const createRecord = useCreateMedicalRecord();
+   const deleteRecord = useDeleteMedicalRecord();
+-  const { toast } = useToast();
+ 
+   const [open, setOpen] = useState(false);
+   const [deleteOpen, setDeleteOpen] = useState(false);
+@@ -106,7 +123,7 @@ export function MedicalTimeline() {
+ 
+       const buffer = await formFile.arrayBuffer();
+       fileBase64 = btoa(
+-        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
++        new Uint8Array(buffer).reduce((d, byte) => d + String.fromCharCode(byte), ""),
+       );
+       fileMimeType = formFile.type;
+       fileName = formFile.name;
+@@ -177,7 +194,7 @@ export function MedicalTimeline() {
+     );
+   };
+ 
+-  const records = data?.data || [];
++  const records = data?.pages.flatMap((p) => p.data) || [];
+ 
+   const groupedByMonth: Record<string, MedicalRecord[]> = {};
+   records.forEach((r) => {
+@@ -196,129 +213,138 @@ export function MedicalTimeline() {
+ 
+   return (
+     <div className="space-y-6">
+-      <div className="flex justify-between items-center">
++      <div className="flex justify-between items-center gap-2">
+         <h3 className="font-display font-bold text-lg">Consultas e Exames</h3>
+-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+-          <DialogTrigger asChild>
+-            <Button
+-              size="sm"
+-              data-testid="button-new-medical"
+-              className="bg-primary text-white rounded-full px-4 gap-2 hover:bg-primary/90"
+-            >
+-              <Plus className="w-4 h-4" /> Novo
+-            </Button>
+-          </DialogTrigger>
+-          <DialogContent className="sm:max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
+-            <DialogHeader>
+-              <DialogTitle>Novo Registro Médico</DialogTitle>
+-              <DialogDescription>
+-                Registre uma consulta ou exame.
+-              </DialogDescription>
+-            </DialogHeader>
+-            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+-              <div className="space-y-2">
+-                <Label>Tipo</Label>
+-                <Select value={formType} onValueChange={setFormType}>
+-                  <SelectTrigger data-testid="select-type" className="input-field">
+-                    <SelectValue />
+-                  </SelectTrigger>
+-                  <SelectContent>
+-                    <SelectItem value="consulta">Consulta</SelectItem>
+-                    <SelectItem value="exame">Exame</SelectItem>
+-                  </SelectContent>
+-                </Select>
+-              </div>
+-              <div className="space-y-2">
+-                <Label>Título</Label>
+-                <Input
+-                  value={formTitle}
+-                  onChange={(e) => setFormTitle(e.target.value)}
+-                  placeholder={formType === "consulta" ? "Ex: Pediatra - Dr. Silva" : "Ex: Hemograma completo"}
+-                  className="input-field"
+-                  data-testid="input-title"
+-                  required
+-                />
+-              </div>
+-              <div className="space-y-2">
+-                <Label>Data</Label>
+-                <Input
+-                  type="date"
+-                  value={formDate}
+-                  onChange={(e) => setFormDate(e.target.value)}
+-                  className="input-field"
+-                  data-testid="input-exam-date"
+-                  required
+-                />
+-              </div>
+-              <div className="space-y-2">
+-                <Label>
+-                  Descrição{" "}
+-                  <span className="text-muted-foreground text-xs">(Opcional)</span>
+-                </Label>
+-                <Textarea
+-                  value={formDescription}
+-                  onChange={(e) => setFormDescription(e.target.value)}
+-                  placeholder="Observações, diagnóstico, resultados..."
+-                  className="input-field min-h-[80px]"
+-                  data-testid="input-description"
+-                />
+-              </div>
+-              <div className="space-y-2">
+-                <Label>
+-                  Arquivo{" "}
+-                  <span className="text-muted-foreground text-xs">(PDF ou imagem, máx 10MB)</span>
+-                </Label>
+-                <div className="flex items-center gap-2">
+-                  <label
+-                    className={cn(
+-                      "flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
+-                      formFile
+-                        ? "border-primary bg-primary/5"
+-                        : "border-muted hover:border-primary/50",
+-                    )}
+-                  >
+-                    <Paperclip className="w-4 h-4 text-muted-foreground" />
+-                    <span className="text-sm text-muted-foreground truncate">
+-                      {formFile ? formFile.name : "Escolher arquivo..."}
+-                    </span>
+-                    <input
+-                      type="file"
+-                      accept="application/pdf,image/jpeg,image/png,image/webp"
+-                      className="hidden"
+-                      data-testid="input-file"
+-                      onChange={(e) => setFormFile(e.target.files?.[0] || null)}
+-                    />
+-                  </label>
+-                  {formFile && (
+-                    <Button
+-                      type="button"
+-                      size="icon"
+-                      variant="ghost"
+-                      onClick={() => setFormFile(null)}
+-                    >
+-                      <X className="w-4 h-4" />
+-                    </Button>
+-                  )}
+-                </div>
+-              </div>
++        <div className="flex items-center gap-2">
++          <DateRangeFilter
++            startDate={filterStart}
++            endDate={filterEnd}
++            onChange={(s, e) => { setFilterStart(s); setFilterEnd(e); }}
++          />
++          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
++            <DialogTrigger asChild>
+               <Button
+-                type="submit"
+-                data-testid="button-save-medical"
+-                className="w-full btn-primary"
+-                disabled={createRecord.isPending || !formTitle || !formDate}
++                size="sm"
++                data-testid="button-new-medical"
++                className="bg-primary text-white rounded-full px-4 gap-2 hover:bg-primary/90"
+               >
+-                {createRecord.isPending ? "Salvando..." : "Salvar Registro"}
++                <Plus className="w-4 h-4" /> Novo
+               </Button>
+-            </form>
+-          </DialogContent>
+-        </Dialog>
++            </DialogTrigger>
++            <DialogContent className="sm:max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
++              <DialogHeader>
++                <DialogTitle>Novo Registro Médico</DialogTitle>
++                <DialogDescription>
++                  Registre uma consulta ou exame.
++                </DialogDescription>
++              </DialogHeader>
++              <form onSubmit={handleSubmit} className="space-y-4 pt-4">
++                <div className="space-y-2">
++                  <Label>Tipo</Label>
++                  <Select value={formType} onValueChange={setFormType}>
++                    <SelectTrigger data-testid="select-type" className="input-field">
++                      <SelectValue />
++                    </SelectTrigger>
++                    <SelectContent>
++                      <SelectItem value="consulta">Consulta</SelectItem>
++                      <SelectItem value="exame">Exame</SelectItem>
++                    </SelectContent>
++                  </Select>
++                </div>
++                <div className="space-y-2">
++                  <Label>Título</Label>
++                  <Input
++                    value={formTitle}
++                    onChange={(e) => setFormTitle(e.target.value)}
++                    placeholder={formType === "consulta" ? "Ex: Pediatra - Dr. Silva" : "Ex: Hemograma completo"}
++                    className="input-field"
++                    data-testid="input-title"
++                    required
++                  />
++                </div>
++                <div className="space-y-2">
++                  <Label>Data</Label>
++                  <Input
++                    type="date"
++                    value={formDate}
++                    onChange={(e) => setFormDate(e.target.value)}
++                    className="input-field"
++                    data-testid="input-exam-date"
++                    required
++                  />
++                </div>
++                <div className="space-y-2">
++                  <Label>
++                    Descrição{" "}
++                    <span className="text-muted-foreground text-xs">(Opcional)</span>
++                  </Label>
++                  <Textarea
++                    value={formDescription}
++                    onChange={(e) => setFormDescription(e.target.value)}
++                    placeholder="Observações, diagnóstico, resultados..."
++                    className="input-field min-h-[80px]"
++                    data-testid="input-description"
++                  />
++                </div>
++                <div className="space-y-2">
++                  <Label>
++                    Arquivo{" "}
++                    <span className="text-muted-foreground text-xs">(PDF ou imagem, máx 10MB)</span>
++                  </Label>
++                  <div className="flex items-center gap-2">
++                    <label
++                      className={cn(
++                        "flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
++                        formFile
++                          ? "border-primary bg-primary/5"
++                          : "border-muted hover:border-primary/50",
++                      )}
++                    >
++                      <Paperclip className="w-4 h-4 text-muted-foreground" />
++                      <span className="text-sm text-muted-foreground truncate">
++                        {formFile ? formFile.name : "Escolher arquivo..."}
++                      </span>
++                      <input
++                        type="file"
++                        accept="application/pdf,image/jpeg,image/png,image/webp"
++                        className="hidden"
++                        data-testid="input-file"
++                        onChange={(e) => setFormFile(e.target.files?.[0] || null)}
++                      />
++                    </label>
++                    {formFile && (
++                      <Button
++                        type="button"
++                        size="icon"
++                        variant="ghost"
++                        onClick={() => setFormFile(null)}
++                      >
++                        <X className="w-4 h-4" />
++                      </Button>
++                    )}
++                  </div>
++                </div>
++                <Button
++                  type="submit"
++                  data-testid="button-save-medical"
++                  className="w-full btn-primary"
++                  disabled={createRecord.isPending || !formTitle || !formDate}
++                >
++                  {createRecord.isPending ? "Salvando..." : "Salvar Registro"}
++                </Button>
++              </form>
++            </DialogContent>
++          </Dialog>
++        </div>
+       </div>
+ 
+       {records.length === 0 && (
+         <div className="text-center py-12">
+           <Stethoscope className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+           <p className="text-muted-foreground">
+-            Nenhum registro ainda. Adicione consultas e exames para acompanhar o histórico médico.
++            {filters
++              ? "Nenhum registro encontrado nesse período."
++              : "Nenhum registro ainda. Adicione consultas e exames para acompanhar o histórico médico."}
+           </p>
+         </div>
+       )}
+@@ -402,6 +428,25 @@ export function MedicalTimeline() {
+         </div>
+       ))}
+ 
++      {hasNextPage && (
++        <div className="flex justify-center pt-2">
++          <Button
++            variant="ghost"
++            onClick={() => fetchNextPage()}
++            disabled={isFetchingNextPage}
++            data-testid="button-load-more-medical"
++            className="gap-2 text-muted-foreground"
++          >
++            {isFetchingNextPage ? (
++              <Loader2 className="w-4 h-4 animate-spin" />
++            ) : (
++              <ChevronDown className="w-4 h-4" />
++            )}
++            Carregar mais
++          </Button>
++        </div>
++      )}
++
+       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+         <AlertDialogContent>
+           <AlertDialogHeader>
+diff --git a/client/src/components/ui/date-range-filter.tsx b/client/src/components/ui/date-range-filter.tsx
+new file mode 100644
+index 0000000..6a8b03b
+--- /dev/null
++++ b/client/src/components/ui/date-range-filter.tsx
+@@ -0,0 +1,85 @@
++import { useState } from "react";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Filter, X } from "lucide-react";
++import { cn } from "@/lib/utils";
++
++interface DateRangeFilterProps {
++  startDate?: string;
++  endDate?: string;
++  onChange: (startDate?: string, endDate?: string) => void;
++}
++
++export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilterProps) {
++  const [open, setOpen] = useState(false);
++  const hasFilter = !!startDate || !!endDate;
++
++  const handleClear = () => {
++    onChange(undefined, undefined);
++    setOpen(false);
++  };
++
++  return (
++    <div className="relative">
++      <Button
++        variant="outline"
++        size="sm"
++        onClick={() => setOpen(!open)}
++        className={cn(
++          "gap-1.5 rounded-full text-xs",
++          hasFilter && "border-primary text-primary bg-primary/5",
++        )}
++        data-testid="button-date-filter"
++      >
++        <Filter className="w-3.5 h-3.5" />
++        {hasFilter ? "Filtrado" : "Período"}
++      </Button>
++      {open && (
++        <div className="absolute right-0 top-full mt-2 z-50 bg-card border border-border rounded-xl shadow-lg p-3 w-64 space-y-3">
++          <div className="space-y-1.5">
++            <label className="text-xs font-medium text-muted-foreground">De</label>
++            <Input
++              type="date"
++              value={startDate || ""}
++              onChange={(e) => onChange(e.target.value || undefined, endDate)}
++              className="h-9 text-sm"
++              data-testid="input-filter-start"
++            />
++          </div>
++          <div className="space-y-1.5">
++            <label className="text-xs font-medium text-muted-foreground">Até</label>
++            <Input
++              type="date"
++              value={endDate || ""}
++              onChange={(e) => onChange(startDate, e.target.value || undefined)}
++              className="h-9 text-sm"
++              data-testid="input-filter-end"
++            />
++          </div>
++          <div className="flex gap-2">
++            {hasFilter && (
++              <Button
++                variant="ghost"
++                size="sm"
++                onClick={handleClear}
++                className="flex-1 text-xs"
++                data-testid="button-clear-filter"
++              >
++                <X className="w-3 h-3 mr-1" /> Limpar
++              </Button>
++            )}
++            <Button
++              variant="default"
++              size="sm"
++              onClick={() => setOpen(false)}
++              className="flex-1 text-xs"
++              data-testid="button-apply-filter"
++            >
++              Aplicar
++            </Button>
++          </div>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/client/src/hooks/use-health.ts b/client/src/hooks/use-health.ts
+index b969fde..bdfeb27 100644
+--- a/client/src/hooks/use-health.ts
++++ b/client/src/hooks/use-health.ts
+@@ -1,6 +1,6 @@
+-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
++import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+ import { api, buildUrl } from "@shared/routes";
+-import type { InsertVaccine, InsertHealthRecord } from "@shared/schema";
++import type { InsertVaccine, InsertHealthRecord, HealthRecord } from "@shared/schema";
+ 
+ // --- VACCINES ---
+ 
+@@ -68,15 +68,26 @@ export function useUpdateVaccine() {
+ 
+ // --- HEALTH RECORDS ---
+ 
+-export function useHealthRecords(childId: number) {
+-  return useQuery({
+-    queryKey: [api.health.list.path, childId],
+-    queryFn: async () => {
+-      const url = buildUrl(api.health.list.path, { childId });
+-      const res = await fetch(url);
++export function useHealthRecords(
++  childId: number,
++  filters?: { startDate?: string; endDate?: string },
++) {
++  return useInfiniteQuery<{ data: HealthRecord[]; nextCursor: string | null }>({
++    queryKey: [api.health.list.path, childId, filters],
++    queryFn: async ({ pageParam }) => {
++      const params = new URLSearchParams();
++      if (pageParam) params.set("cursor", pageParam as string);
++      params.set("limit", "20");
++      if (filters?.startDate) params.set("startDate", filters.startDate);
++      if (filters?.endDate) params.set("endDate", filters.endDate);
++
++      const baseUrl = buildUrl(api.health.list.path, { childId });
++      const res = await fetch(`${baseUrl}?${params.toString()}`);
+       if (!res.ok) throw new Error("Failed to fetch health records");
+-      return api.health.list.responses[200].parse(await res.json());
++      return res.json();
+     },
++    initialPageParam: undefined as string | undefined,
++    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+     enabled: !!childId,
+   });
+ }
+@@ -95,7 +106,7 @@ export function useCreateHealthRecord() {
+         body: JSON.stringify(data),
+       });
+       if (!res.ok) throw new Error("Failed to create health record");
+-      return api.health.create.responses[201].parse(await res.json());
++      return res.json();
+     },
+     onSuccess: (_, variables) => {
+       queryClient.invalidateQueries({
+@@ -121,7 +132,7 @@ export function useUpdateHealthRecord() {
+         body: JSON.stringify(data),
+       });
+       if (!res.ok) throw new Error("Failed to update health record");
+-      return api.health.update.responses[200].parse(await res.json());
++      return res.json();
+     },
+     onSuccess: (_, variables) => {
+       queryClient.invalidateQueries({
+diff --git a/client/src/hooks/use-medical-records.ts b/client/src/hooks/use-medical-records.ts
+index d09385a..153eac6 100644
+--- a/client/src/hooks/use-medical-records.ts
++++ b/client/src/hooks/use-medical-records.ts
+@@ -1,17 +1,28 @@
+-import { useQuery, useMutation } from "@tanstack/react-query";
++import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+ import { queryClient, apiRequest } from "@/lib/queryClient";
+ import type { MedicalRecord } from "@shared/schema";
+ 
+-export function useMedicalRecords(childId: number) {
+-  return useQuery<{ data: MedicalRecord[]; nextCursor: string | null }>({
+-    queryKey: ["/api/children", childId, "medical-records"],
+-    queryFn: async () => {
+-      const res = await fetch(`/api/children/${childId}/medical-records`, {
++export function useMedicalRecords(
++  childId: number,
++  filters?: { startDate?: string; endDate?: string },
++) {
++  return useInfiniteQuery<{ data: MedicalRecord[]; nextCursor: string | null }>({
++    queryKey: ["/api/children", childId, "medical-records", filters],
++    queryFn: async ({ pageParam }) => {
++      const params = new URLSearchParams();
++      if (pageParam) params.set("cursor", pageParam as string);
++      params.set("limit", "20");
++      if (filters?.startDate) params.set("startDate", filters.startDate);
++      if (filters?.endDate) params.set("endDate", filters.endDate);
++
++      const res = await fetch(`/api/children/${childId}/medical-records?${params.toString()}`, {
+         credentials: "include",
+       });
+       if (!res.ok) throw new Error("Erro ao carregar registros");
+       return res.json();
+     },
++    initialPageParam: undefined as string | undefined,
++    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+     enabled: childId > 0,
+   });
+ }
+diff --git a/client/src/pages/health.tsx b/client/src/pages/health.tsx
+index d9c6280..4c7d617 100644
+--- a/client/src/pages/health.tsx
++++ b/client/src/pages/health.tsx
+@@ -52,6 +52,8 @@ import {
+   Ruler,
+   Archive,
+   Stethoscope,
++  Loader2,
++  ChevronDown,
+ } from "lucide-react";
+ import { format, formatDistanceToNow } from "date-fns";
+ import { ptBR } from "date-fns/locale";
+@@ -61,6 +63,7 @@ import { z } from "zod";
+ import { useToast } from "@/hooks/use-toast";
+ import { Link, useLocation, useSearch } from "wouter";
+ import { MedicalTimeline } from "@/components/medical/medical-timeline";
++import { DateRangeFilter } from "@/components/ui/date-range-filter";
+ import {
+   cn,
+   parseLocalDate,
+@@ -86,7 +89,17 @@ export default function Health() {
+   const tabParam = searchParams.get("tab") || "vaccines";
+   const idParam = searchParams.get("id");
+   const [, setLocation] = useLocation();
+-  const { data: sickRecords } = useHealthRecords(activeChild?.id || 0);
++  const [sickFilterStart, setSickFilterStart] = useState<string | undefined>();
++  const [sickFilterEnd, setSickFilterEnd] = useState<string | undefined>();
++  const sickFilters = sickFilterStart || sickFilterEnd
++    ? { startDate: sickFilterStart, endDate: sickFilterEnd }
++    : undefined;
++  const {
++    data: sickPages,
++    fetchNextPage: fetchNextSickPage,
++    hasNextPage: hasNextSickPage,
++    isFetchingNextPage: isFetchingNextSickPage,
++  } = useHealthRecords(activeChild?.id || 0, sickFilters);
+   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
+   const { data: growthRecords } = useGrowthRecords(activeChild?.id || 0);
+   const createSickRecord = useCreateHealthRecord();
+@@ -118,7 +131,7 @@ export default function Health() {
+   }, [idParam, tabParam, setLocation]);
+ 
+   useEffect(() => {
+-    if (highlightRecordId && (growthRecords || sickRecords)) {
++    if (highlightRecordId && (growthRecords || sickPages)) {
+       // Pequeno timeout pro DOM renderizar a tab correta se for necessário
+       const timeoutId = setTimeout(() => {
+         let prefix = "health-record";
+@@ -138,7 +151,7 @@ export default function Health() {
+       
+       return () => clearTimeout(timeoutId);
+     }
+-  }, [highlightRecordId, growthRecords, sickRecords, tabParam]);
++  }, [highlightRecordId, growthRecords, sickPages, tabParam]);
+ 
+   const sickForm = useForm({
+     defaultValues: {
+@@ -354,7 +367,7 @@ export default function Health() {
+       ?.filter((r) => r.height)
+       .map((r) => ({ date: r.date, value: Number(r.height) })) || [];
+ 
+-  const visibleRecords = sickRecords;
++  const visibleRecords = sickPages?.pages.flatMap((p) => p.data) || [];
+ 
+   return (
+     <div className="min-h-screen bg-background pb-24">
+@@ -665,14 +678,20 @@ export default function Health() {
+ 
+           {/* ===== DOENÇAS TAB ===== */}
+           <TabsContent value="history" className="space-y-4">
+-            <div className="flex justify-between items-center mb-4">
++            <div className="flex justify-between items-center gap-2 mb-4">
+               <h3 className="font-display font-bold">Histórico de Doenças</h3>
+-              <Dialog open={sickDialogOpen} onOpenChange={handleDialogClose}>
+-                <DialogTrigger asChild>
+-                  <Button data-testid="button-add-health-record">
+-                    + Registrar
+-                  </Button>
+-                </DialogTrigger>
++              <div className="flex items-center gap-2">
++                <DateRangeFilter
++                  startDate={sickFilterStart}
++                  endDate={sickFilterEnd}
++                  onChange={(s, e) => { setSickFilterStart(s); setSickFilterEnd(e); }}
++                />
++                <Dialog open={sickDialogOpen} onOpenChange={handleDialogClose}>
++                  <DialogTrigger asChild>
++                    <Button size="sm" className="rounded-full" data-testid="button-add-health-record">
++                      <Plus className="w-4 h-4 mr-1" /> Registrar
++                    </Button>
++                  </DialogTrigger>
+                 <DialogContent className="rounded-2xl max-w-sm mx-auto">
+                   <DialogHeader>
+                     <DialogTitle>
+@@ -739,11 +758,12 @@ export default function Health() {
+                   </form>
+                 </DialogContent>
+               </Dialog>
++              </div>
+             </div>
+ 
+             <div className="space-y-3">
+               {visibleRecords
+-                ?.slice()
++                .slice()
+                 .sort((a, b) => {
+                   const dateDiff =
+                     new Date(b.date).getTime() - new Date(a.date).getTime();
+@@ -830,18 +850,41 @@ export default function Health() {
+                     )}
+                   </div>
+                 ))}
+-              {(!visibleRecords || visibleRecords.length === 0) && (
++              {visibleRecords.length === 0 && (
+                 <div className="text-center py-12 bg-card rounded-2xl border border-dashed">
+                   <Thermometer className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                   <p className="text-muted-foreground">
+-                    Nenhum registro de doença.
+-                  </p>
+-                  <p className="text-muted-foreground text-sm">
+-                    Saúde de ferro!
++                    {sickFilters
++                      ? "Nenhum registro nesse período."
++                      : "Nenhum registro de doença."}
+                   </p>
++                  {!sickFilters && (
++                    <p className="text-muted-foreground text-sm">
++                      Saúde de ferro!
++                    </p>
++                  )}
+                 </div>
+               )}
+             </div>
++
++            {hasNextSickPage && (
++              <div className="flex justify-center pt-2">
++                <Button
++                  variant="ghost"
++                  onClick={() => fetchNextSickPage()}
++                  disabled={isFetchingNextSickPage}
++                  data-testid="button-load-more-health"
++                  className="gap-2 text-muted-foreground"
++                >
++                  {isFetchingNextSickPage ? (
++                    <Loader2 className="w-4 h-4 animate-spin" />
++                  ) : (
++                    <ChevronDown className="w-4 h-4" />
++                  )}
++                  Carregar mais
++                </Button>
++              </div>
++            )}
+           </TabsContent>
+         </Tabs>
+       </main>
+diff --git a/server/routes.ts b/server/routes.ts
+index 9070bd7..2eb1a71 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -598,8 +598,13 @@ export async function registerRoutes(
+       return res.status(403).json({ message: "Acesso negado" });
+     }
+ 
+-    const records = await storage.getHealthRecords(childId);
+-    res.json(records);
++    const cursor = req.query.cursor as string | undefined;
++    const limit = req.query.limit ? Number(req.query.limit) : 20;
++    const startDate = req.query.startDate as string | undefined;
++    const endDate = req.query.endDate as string | undefined;
++
++    const result = await storage.getHealthRecords(childId, { cursor, limit, startDate, endDate });
++    res.json(result);
+   });
+ 
+   app.post(api.health.create.path, isAuthenticated, async (req, res) => {
+@@ -697,7 +702,9 @@ export async function registerRoutes(
+ 
+       const cursor = req.query.cursor as string | undefined;
+       const limit = req.query.limit ? Number(req.query.limit) : 20;
+-      const result = await storage.getMedicalRecords(childId, cursor, limit);
++      const startDate = req.query.startDate as string | undefined;
++      const endDate = req.query.endDate as string | undefined;
++      const result = await storage.getMedicalRecords(childId, cursor, limit, { startDate, endDate });
+       res.json(result);
+     },
+   );
+diff --git a/server/storage.ts b/server/storage.ts
+index 0ff3368..671c7fb 100644
+--- a/server/storage.ts
++++ b/server/storage.ts
+@@ -55,7 +55,7 @@ import {
+   type InsertMedicalRecord,
+ } from "@shared/schema";
+ import { db } from "./db";
+-import { eq, and, gt, sql, count, desc, inArray } from "drizzle-orm";
++import { eq, and, gt, sql, count, desc, inArray, type SQL } from "drizzle-orm";
+ 
+ type DiaryCursor = {
+   date: string;
+@@ -185,7 +185,10 @@ export interface IStorage {
+   updateVaccine(id: number, vaccine: Partial<InsertVaccine>): Promise<Vaccine>;
+ 
+   // Health
+-  getHealthRecords(childId: number): Promise<HealthRecord[]>;
++  getHealthRecords(
++    childId: number,
++    opts?: { cursor?: string; limit?: number; startDate?: string; endDate?: string },
++  ): Promise<{ data: HealthRecord[]; nextCursor: string | null }>;
+   getHealthRecordById(id: number): Promise<HealthRecord | undefined>;
+   createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord>;
+   updateHealthRecord(
+@@ -199,6 +202,7 @@ export interface IStorage {
+     childId: number,
+     cursor?: string,
+     limit?: number,
++    opts?: { startDate?: string; endDate?: string },
+   ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }>;
+   getMedicalRecordById(id: number): Promise<MedicalRecord | undefined>;
+   createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord>;
+@@ -633,12 +637,41 @@ export class DatabaseStorage implements IStorage {
+   }
+ 
+   // Health
+-  async getHealthRecords(childId: number): Promise<HealthRecord[]> {
+-    return await db
++  async getHealthRecords(
++    childId: number,
++    opts?: { cursor?: string; limit?: number; startDate?: string; endDate?: string },
++  ): Promise<{ data: HealthRecord[]; nextCursor: string | null }> {
++    const pageSize = Math.min(opts?.limit ?? 20, 50);
++    const conditions: SQL[] = [eq(healthRecords.childId, childId)];
++
++    if (opts?.startDate) {
++      conditions.push(sql`${healthRecords.date} >= ${opts.startDate}`);
++    }
++    if (opts?.endDate) {
++      conditions.push(sql`${healthRecords.date} <= ${opts.endDate}`);
++    }
++    if (opts?.cursor) {
++      const [cursorDate, cursorId] = opts.cursor.split("|");
++      conditions.push(
++        sql`(${healthRecords.date}, ${healthRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
++      );
++    }
++
++    const results = await db
+       .select()
+       .from(healthRecords)
+-      .where(eq(healthRecords.childId, childId))
+-      .limit(500);
++      .where(and(...conditions))
++      .orderBy(desc(healthRecords.date), desc(healthRecords.id))
++      .limit(pageSize + 1);
++
++    const hasMore = results.length > pageSize;
++    const data = hasMore ? results.slice(0, pageSize) : results;
++    const nextCursor =
++      hasMore && data.length > 0
++        ? `${data[data.length - 1].date}|${data[data.length - 1].id}`
++        : null;
++
++    return { data, nextCursor };
+   }
+ 
+   async getHealthRecordById(id: number): Promise<HealthRecord | undefined> {
+@@ -678,32 +711,31 @@ export class DatabaseStorage implements IStorage {
+     childId: number,
+     cursor?: string,
+     limit: number = 20,
++    opts?: { startDate?: string; endDate?: string },
+   ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }> {
+     const pageSize = Math.min(limit, 50);
++    const conditions: SQL[] = [eq(medicalRecords.childId, childId)];
+ 
+-    let query = db
++    if (opts?.startDate) {
++      conditions.push(sql`${medicalRecords.examDate} >= ${opts.startDate}`);
++    }
++    if (opts?.endDate) {
++      conditions.push(sql`${medicalRecords.examDate} <= ${opts.endDate}`);
++    }
++    if (cursor) {
++      const [cursorDate, cursorId] = cursor.split("|");
++      conditions.push(
++        sql`(${medicalRecords.examDate}, ${medicalRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
++      );
++    }
++
++    const results = await db
+       .select()
+       .from(medicalRecords)
+-      .where(eq(medicalRecords.childId, childId))
++      .where(and(...conditions))
+       .orderBy(desc(medicalRecords.examDate), desc(medicalRecords.id))
+       .limit(pageSize + 1);
+ 
+-    if (cursor) {
+-      const [cursorDate, cursorId] = cursor.split("|");
+-      query = db
+-        .select()
+-        .from(medicalRecords)
+-        .where(
+-          and(
+-            eq(medicalRecords.childId, childId),
+-            sql`(${medicalRecords.examDate}, ${medicalRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
+-          ),
+-        )
+-        .orderBy(desc(medicalRecords.examDate), desc(medicalRecords.id))
+-        .limit(pageSize + 1);
+-    }
+-
+-    const results = await query;
+     const hasMore = results.length > pageSize;
+     const data = hasMore ? results.slice(0, pageSize) : results;
+     const nextCursor =
+diff --git a/shared/routes.ts b/shared/routes.ts
+index 74c77fa..480f36f 100644
+--- a/shared/routes.ts
++++ b/shared/routes.ts
+@@ -207,7 +207,10 @@ export const api = {
+       method: "GET" as const,
+       path: "/api/children/:childId/health",
+       responses: {
+-        200: z.array(z.custom<typeof healthRecords.$inferSelect>()),
++        200: z.object({
++          data: z.array(z.custom<typeof healthRecords.$inferSelect>()),
++          nextCursor: z.string().nullable(),
++        }),
+       },
+     },
+     create: {

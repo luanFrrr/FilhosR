@@ -261,6 +261,15 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    update: {
+      method: "PATCH" as const,
+      path: "/api/medical-records/:id",
+      responses: {
+        200: z.custom<typeof medicalRecords.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
     getFileUrl: {
       method: "GET" as const,
       path: "/api/medical-records/:id/file-url",
