@@ -8,6 +8,7 @@ import {
   insertDiaryEntrySchema,
   insertVaccineRecordSchema,
   insertDailyPhotoSchema,
+  insertMedicalRecordSchema,
   users,
   children,
   growthRecords,
@@ -23,6 +24,7 @@ import {
     caregivers,
     activityComments,
     notifications,
+    medicalRecords,
   } from "./schema";
 
 // ============================================
@@ -229,6 +231,44 @@ export const api = {
     delete: {
       method: "DELETE" as const,
       path: "/api/health/:id",
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
+  // Medical Records (consultas/exames)
+  medicalRecords: {
+    list: {
+      method: "GET" as const,
+      path: "/api/children/:childId/medical-records",
+      responses: {
+        200: z.object({
+          data: z.array(z.custom<typeof medicalRecords.$inferSelect>()),
+          nextCursor: z.string().nullable(),
+        }),
+      },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/children/:childId/medical-records",
+      responses: {
+        201: z.custom<typeof medicalRecords.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    getFileUrl: {
+      method: "GET" as const,
+      path: "/api/medical-records/:id/file-url",
+      responses: {
+        200: z.object({ url: z.string() }),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: "DELETE" as const,
+      path: "/api/medical-records/:id",
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,

@@ -28,8 +28,12 @@ import {
 import {
   uploadToStorage,
   deleteFromStorage,
+  uploadFileBuffer,
+  getSignedUrl,
+  deleteFileFromStorage,
   type UploadBucket,
 } from "./supabaseStorage";
+import { medicalRecords } from "@shared/schema";
 import rateLimit from "express-rate-limit";
 import { recordPoints } from "./gamificationHelper";
 
@@ -316,10 +320,21 @@ export async function registerRoutes(
       if (r.photoUrls?.length) urlsToDelete.push(...r.photoUrls);
     }
 
+    const medicalRows = await db
+      .select({ filePath: medicalRecords.filePath })
+      .from(medicalRecords)
+      .where(drizzleEq(medicalRecords.childId, id));
+    const healthFilePaths = medicalRows
+      .map((r) => r.filePath)
+      .filter((p): p is string => !!p);
+
     await storage.deleteChild(id);
 
     for (const url of urlsToDelete) {
       deleteFromStorage(url).catch(() => {});
+    }
+    for (const path of healthFilePaths) {
+      deleteFileFromStorage("health-files", path).catch(() => {});
     }
 
     res.status(204).end();
@@ -665,6 +680,180 @@ export async function registerRoutes(
     await storage.deleteHealthRecord(id);
     res.status(204).send();
   });
+
+  // ─── Medical Records (consultas/exames) ──────────────────────────────────
+
+  app.get(
+    api.medicalRecords.list.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const cursor = req.query.cursor as string | undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : 20;
+      const result = await storage.getMedicalRecords(childId, cursor, limit);
+      res.json(result);
+    },
+  );
+
+  app.post(
+    api.medicalRecords.create.path,
+    isAuthenticated,
+    uploadLimiter,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      try {
+        const { type, title, description, examDate, fileBase64, fileMimeType, fileName } = req.body;
+
+        if (!type || !title || !examDate) {
+          return res.status(400).json({ message: "Campos obrigatórios: type, title, examDate" });
+        }
+
+        const allowedTypes = ["consulta", "exame"];
+        if (!allowedTypes.includes(type)) {
+          return res.status(400).json({ message: "Tipo deve ser 'consulta' ou 'exame'" });
+        }
+
+        let filePath: string | undefined;
+
+        if (fileBase64 && fileMimeType && fileName) {
+          const allowedMimes = [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+          ];
+          if (!allowedMimes.includes(fileMimeType)) {
+            return res.status(400).json({
+              message: "Tipo de arquivo não permitido. Use PDF ou imagens.",
+            });
+          }
+
+          const buffer = Buffer.from(fileBase64, "base64");
+          if (buffer.length > 10 * 1024 * 1024) {
+            return res.status(400).json({ message: "Arquivo muito grande (máx 10MB)" });
+          }
+
+          const ext = fileName.split(".").pop() || "bin";
+          const safeName = `${Date.now()}.${ext}`;
+          const storagePath = `${childId}/${safeName}`;
+
+          await uploadFileBuffer("health-files", storagePath, buffer, fileMimeType);
+          filePath = storagePath;
+        }
+
+        const record = await storage.createMedicalRecord({
+          childId,
+          createdBy: userId,
+          type,
+          title,
+          description: description || null,
+          examDate,
+          filePath: filePath || null,
+        });
+
+        res.status(201).json(record);
+
+        (async () => {
+          try {
+            const [user, child] = await Promise.all([
+              storage.getUser(userId),
+              storage.getChild(childId),
+            ]);
+            const userName = resolveUserName(user);
+            const childName = child?.name || "seu filho(a)";
+            const typeLabel = type === "consulta" ? "consulta" : "exame";
+            notifyCaregivers(
+              childId,
+              userId,
+              `🏥 ${type === "consulta" ? "Nova consulta" : "Novo exame"}`,
+              `${userName} registrou ${typeLabel === "consulta" ? "uma" : "um"} ${typeLabel} para ${childName}: ${title}`,
+              `/health?tab=medical`,
+              {
+                eventType: "medical_record_created",
+                entityType: "medical_record",
+                entityId: record.id,
+                recordType: "medical",
+                recordId: record.id,
+              },
+            );
+          } catch (err) {
+            console.error("[bg] Erro pós-criação de registro médico:", err);
+          }
+        })();
+      } catch (err: any) {
+        console.error("Error creating medical record:", err);
+        res.status(500).json({ message: "Erro ao criar registro" });
+      }
+    },
+  );
+
+  app.get(
+    api.medicalRecords.getFileUrl.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const id = Number(req.params.id);
+      const record = await storage.getMedicalRecordById(id);
+      if (!record) {
+        return res.status(404).json({ message: "Registro não encontrado" });
+      }
+      if (!(await hasChildAccess(userId, record.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+      if (!record.filePath) {
+        return res.status(404).json({ message: "Nenhum arquivo anexado" });
+      }
+
+      try {
+        const url = await getSignedUrl("health-files", record.filePath, 3600);
+        res.json({ url });
+      } catch (err: any) {
+        console.error("Error generating signed URL:", err);
+        res.status(500).json({ message: "Erro ao gerar URL do arquivo" });
+      }
+    },
+  );
+
+  app.delete(
+    api.medicalRecords.delete.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const id = Number(req.params.id);
+      const record = await storage.getMedicalRecordById(id);
+      if (!record) {
+        return res.status(404).json({ message: "Registro não encontrado" });
+      }
+      if (!(await hasChildAccess(userId, record.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (record.filePath) {
+        await deleteFileFromStorage("health-files", record.filePath);
+      }
+
+      await storage.deleteMedicalRecord(id);
+      res.status(204).send();
+    },
+  );
 
   // Milestones with social counts (likes + comments)
   app.get(

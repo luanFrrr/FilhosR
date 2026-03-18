@@ -50,6 +50,9 @@ import {
   type MilestoneWithSocial,
   type DiaryLikeStatus,
   type DiaryEntryWithSocial,
+  medicalRecords,
+  type MedicalRecord,
+  type InsertMedicalRecord,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql, count, desc, inArray } from "drizzle-orm";
@@ -190,6 +193,20 @@ export interface IStorage {
     data: Partial<InsertHealthRecord>,
   ): Promise<HealthRecord | undefined>;
   deleteHealthRecord(id: number): Promise<void>;
+
+  // Medical Records (consultas/exames)
+  getMedicalRecords(
+    childId: number,
+    cursor?: string,
+    limit?: number,
+  ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }>;
+  getMedicalRecordById(id: number): Promise<MedicalRecord | undefined>;
+  createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord>;
+  updateMedicalRecord(
+    id: number,
+    data: Partial<InsertMedicalRecord>,
+  ): Promise<MedicalRecord | undefined>;
+  deleteMedicalRecord(id: number): Promise<void>;
 
   // Milestones
   getMilestones(childId: number, userId: string): Promise<Milestone[]>;
@@ -518,6 +535,7 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(diaryEntries).where(eq(diaryEntries.childId, id));
       await tx.delete(vaccineRecords).where(eq(vaccineRecords.childId, id));
       await tx.delete(dailyPhotos).where(eq(dailyPhotos.childId, id));
+      await tx.delete(medicalRecords).where(eq(medicalRecords.childId, id));
 
       // 6. Deletar gamificação
       await tx.delete(gamification).where(eq(gamification.childId, id));
@@ -653,6 +671,81 @@ export class DatabaseStorage implements IStorage {
 
   async deleteHealthRecord(id: number): Promise<void> {
     await db.delete(healthRecords).where(eq(healthRecords.id, id));
+  }
+
+  // Medical Records (consultas/exames)
+  async getMedicalRecords(
+    childId: number,
+    cursor?: string,
+    limit: number = 20,
+  ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }> {
+    const pageSize = Math.min(limit, 50);
+
+    let query = db
+      .select()
+      .from(medicalRecords)
+      .where(eq(medicalRecords.childId, childId))
+      .orderBy(desc(medicalRecords.examDate), desc(medicalRecords.id))
+      .limit(pageSize + 1);
+
+    if (cursor) {
+      const [cursorDate, cursorId] = cursor.split("|");
+      query = db
+        .select()
+        .from(medicalRecords)
+        .where(
+          and(
+            eq(medicalRecords.childId, childId),
+            sql`(${medicalRecords.examDate}, ${medicalRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
+          ),
+        )
+        .orderBy(desc(medicalRecords.examDate), desc(medicalRecords.id))
+        .limit(pageSize + 1);
+    }
+
+    const results = await query;
+    const hasMore = results.length > pageSize;
+    const data = hasMore ? results.slice(0, pageSize) : results;
+    const nextCursor =
+      hasMore && data.length > 0
+        ? `${data[data.length - 1].examDate}|${data[data.length - 1].id}`
+        : null;
+
+    return { data, nextCursor };
+  }
+
+  async getMedicalRecordById(id: number): Promise<MedicalRecord | undefined> {
+    const [record] = await db
+      .select()
+      .from(medicalRecords)
+      .where(eq(medicalRecords.id, id));
+    return record;
+  }
+
+  async createMedicalRecord(
+    record: InsertMedicalRecord,
+  ): Promise<MedicalRecord> {
+    const [newRecord] = await db
+      .insert(medicalRecords)
+      .values(record)
+      .returning();
+    return newRecord;
+  }
+
+  async updateMedicalRecord(
+    id: number,
+    data: Partial<InsertMedicalRecord>,
+  ): Promise<MedicalRecord | undefined> {
+    const [updated] = await db
+      .update(medicalRecords)
+      .set(data)
+      .where(eq(medicalRecords.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMedicalRecord(id: number): Promise<void> {
+    await db.delete(medicalRecords).where(eq(medicalRecords.id, id));
   }
 
   // Milestones

@@ -16,7 +16,8 @@ export type UploadBucket =
   | "child-photos"
   | "milestone-photos"
   | "daily-photos"
-  | "vaccine-photos";
+  | "vaccine-photos"
+  | "health-files";
 
 /**
  * Faz upload de uma imagem base64 para o Supabase Storage redimensionando para
@@ -142,4 +143,77 @@ export async function deleteFromStorage(publicUrl: string): Promise<void> {
     const thumbPath = path.replace("_original.", "_thumb.");
     await Promise.all([deleteSingle(feedPath), deleteSingle(thumbPath)]);
   }
+}
+
+export async function uploadFileBuffer(
+  bucket: UploadBucket,
+  path: string,
+  fileBuffer: Buffer,
+  mimeType: string,
+): Promise<string> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("Supabase Storage não configurado");
+  }
+
+  const res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": mimeType,
+        "x-upsert": "true",
+      },
+      body: fileBuffer as any,
+    },
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Upload failed: ${errText}`);
+  }
+
+  return path;
+}
+
+export async function getSignedUrl(
+  bucket: string,
+  path: string,
+  expiresIn: number = 3600,
+): Promise<string> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("Supabase Storage não configurado");
+  }
+
+  const res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${path}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ expiresIn }),
+    },
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Signed URL failed: ${errText}`);
+  }
+
+  const data = await res.json();
+  return `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+}
+
+export async function deleteFileFromStorage(
+  bucket: string,
+  path: string,
+): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+
+  await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+  }).catch(() => {});
 }

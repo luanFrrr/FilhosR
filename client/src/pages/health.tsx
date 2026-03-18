@@ -51,6 +51,7 @@ import {
   Scale,
   Ruler,
   Archive,
+  Stethoscope,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -59,6 +60,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation, useSearch } from "wouter";
+import { MedicalTimeline } from "@/components/medical/medical-timeline";
 import {
   cn,
   parseLocalDate,
@@ -360,22 +362,28 @@ export default function Health() {
 
       <main className="max-w-md mx-auto px-4 py-6">
         <Tabs defaultValue={tabParam} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
+          <TabsList className="grid w-full grid-cols-4 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
             <TabsTrigger
               value="growth"
-              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
+              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
             >
               <LineChart className="w-4 h-4 mr-1" /> Crescimento
             </TabsTrigger>
             <TabsTrigger
               value="vaccines"
-              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
+              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
             >
               <Syringe className="w-4 h-4 mr-1" /> Vacinas
             </TabsTrigger>
             <TabsTrigger
+              value="medical"
+              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
+            >
+              <Stethoscope className="w-4 h-4 mr-1" /> Consultas
+            </TabsTrigger>
+            <TabsTrigger
               value="history"
-              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold"
+              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
             >
               <Thermometer className="w-4 h-4 mr-1" /> Doenças
             </TabsTrigger>
@@ -615,6 +623,11 @@ export default function Health() {
                 )}
               </div>
             </div>
+          </TabsContent>
+
+          {/* ===== CONSULTAS/EXAMES TAB ===== */}
+          <TabsContent value="medical" className="space-y-4">
+            <MedicalTimeline />
           </TabsContent>
 
           {/* ===== VACINAS TAB ===== */}

@@ -39,6 +39,7 @@ Core entities include:
 - **GrowthRecords**: Weight, height, head circumference tracking over time
 - **Vaccines/VaccineRecords**: Custom vaccines and SUS-standard vaccine tracking
 - **HealthRecords**: Illness tracking with symptoms and medications
+- **MedicalRecords**: Consultation/exam history with file uploads (PDF/images) via Supabase private bucket `health-files`, signed URL access
 - **Milestones/DiaryEntries**: Memory keeping features. Milestones support titles, descriptions, dates, and photos (base64).
 - **Gamification**: Points and levels to encourage engagement
 
@@ -50,7 +51,10 @@ All API routes are prefixed with `/api/` and organized by resource:
 - `/api/growth/:id` - Update growth record (PATCH)
 - `/api/growth/:id/archive` - Archive growth record (POST) - uses notes field prefix "[ARCHIVED]"
 - `/api/children/:childId/vaccines` - Vaccine records
-- `/api/children/:childId/health` - Health records
+- `/api/children/:childId/health` - Health records (illness tracking)
+- `/api/children/:childId/medical-records` - Medical records (consultations/exams with file upload)
+- `/api/medical-records/:id/file-url` - Get signed URL for attached file
+- `/api/medical-records/:id` - Delete medical record
 - `/api/children/:childId/milestones` - Milestone tracking (full CRUD)
 - `/api/children/:childId/diary` - Diary entries (full CRUD: list, create, update, delete)
 - `/api/sus-vaccines` - Brazilian SUS vaccine reference data

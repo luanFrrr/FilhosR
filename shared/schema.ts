@@ -482,6 +482,34 @@ export const diaryLikesRelations = relations(diaryLikes, ({ one }) => ({
   }),
 }));
 
+export const medicalRecords = pgTable(
+  "medical_records",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id").notNull(),
+    createdBy: varchar("created_by").notNull(),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    examDate: date("exam_date").notNull(),
+    filePath: text("file_path"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childExamDateIdx: index("medical_records_child_exam_date_idx").on(
+      table.childId,
+      table.examDate,
+    ),
+  }),
+);
+
+export const medicalRecordsRelations = relations(medicalRecords, ({ one }) => ({
+  child: one(children, {
+    fields: [medicalRecords.childId],
+    references: [children.id],
+  }),
+}));
+
 // === BASE SCHEMAS ===
 
 export const insertChildSchema = createInsertSchema(children).omit({
@@ -580,6 +608,13 @@ export type InsertAppNotification = z.infer<typeof insertNotificationSchema>;
 
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type InsertInviteCode = z.infer<typeof insertInviteCodeSchema>;
+
+export const insertMedicalRecordSchema = createInsertSchema(
+  medicalRecords,
+).omit({ id: true, createdAt: true });
+
+export type MedicalRecord = typeof medicalRecords.$inferSelect;
+export type InsertMedicalRecord = z.infer<typeof insertMedicalRecordSchema>;
 
 export const insertActivityCommentSchema = createInsertSchema(
   activityComments,

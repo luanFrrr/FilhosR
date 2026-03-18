@@ -7,7 +7,8 @@ export type UploadBucket =
   | "child-photos"
   | "milestone-photos"
   | "daily-photos"
-  | "vaccine-photos";
+  | "vaccine-photos"
+  | "health-files";
 
 interface UploadOptions {
   bucket: UploadBucket;

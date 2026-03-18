@@ -7,7 +7,7 @@ import { createServer } from "http";
 const app = express();
 const httpServer = createServer(app);
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '15mb' }));
 
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (capturedJsonResponse && !path.includes("/file-url")) {
         logLine += ` :: ${capturedJsonResponse}`;
       }
 
