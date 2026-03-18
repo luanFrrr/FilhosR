@@ -598,8 +598,13 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Acesso negado" });
     }
 
-    const records = await storage.getHealthRecords(childId);
-    res.json(records);
+    const cursor = req.query.cursor as string | undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+
+    const result = await storage.getHealthRecords(childId, { cursor, limit, startDate, endDate });
+    res.json(result);
   });
 
   app.post(api.health.create.path, isAuthenticated, async (req, res) => {
@@ -697,7 +702,9 @@ export async function registerRoutes(
 
       const cursor = req.query.cursor as string | undefined;
       const limit = req.query.limit ? Number(req.query.limit) : 20;
-      const result = await storage.getMedicalRecords(childId, cursor, limit);
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+      const result = await storage.getMedicalRecords(childId, cursor, limit, { startDate, endDate });
       res.json(result);
     },
   );

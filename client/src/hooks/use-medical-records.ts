@@ -1,17 +1,28 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { MedicalRecord } from "@shared/schema";
 
-export function useMedicalRecords(childId: number) {
-  return useQuery<{ data: MedicalRecord[]; nextCursor: string | null }>({
-    queryKey: ["/api/children", childId, "medical-records"],
-    queryFn: async () => {
-      const res = await fetch(`/api/children/${childId}/medical-records`, {
+export function useMedicalRecords(
+  childId: number,
+  filters?: { startDate?: string; endDate?: string },
+) {
+  return useInfiniteQuery<{ data: MedicalRecord[]; nextCursor: string | null }>({
+    queryKey: ["/api/children", childId, "medical-records", filters],
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams();
+      if (pageParam) params.set("cursor", pageParam as string);
+      params.set("limit", "20");
+      if (filters?.startDate) params.set("startDate", filters.startDate);
+      if (filters?.endDate) params.set("endDate", filters.endDate);
+
+      const res = await fetch(`/api/children/${childId}/medical-records?${params.toString()}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Erro ao carregar registros");
       return res.json();
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: childId > 0,
   });
 }

@@ -52,6 +52,8 @@ import {
   Ruler,
   Archive,
   Stethoscope,
+  Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -61,6 +63,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation, useSearch } from "wouter";
 import { MedicalTimeline } from "@/components/medical/medical-timeline";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import {
   cn,
   parseLocalDate,
@@ -86,7 +89,17 @@ export default function Health() {
   const tabParam = searchParams.get("tab") || "vaccines";
   const idParam = searchParams.get("id");
   const [, setLocation] = useLocation();
-  const { data: sickRecords } = useHealthRecords(activeChild?.id || 0);
+  const [sickFilterStart, setSickFilterStart] = useState<string | undefined>();
+  const [sickFilterEnd, setSickFilterEnd] = useState<string | undefined>();
+  const sickFilters = sickFilterStart || sickFilterEnd
+    ? { startDate: sickFilterStart, endDate: sickFilterEnd }
+    : undefined;
+  const {
+    data: sickPages,
+    fetchNextPage: fetchNextSickPage,
+    hasNextPage: hasNextSickPage,
+    isFetchingNextPage: isFetchingNextSickPage,
+  } = useHealthRecords(activeChild?.id || 0, sickFilters);
   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
   const { data: growthRecords } = useGrowthRecords(activeChild?.id || 0);
   const createSickRecord = useCreateHealthRecord();
@@ -118,7 +131,7 @@ export default function Health() {
   }, [idParam, tabParam, setLocation]);
 
   useEffect(() => {
-    if (highlightRecordId && (growthRecords || sickRecords)) {
+    if (highlightRecordId && (growthRecords || sickPages)) {
       // Pequeno timeout pro DOM renderizar a tab correta se for necessário
       const timeoutId = setTimeout(() => {
         let prefix = "health-record";
@@ -138,7 +151,7 @@ export default function Health() {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [highlightRecordId, growthRecords, sickRecords, tabParam]);
+  }, [highlightRecordId, growthRecords, sickPages, tabParam]);
 
   const sickForm = useForm({
     defaultValues: {
@@ -354,7 +367,7 @@ export default function Health() {
       ?.filter((r) => r.height)
       .map((r) => ({ date: r.date, value: Number(r.height) })) || [];
 
-  const visibleRecords = sickRecords;
+  const visibleRecords = sickPages?.pages.flatMap((p) => p.data) || [];
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -665,14 +678,20 @@ export default function Health() {
 
           {/* ===== DOENÇAS TAB ===== */}
           <TabsContent value="history" className="space-y-4">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center gap-2 mb-4">
               <h3 className="font-display font-bold">Histórico de Doenças</h3>
-              <Dialog open={sickDialogOpen} onOpenChange={handleDialogClose}>
-                <DialogTrigger asChild>
-                  <Button data-testid="button-add-health-record">
-                    + Registrar
-                  </Button>
-                </DialogTrigger>
+              <div className="flex items-center gap-2">
+                <DateRangeFilter
+                  startDate={sickFilterStart}
+                  endDate={sickFilterEnd}
+                  onChange={(s, e) => { setSickFilterStart(s); setSickFilterEnd(e); }}
+                />
+                <Dialog open={sickDialogOpen} onOpenChange={handleDialogClose}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="rounded-full" data-testid="button-add-health-record">
+                      <Plus className="w-4 h-4 mr-1" /> Registrar
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="rounded-2xl max-w-sm mx-auto">
                   <DialogHeader>
                     <DialogTitle>
@@ -739,11 +758,12 @@ export default function Health() {
                   </form>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             <div className="space-y-3">
               {visibleRecords
-                ?.slice()
+                .slice()
                 .sort((a, b) => {
                   const dateDiff =
                     new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -830,18 +850,41 @@ export default function Health() {
                     )}
                   </div>
                 ))}
-              {(!visibleRecords || visibleRecords.length === 0) && (
+              {visibleRecords.length === 0 && (
                 <div className="text-center py-12 bg-card rounded-2xl border border-dashed">
                   <Thermometer className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-muted-foreground">
-                    Nenhum registro de doença.
+                    {sickFilters
+                      ? "Nenhum registro nesse período."
+                      : "Nenhum registro de doença."}
                   </p>
-                  <p className="text-muted-foreground text-sm">
-                    Saúde de ferro!
-                  </p>
+                  {!sickFilters && (
+                    <p className="text-muted-foreground text-sm">
+                      Saúde de ferro!
+                    </p>
+                  )}
                 </div>
               )}
             </div>
+
+            {hasNextSickPage && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => fetchNextSickPage()}
+                  disabled={isFetchingNextSickPage}
+                  data-testid="button-load-more-health"
+                  className="gap-2 text-muted-foreground"
+                >
+                  {isFetchingNextSickPage ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                  Carregar mais
+                </Button>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>

@@ -55,7 +55,7 @@ import {
   type InsertMedicalRecord,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql, count, desc, inArray } from "drizzle-orm";
+import { eq, and, gt, sql, count, desc, inArray, type SQL } from "drizzle-orm";
 
 type DiaryCursor = {
   date: string;
@@ -185,7 +185,10 @@ export interface IStorage {
   updateVaccine(id: number, vaccine: Partial<InsertVaccine>): Promise<Vaccine>;
 
   // Health
-  getHealthRecords(childId: number): Promise<HealthRecord[]>;
+  getHealthRecords(
+    childId: number,
+    opts?: { cursor?: string; limit?: number; startDate?: string; endDate?: string },
+  ): Promise<{ data: HealthRecord[]; nextCursor: string | null }>;
   getHealthRecordById(id: number): Promise<HealthRecord | undefined>;
   createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord>;
   updateHealthRecord(
@@ -199,6 +202,7 @@ export interface IStorage {
     childId: number,
     cursor?: string,
     limit?: number,
+    opts?: { startDate?: string; endDate?: string },
   ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }>;
   getMedicalRecordById(id: number): Promise<MedicalRecord | undefined>;
   createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord>;
@@ -633,12 +637,41 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Health
-  async getHealthRecords(childId: number): Promise<HealthRecord[]> {
-    return await db
+  async getHealthRecords(
+    childId: number,
+    opts?: { cursor?: string; limit?: number; startDate?: string; endDate?: string },
+  ): Promise<{ data: HealthRecord[]; nextCursor: string | null }> {
+    const pageSize = Math.min(opts?.limit ?? 20, 50);
+    const conditions: SQL[] = [eq(healthRecords.childId, childId)];
+
+    if (opts?.startDate) {
+      conditions.push(sql`${healthRecords.date} >= ${opts.startDate}`);
+    }
+    if (opts?.endDate) {
+      conditions.push(sql`${healthRecords.date} <= ${opts.endDate}`);
+    }
+    if (opts?.cursor) {
+      const [cursorDate, cursorId] = opts.cursor.split("|");
+      conditions.push(
+        sql`(${healthRecords.date}, ${healthRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
+      );
+    }
+
+    const results = await db
       .select()
       .from(healthRecords)
-      .where(eq(healthRecords.childId, childId))
-      .limit(500);
+      .where(and(...conditions))
+      .orderBy(desc(healthRecords.date), desc(healthRecords.id))
+      .limit(pageSize + 1);
+
+    const hasMore = results.length > pageSize;
+    const data = hasMore ? results.slice(0, pageSize) : results;
+    const nextCursor =
+      hasMore && data.length > 0
+        ? `${data[data.length - 1].date}|${data[data.length - 1].id}`
+        : null;
+
+    return { data, nextCursor };
   }
 
   async getHealthRecordById(id: number): Promise<HealthRecord | undefined> {
@@ -678,32 +711,31 @@ export class DatabaseStorage implements IStorage {
     childId: number,
     cursor?: string,
     limit: number = 20,
+    opts?: { startDate?: string; endDate?: string },
   ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }> {
     const pageSize = Math.min(limit, 50);
+    const conditions: SQL[] = [eq(medicalRecords.childId, childId)];
 
-    let query = db
+    if (opts?.startDate) {
+      conditions.push(sql`${medicalRecords.examDate} >= ${opts.startDate}`);
+    }
+    if (opts?.endDate) {
+      conditions.push(sql`${medicalRecords.examDate} <= ${opts.endDate}`);
+    }
+    if (cursor) {
+      const [cursorDate, cursorId] = cursor.split("|");
+      conditions.push(
+        sql`(${medicalRecords.examDate}, ${medicalRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
+      );
+    }
+
+    const results = await db
       .select()
       .from(medicalRecords)
-      .where(eq(medicalRecords.childId, childId))
+      .where(and(...conditions))
       .orderBy(desc(medicalRecords.examDate), desc(medicalRecords.id))
       .limit(pageSize + 1);
 
-    if (cursor) {
-      const [cursorDate, cursorId] = cursor.split("|");
-      query = db
-        .select()
-        .from(medicalRecords)
-        .where(
-          and(
-            eq(medicalRecords.childId, childId),
-            sql`(${medicalRecords.examDate}, ${medicalRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
-          ),
-        )
-        .orderBy(desc(medicalRecords.examDate), desc(medicalRecords.id))
-        .limit(pageSize + 1);
-    }
-
-    const results = await query;
     const hasMore = results.length > pageSize;
     const data = hasMore ? results.slice(0, pageSize) : results;
     const nextCursor =

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,7 @@ import {
   Trash2,
   Loader2,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -53,10 +55,25 @@ import type { MedicalRecord } from "@shared/schema";
 
 export function MedicalTimeline() {
   const { activeChild } = useChildContext();
-  const { data, isLoading } = useMedicalRecords(activeChild?.id || 0);
+  const { toast } = useToast();
+
+  const [filterStart, setFilterStart] = useState<string | undefined>();
+  const [filterEnd, setFilterEnd] = useState<string | undefined>();
+
+  const filters = filterStart || filterEnd
+    ? { startDate: filterStart, endDate: filterEnd }
+    : undefined;
+
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useMedicalRecords(activeChild?.id || 0, filters);
+
   const createRecord = useCreateMedicalRecord();
   const deleteRecord = useDeleteMedicalRecord();
-  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -106,7 +123,7 @@ export function MedicalTimeline() {
 
       const buffer = await formFile.arrayBuffer();
       fileBase64 = btoa(
-        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
+        new Uint8Array(buffer).reduce((d, byte) => d + String.fromCharCode(byte), ""),
       );
       fileMimeType = formFile.type;
       fileName = formFile.name;
@@ -177,7 +194,7 @@ export function MedicalTimeline() {
     );
   };
 
-  const records = data?.data || [];
+  const records = data?.pages.flatMap((p) => p.data) || [];
 
   const groupedByMonth: Record<string, MedicalRecord[]> = {};
   records.forEach((r) => {
@@ -196,129 +213,138 @@ export function MedicalTimeline() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-2">
         <h3 className="font-display font-bold text-lg">Consultas e Exames</h3>
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              data-testid="button-new-medical"
-              className="bg-primary text-white rounded-full px-4 gap-2 hover:bg-primary/90"
-            >
-              <Plus className="w-4 h-4" /> Novo
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Novo Registro Médico</DialogTitle>
-              <DialogDescription>
-                Registre uma consulta ou exame.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select value={formType} onValueChange={setFormType}>
-                  <SelectTrigger data-testid="select-type" className="input-field">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="consulta">Consulta</SelectItem>
-                    <SelectItem value="exame">Exame</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Título</Label>
-                <Input
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder={formType === "consulta" ? "Ex: Pediatra - Dr. Silva" : "Ex: Hemograma completo"}
-                  className="input-field"
-                  data-testid="input-title"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Data</Label>
-                <Input
-                  type="date"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  className="input-field"
-                  data-testid="input-exam-date"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>
-                  Descrição{" "}
-                  <span className="text-muted-foreground text-xs">(Opcional)</span>
-                </Label>
-                <Textarea
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Observações, diagnóstico, resultados..."
-                  className="input-field min-h-[80px]"
-                  data-testid="input-description"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>
-                  Arquivo{" "}
-                  <span className="text-muted-foreground text-xs">(PDF ou imagem, máx 10MB)</span>
-                </Label>
-                <div className="flex items-center gap-2">
-                  <label
-                    className={cn(
-                      "flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
-                      formFile
-                        ? "border-primary bg-primary/5"
-                        : "border-muted hover:border-primary/50",
-                    )}
-                  >
-                    <Paperclip className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground truncate">
-                      {formFile ? formFile.name : "Escolher arquivo..."}
-                    </span>
-                    <input
-                      type="file"
-                      accept="application/pdf,image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      data-testid="input-file"
-                      onChange={(e) => setFormFile(e.target.files?.[0] || null)}
-                    />
-                  </label>
-                  {formFile && (
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setFormFile(null)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
+        <div className="flex items-center gap-2">
+          <DateRangeFilter
+            startDate={filterStart}
+            endDate={filterEnd}
+            onChange={(s, e) => { setFilterStart(s); setFilterEnd(e); }}
+          />
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+            <DialogTrigger asChild>
               <Button
-                type="submit"
-                data-testid="button-save-medical"
-                className="w-full btn-primary"
-                disabled={createRecord.isPending || !formTitle || !formDate}
+                size="sm"
+                data-testid="button-new-medical"
+                className="bg-primary text-white rounded-full px-4 gap-2 hover:bg-primary/90"
               >
-                {createRecord.isPending ? "Salvando..." : "Salvar Registro"}
+                <Plus className="w-4 h-4" /> Novo
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Novo Registro Médico</DialogTitle>
+                <DialogDescription>
+                  Registre uma consulta ou exame.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select value={formType} onValueChange={setFormType}>
+                    <SelectTrigger data-testid="select-type" className="input-field">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="consulta">Consulta</SelectItem>
+                      <SelectItem value="exame">Exame</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Título</Label>
+                  <Input
+                    value={formTitle}
+                    onChange={(e) => setFormTitle(e.target.value)}
+                    placeholder={formType === "consulta" ? "Ex: Pediatra - Dr. Silva" : "Ex: Hemograma completo"}
+                    className="input-field"
+                    data-testid="input-title"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data</Label>
+                  <Input
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="input-field"
+                    data-testid="input-exam-date"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    Descrição{" "}
+                    <span className="text-muted-foreground text-xs">(Opcional)</span>
+                  </Label>
+                  <Textarea
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    placeholder="Observações, diagnóstico, resultados..."
+                    className="input-field min-h-[80px]"
+                    data-testid="input-description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    Arquivo{" "}
+                    <span className="text-muted-foreground text-xs">(PDF ou imagem, máx 10MB)</span>
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <label
+                      className={cn(
+                        "flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
+                        formFile
+                          ? "border-primary bg-primary/5"
+                          : "border-muted hover:border-primary/50",
+                      )}
+                    >
+                      <Paperclip className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground truncate">
+                        {formFile ? formFile.name : "Escolher arquivo..."}
+                      </span>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        data-testid="input-file"
+                        onChange={(e) => setFormFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {formFile && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setFormFile(null)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  type="submit"
+                  data-testid="button-save-medical"
+                  className="w-full btn-primary"
+                  disabled={createRecord.isPending || !formTitle || !formDate}
+                >
+                  {createRecord.isPending ? "Salvando..." : "Salvar Registro"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {records.length === 0 && (
         <div className="text-center py-12">
           <Stethoscope className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-muted-foreground">
-            Nenhum registro ainda. Adicione consultas e exames para acompanhar o histórico médico.
+            {filters
+              ? "Nenhum registro encontrado nesse período."
+              : "Nenhum registro ainda. Adicione consultas e exames para acompanhar o histórico médico."}
           </p>
         </div>
       )}
@@ -401,6 +427,25 @@ export function MedicalTimeline() {
           </div>
         </div>
       ))}
+
+      {hasNextPage && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="ghost"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            data-testid="button-load-more-medical"
+            className="gap-2 text-muted-foreground"
+          >
+            {isFetchingNextPage ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+            Carregar mais
+          </Button>
+        </div>
+      )}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

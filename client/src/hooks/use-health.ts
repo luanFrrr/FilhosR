@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import type { InsertVaccine, InsertHealthRecord } from "@shared/schema";
+import type { InsertVaccine, InsertHealthRecord, HealthRecord } from "@shared/schema";
 
 // --- VACCINES ---
 
@@ -68,15 +68,26 @@ export function useUpdateVaccine() {
 
 // --- HEALTH RECORDS ---
 
-export function useHealthRecords(childId: number) {
-  return useQuery({
-    queryKey: [api.health.list.path, childId],
-    queryFn: async () => {
-      const url = buildUrl(api.health.list.path, { childId });
-      const res = await fetch(url);
+export function useHealthRecords(
+  childId: number,
+  filters?: { startDate?: string; endDate?: string },
+) {
+  return useInfiniteQuery<{ data: HealthRecord[]; nextCursor: string | null }>({
+    queryKey: [api.health.list.path, childId, filters],
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams();
+      if (pageParam) params.set("cursor", pageParam as string);
+      params.set("limit", "20");
+      if (filters?.startDate) params.set("startDate", filters.startDate);
+      if (filters?.endDate) params.set("endDate", filters.endDate);
+
+      const baseUrl = buildUrl(api.health.list.path, { childId });
+      const res = await fetch(`${baseUrl}?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch health records");
-      return api.health.list.responses[200].parse(await res.json());
+      return res.json();
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: !!childId,
   });
 }
@@ -95,7 +106,7 @@ export function useCreateHealthRecord() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to create health record");
-      return api.health.create.responses[201].parse(await res.json());
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -121,7 +132,7 @@ export function useUpdateHealthRecord() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to update health record");
-      return api.health.update.responses[200].parse(await res.json());
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({

@@ -207,7 +207,10 @@ export const api = {
       method: "GET" as const,
       path: "/api/children/:childId/health",
       responses: {
-        200: z.array(z.custom<typeof healthRecords.$inferSelect>()),
+        200: z.object({
+          data: z.array(z.custom<typeof healthRecords.$inferSelect>()),
+          nextCursor: z.string().nullable(),
+        }),
       },
     },
     create: {
