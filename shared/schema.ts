@@ -491,7 +491,7 @@ export const medicalRecords = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     examDate: date("exam_date").notNull(),
-    filePath: text("file_path"),
+    filePaths: text("file_paths").array(),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({

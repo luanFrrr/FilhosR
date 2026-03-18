@@ -278,6 +278,14 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    getFileUrls: {
+      method: "GET" as const,
+      path: "/api/medical-records/:id/file-urls",
+      responses: {
+        200: z.object({ urls: z.array(z.object({ path: z.string(), url: z.string() })) }),
+        404: errorSchemas.notFound,
+      },
+    },
     delete: {
       method: "DELETE" as const,
       path: "/api/medical-records/:id",

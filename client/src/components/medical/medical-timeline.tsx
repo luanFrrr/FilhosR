@@ -55,6 +55,11 @@ import { useToast } from "@/hooks/use-toast";
 import { cn, parseLocalDate } from "@/lib/utils";
 import type { MedicalRecord } from "@shared/schema";
 
+function getFileName(path: string) {
+  const parts = path.split("/");
+  return parts[parts.length - 1];
+}
+
 export function MedicalTimeline() {
   const { activeChild } = useChildContext();
   const { toast } = useToast();
@@ -82,20 +87,22 @@ export function MedicalTimeline() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<MedicalRecord | null>(null);
-  const [loadingFileId, setLoadingFileId] = useState<number | null>(null);
+  const [loadingFileId, setLoadingFileId] = useState<string | null>(null);
 
   const [formType, setFormType] = useState<string>("consulta");
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
-  const [formFile, setFormFile] = useState<File | null>(null);
+  const [formFiles, setFormFiles] = useState<File[]>([]);
+  const [removeFilePaths, setRemoveFilePaths] = useState<string[]>([]);
 
   const resetForm = () => {
     setFormType("consulta");
     setFormTitle("");
     setFormDescription("");
     setFormDate(new Date().toISOString().split("T")[0]);
-    setFormFile(null);
+    setFormFiles([]);
+    setRemoveFilePaths([]);
     setEditingRecord(null);
   };
 
@@ -105,44 +112,64 @@ export function MedicalTimeline() {
     setFormTitle(record.title);
     setFormDescription(record.description || "");
     setFormDate(parseLocalDate(record.examDate).toISOString().split("T")[0]);
-    setFormFile(null);
+    setFormFiles([]);
+    setRemoveFilePaths([]);
     setOpen(true);
   };
+
+  const addFiles = (fileList: FileList | null) => {
+    if (!fileList) return;
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+    const newFiles: File[] = [];
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      if (!allowedTypes.includes(f.type)) {
+        toast({ title: "Tipo não permitido", description: `${f.name}: use PDF ou imagens`, variant: "destructive" });
+        continue;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        toast({ title: "Arquivo muito grande", description: `${f.name}: máximo 10MB`, variant: "destructive" });
+        continue;
+      }
+      newFiles.push(f);
+    }
+    setFormFiles((prev) => [...prev, ...newFiles]);
+  };
+
+  const removeNewFile = (index: number) => {
+    setFormFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const markExistingForRemoval = (path: string) => {
+    setRemoveFilePaths((prev) => [...prev, path]);
+  };
+
+  const undoRemoval = (path: string) => {
+    setRemoveFilePaths((prev) => prev.filter((p) => p !== path));
+  };
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeChild) return;
 
-    let fileBase64: string | undefined;
-    let fileMimeType: string | undefined;
-    let fileName: string | undefined;
-
-    if (formFile) {
-      const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-      if (!allowedTypes.includes(formFile.type)) {
-        toast({
-          title: "Tipo de arquivo não permitido",
-          description: "Use PDF ou imagens (JPG, PNG, WebP)",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (formFile.size > 10 * 1024 * 1024) {
-        toast({
-          title: "Arquivo muito grande",
-          description: "O arquivo deve ter no máximo 10MB",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const buffer = await formFile.arrayBuffer();
-      fileBase64 = btoa(
-        new Uint8Array(buffer).reduce((d, byte) => d + String.fromCharCode(byte), ""),
-      );
-      fileMimeType = formFile.type;
-      fileName = formFile.name;
-    }
+    const filesPayload = await Promise.all(
+      formFiles.map(async (f) => ({
+        fileBase64: await fileToBase64(f),
+        fileMimeType: f.type,
+        fileName: f.name,
+      })),
+    );
 
     if (editingRecord) {
       updateRecord.mutate(
@@ -153,23 +180,19 @@ export function MedicalTimeline() {
           title: formTitle,
           description: formDescription || undefined,
           examDate: formDate,
-          fileBase64,
-          fileMimeType,
-          fileName,
+          newFiles: filesPayload.length > 0 ? filesPayload : undefined,
+          removeFilePaths: removeFilePaths.length > 0 ? removeFilePaths : undefined,
         },
         {
           onSuccess: () => {
             setOpen(false);
             resetForm();
-            toast({
-              title: "Registro atualizado!",
-              className: "bg-green-500 text-white border-none",
-            });
+            toast({ title: "Registro atualizado!", className: "bg-green-500 text-white border-none" });
           },
           onError: () => {
-             toast({ title: "Erro ao atualizar", variant: "destructive" });
+            toast({ title: "Erro ao atualizar", variant: "destructive" });
           },
-        }
+        },
       );
     } else {
       createRecord.mutate(
@@ -179,18 +202,13 @@ export function MedicalTimeline() {
           title: formTitle,
           description: formDescription || undefined,
           examDate: formDate,
-          fileBase64,
-          fileMimeType,
-          fileName,
+          files: filesPayload.length > 0 ? filesPayload : undefined,
         },
         {
           onSuccess: () => {
             setOpen(false);
             resetForm();
-            toast({
-              title: "Registro salvo!",
-              className: "bg-green-500 text-white border-none",
-            });
+            toast({ title: "Registro salvo!", className: "bg-green-500 text-white border-none" });
           },
           onError: () => {
             toast({ title: "Erro ao salvar", variant: "destructive" });
@@ -200,11 +218,11 @@ export function MedicalTimeline() {
     }
   };
 
-  const handleViewFile = async (record: MedicalRecord) => {
-    if (!record.filePath) return;
-    setLoadingFileId(record.id);
+  const handleViewFile = async (recordId: number, fileIndex: number) => {
+    const key = `${recordId}-${fileIndex}`;
+    setLoadingFileId(key);
     try {
-      const url = await getMedicalFileUrl(record.id);
+      const url = await getMedicalFileUrl(recordId, fileIndex);
       window.open(url, "_blank");
     } catch {
       toast({ title: "Erro ao abrir arquivo", variant: "destructive" });
@@ -226,10 +244,7 @@ export function MedicalTimeline() {
         onSuccess: () => {
           setDeleteOpen(false);
           setSelectedRecord(null);
-          toast({
-            title: "Registro excluído",
-            className: "bg-amber-500 text-white border-none",
-          });
+          toast({ title: "Registro excluído", className: "bg-amber-500 text-white border-none" });
         },
         onError: () => {
           toast({ title: "Erro ao excluir", variant: "destructive" });
@@ -254,6 +269,9 @@ export function MedicalTimeline() {
       </div>
     );
   }
+
+  const existingPaths = editingRecord?.filePaths?.filter((p) => !removeFilePaths.includes(p)) || [];
+  const removedPaths = editingRecord?.filePaths?.filter((p) => removeFilePaths.includes(p)) || [];
 
   return (
     <div className="space-y-6">
@@ -332,41 +350,85 @@ export function MedicalTimeline() {
                 </div>
                 <div className="space-y-2">
                   <Label>
-                    Arquivo{" "}
-                    <span className="text-muted-foreground text-xs">(PDF ou imagem, máx 10MB)</span>
+                    Arquivos{" "}
+                    <span className="text-muted-foreground text-xs">(PDF ou imagens, máx 10MB cada)</span>
                   </Label>
-                  <div className="flex items-center gap-2">
-                    <label
-                      className={cn(
-                        "flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors",
-                        formFile
-                          ? "border-primary bg-primary/5"
-                          : "border-muted hover:border-primary/50",
-                      )}
-                    >
-                      <Paperclip className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground truncate">
-                        {formFile ? formFile.name : "Escolher arquivo..."}
-                      </span>
-                      <input
-                        type="file"
-                        accept="application/pdf,image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        data-testid="input-file"
-                        onChange={(e) => setFormFile(e.target.files?.[0] || null)}
-                      />
-                    </label>
-                    {formFile && (
+
+                  {existingPaths.map((path) => (
+                    <div key={path} className="flex items-center justify-between px-3 py-2 rounded-xl border border-border bg-muted/30">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm text-foreground truncate">{getFileName(path)}</span>
+                      </div>
                       <Button
                         type="button"
                         size="icon"
                         variant="ghost"
-                        onClick={() => setFormFile(null)}
+                        className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                        data-testid={`button-remove-existing-${path}`}
+                        onClick={() => markExistingForRemoval(path)}
+                        title="Remover arquivo"
                       >
-                        <X className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  ))}
+
+                  {removedPaths.map((path) => (
+                    <div key={path} className="flex items-center justify-between px-3 py-2 rounded-xl border border-dashed border-destructive/30 bg-destructive/5">
+                      <span className="text-sm text-muted-foreground line-through truncate">{getFileName(path)}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-7 shrink-0"
+                        onClick={() => undoRemoval(path)}
+                      >
+                        Desfazer
+                      </Button>
+                    </div>
+                  ))}
+
+                  {formFiles.map((file, i) => (
+                    <div key={`new-${i}`} className="flex items-center justify-between px-3 py-2 rounded-xl border border-primary/30 bg-primary/5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Paperclip className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-sm text-foreground truncate">{file.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          ({(file.size / 1024 / 1024).toFixed(1)}MB)
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => removeNewFile(i)}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  <label
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-muted hover:border-primary/50 cursor-pointer transition-colors"
+                  >
+                    <Plus className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Adicionar arquivo...
+                    </span>
+                    <input
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      multiple
+                      className="hidden"
+                      data-testid="input-file"
+                      onChange={(e) => {
+                        addFiles(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
                 </div>
                 <Button
                   type="submit"
@@ -433,22 +495,6 @@ export function MedicalTimeline() {
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      {record.filePath && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleViewFile(record)}
-                          disabled={loadingFileId === record.id}
-                          data-testid={`button-view-file-${record.id}`}
-                          title="Ver arquivo"
-                        >
-                          {loadingFileId === record.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <ExternalLink className="w-4 h-4" />
-                          )}
-                        </Button>
-                      )}
                       <Button
                         size="icon"
                         variant="ghost"
@@ -469,10 +515,25 @@ export function MedicalTimeline() {
                       </Button>
                     </div>
                   </div>
-                  {record.filePath && (
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Arquivo anexado</span>
+                  {record.filePaths && record.filePaths.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {record.filePaths.map((path, idx) => (
+                        <button
+                          key={path}
+                          onClick={() => handleViewFile(record.id, idx)}
+                          disabled={loadingFileId === `${record.id}-${idx}`}
+                          data-testid={`button-view-file-${record.id}-${idx}`}
+                          className="flex items-center gap-1.5 text-xs text-primary hover:underline disabled:opacity-50"
+                        >
+                          {loadingFileId === `${record.id}-${idx}` ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <FileText className="w-3.5 h-3.5" />
+                          )}
+                          <span className="truncate max-w-[200px]">{getFileName(path)}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -506,7 +567,7 @@ export function MedicalTimeline() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Este registro será excluído permanentemente, incluindo o arquivo anexado.
+              Este registro será excluído permanentemente, incluindo os arquivos anexados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

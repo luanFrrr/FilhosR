@@ -319,11 +319,11 @@ export async function registerRoutes(
     // Sem fotos para remover no Storage para vacinas
 
     const medicalRows = await db
-      .select({ filePath: medicalRecords.filePath })
+      .select({ filePaths: medicalRecords.filePaths })
       .from(medicalRecords)
       .where(drizzleEq(medicalRecords.childId, id));
     const healthFilePaths = medicalRows
-      .map((r) => r.filePath)
+      .flatMap((r) => r.filePaths || [])
       .filter((p): p is string => !!p);
 
     await storage.deleteChild(id);
@@ -721,7 +721,7 @@ export async function registerRoutes(
       }
 
       try {
-        const { type, title, description, examDate, fileBase64, fileMimeType, fileName } = req.body;
+        const { type, title, description, examDate, files } = req.body;
 
         if (!type || !title || !examDate) {
           return res.status(400).json({ message: "Campos obrigatórios: type, title, examDate" });
@@ -732,32 +732,29 @@ export async function registerRoutes(
           return res.status(400).json({ message: "Tipo deve ser 'consulta' ou 'exame'" });
         }
 
-        let filePath: string | undefined;
+        const filePaths: string[] = [];
 
-        if (fileBase64 && fileMimeType && fileName) {
-          const allowedMimes = [
-            "application/pdf",
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-          ];
-          if (!allowedMimes.includes(fileMimeType)) {
-            return res.status(400).json({
-              message: "Tipo de arquivo não permitido. Use PDF ou imagens.",
-            });
+        if (Array.isArray(files) && files.length > 0) {
+          if (files.length > 5) {
+            return res.status(400).json({ message: "Máximo de 5 arquivos por registro" });
           }
+          const allowedMimes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 
-          const buffer = Buffer.from(fileBase64, "base64");
-          if (buffer.length > 10 * 1024 * 1024) {
-            return res.status(400).json({ message: "Arquivo muito grande (máx 10MB)" });
+          for (const file of files) {
+            if (!file.fileBase64 || !file.fileMimeType || !file.fileName) continue;
+            if (!allowedMimes.includes(file.fileMimeType)) {
+              return res.status(400).json({ message: "Tipo de arquivo não permitido. Use PDF ou imagens." });
+            }
+            const buffer = Buffer.from(file.fileBase64, "base64");
+            if (buffer.length > 10 * 1024 * 1024) {
+              return res.status(400).json({ message: "Arquivo muito grande (máx 10MB cada)" });
+            }
+            const ext = file.fileName.split(".").pop() || "bin";
+            const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+            const storagePath = `${childId}/${safeName}`;
+            await uploadFileBuffer("health-files", storagePath, buffer, file.fileMimeType);
+            filePaths.push(storagePath);
           }
-
-          const ext = fileName.split(".").pop() || "bin";
-          const safeName = `${Date.now()}.${ext}`;
-          const storagePath = `${childId}/${safeName}`;
-
-          await uploadFileBuffer("health-files", storagePath, buffer, fileMimeType);
-          filePath = storagePath;
         }
 
         const record = await storage.createMedicalRecord({
@@ -767,7 +764,7 @@ export async function registerRoutes(
           title,
           description: description || null,
           examDate,
-          filePath: filePath || null,
+          filePaths: filePaths.length > 0 ? filePaths : null,
         });
 
         res.status(201).json(record);
@@ -824,7 +821,7 @@ export async function registerRoutes(
       }
 
       try {
-        const { type, title, description, examDate, fileBase64, fileMimeType, fileName } = req.body;
+        const { type, title, description, examDate, newFiles, removeFilePaths } = req.body;
 
         const updates: Partial<InsertMedicalRecord> = {};
         if (type) updates.type = type;
@@ -832,36 +829,40 @@ export async function registerRoutes(
         if (description !== undefined) updates.description = description || null;
         if (examDate) updates.examDate = examDate;
 
-        if (fileBase64 && fileMimeType && fileName) {
-          const allowedMimes = [
-            "application/pdf",
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-          ];
-          if (!allowedMimes.includes(fileMimeType)) {
-            return res.status(400).json({
-              message: "Tipo de arquivo não permitido. Use PDF ou imagens.",
-            });
-          }
+        let currentPaths = existing.filePaths ? [...existing.filePaths] : [];
 
-          const buffer = Buffer.from(fileBase64, "base64");
-          if (buffer.length > 10 * 1024 * 1024) {
-            return res.status(400).json({ message: "Arquivo muito grande (máx 10MB)" });
+        if (Array.isArray(removeFilePaths) && removeFilePaths.length > 0) {
+          for (const rp of removeFilePaths) {
+            if (currentPaths.includes(rp)) {
+              await deleteFileFromStorage("health-files", rp).catch(console.error);
+              currentPaths = currentPaths.filter((p) => p !== rp);
+            }
           }
-
-          const ext = fileName.split(".").pop() || "bin";
-          const safeName = `${Date.now()}.${ext}`;
-          const storagePath = `${existing.childId}/${safeName}`;
-
-          await uploadFileBuffer("health-files", storagePath, buffer, fileMimeType);
-          
-          if (existing.filePath) {
-            await deleteFileFromStorage("health-files", existing.filePath).catch(console.error);
-          }
-          
-          updates.filePath = storagePath;
         }
+
+        if (Array.isArray(newFiles) && newFiles.length > 0) {
+          if (currentPaths.length + newFiles.length > 5) {
+            return res.status(400).json({ message: "Máximo de 5 arquivos por registro" });
+          }
+          const allowedMimes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+          for (const file of newFiles) {
+            if (!file.fileBase64 || !file.fileMimeType || !file.fileName) continue;
+            if (!allowedMimes.includes(file.fileMimeType)) {
+              return res.status(400).json({ message: "Tipo de arquivo não permitido. Use PDF ou imagens." });
+            }
+            const buffer = Buffer.from(file.fileBase64, "base64");
+            if (buffer.length > 10 * 1024 * 1024) {
+              return res.status(400).json({ message: "Arquivo muito grande (máx 10MB cada)" });
+            }
+            const ext = file.fileName.split(".").pop() || "bin";
+            const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+            const storagePath = `${existing.childId}/${safeName}`;
+            await uploadFileBuffer("health-files", storagePath, buffer, file.fileMimeType);
+            currentPaths.push(storagePath);
+          }
+        }
+
+        updates.filePaths = currentPaths.length > 0 ? currentPaths : null;
 
         const record = await storage.updateMedicalRecord(id, updates);
         res.json(record);
@@ -887,16 +888,51 @@ export async function registerRoutes(
       if (!(await hasChildAccess(userId, record.childId))) {
         return res.status(403).json({ message: "Acesso negado" });
       }
-      if (!record.filePath) {
+      if (!record.filePaths?.length) {
         return res.status(404).json({ message: "Nenhum arquivo anexado" });
       }
 
       try {
-        const url = await getSignedUrl("health-files", record.filePath, 3600);
+        const fileIndex = Number(req.query.index ?? 0);
+        const path = record.filePaths[fileIndex];
+        if (!path) return res.status(404).json({ message: "Arquivo não encontrado" });
+        const url = await getSignedUrl("health-files", path, 3600);
         res.json({ url });
       } catch (err: any) {
         console.error("Error generating signed URL:", err);
         res.status(500).json({ message: "Erro ao gerar URL do arquivo" });
+      }
+    },
+  );
+
+  app.get(
+    api.medicalRecords.getFileUrls.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+      const id = Number(req.params.id);
+      const record = await storage.getMedicalRecordById(id);
+      if (!record) return res.status(404).json({ message: "Registro não encontrado" });
+      if (!(await hasChildAccess(userId, record.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+      if (!record.filePaths?.length) {
+        return res.json({ urls: [] });
+      }
+
+      try {
+        const urls = await Promise.all(
+          record.filePaths.map(async (p) => ({
+            path: p,
+            url: await getSignedUrl("health-files", p, 3600),
+          })),
+        );
+        res.json({ urls });
+      } catch (err: any) {
+        console.error("Error generating signed URLs:", err);
+        res.status(500).json({ message: "Erro ao gerar URLs dos arquivos" });
       }
     },
   );
@@ -917,8 +953,10 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Acesso negado" });
       }
 
-      if (record.filePath) {
-        await deleteFileFromStorage("health-files", record.filePath);
+      if (record.filePaths?.length) {
+        for (const p of record.filePaths) {
+          await deleteFileFromStorage("health-files", p).catch(console.error);
+        }
       }
 
       await storage.deleteMedicalRecord(id);

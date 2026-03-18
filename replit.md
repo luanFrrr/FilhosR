@@ -39,7 +39,7 @@ Core entities include:
 - **GrowthRecords**: Weight, height, head circumference tracking over time
 - **Vaccines/VaccineRecords**: Custom vaccines and SUS-standard vaccine tracking
 - **HealthRecords**: Illness tracking with symptoms and medications
-- **MedicalRecords**: Consultation/exam history with file uploads (PDF/images) via Supabase private bucket `health-files`, signed URL access
+- **MedicalRecords**: Consultation/exam history with multiple file uploads (PDF/images) via Supabase private bucket `health-files`, signed URL access. Column `file_paths text[]` stores array of storage paths.
 - **Milestones/DiaryEntries**: Memory keeping features. Milestones support titles, descriptions, dates, and photos (base64).
 - **Gamification**: Points and levels to encourage engagement
 
