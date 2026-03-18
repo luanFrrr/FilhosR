@@ -27,15 +27,19 @@ export function useMedicalRecords(
   });
 }
 
+interface FileInput {
+  fileBase64: string;
+  fileMimeType: string;
+  fileName: string;
+}
+
 interface CreateMedicalRecordInput {
   childId: number;
   type: string;
   title: string;
   description?: string;
   examDate: string;
-  fileBase64?: string;
-  fileMimeType?: string;
-  fileName?: string;
+  files?: FileInput[];
 }
 
 export function useCreateMedicalRecord() {
@@ -49,9 +53,7 @@ export function useCreateMedicalRecord() {
           title: input.title,
           description: input.description,
           examDate: input.examDate,
-          fileBase64: input.fileBase64,
-          fileMimeType: input.fileMimeType,
-          fileName: input.fileName,
+          files: input.files,
         },
       );
       return res.json();
@@ -64,10 +66,15 @@ export function useCreateMedicalRecord() {
   });
 }
 
-interface UpdateMedicalRecordInput extends Partial<CreateMedicalRecordInput> {
+interface UpdateMedicalRecordInput {
   id: number;
   childId: number;
-  removeFile?: boolean;
+  type?: string;
+  title?: string;
+  description?: string;
+  examDate?: string;
+  newFiles?: FileInput[];
+  removeFilePaths?: string[];
 }
 
 export function useUpdateMedicalRecord() {
@@ -78,13 +85,8 @@ export function useUpdateMedicalRecord() {
       if (input.title) payload.title = input.title;
       if (input.description !== undefined) payload.description = input.description;
       if (input.examDate) payload.examDate = input.examDate;
-      if (input.removeFile) {
-        payload.removeFile = true;
-      } else if (input.fileBase64) {
-        payload.fileBase64 = input.fileBase64;
-        payload.fileMimeType = input.fileMimeType;
-        payload.fileName = input.fileName;
-      }
+      if (input.newFiles?.length) payload.newFiles = input.newFiles;
+      if (input.removeFilePaths?.length) payload.removeFilePaths = input.removeFilePaths;
 
       const res = await apiRequest(
         "PATCH",
@@ -115,11 +117,20 @@ export function useDeleteMedicalRecord() {
   });
 }
 
-export async function getMedicalFileUrl(recordId: number): Promise<string> {
-  const res = await fetch(`/api/medical-records/${recordId}/file-url`, {
+export async function getMedicalFileUrl(recordId: number, index: number = 0): Promise<string> {
+  const res = await fetch(`/api/medical-records/${recordId}/file-url?index=${index}`, {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Erro ao obter URL do arquivo");
   const data = await res.json();
   return data.url;
+}
+
+export async function getMedicalFileUrls(recordId: number): Promise<{ path: string; url: string }[]> {
+  const res = await fetch(`/api/medical-records/${recordId}/file-urls`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Erro ao obter URLs dos arquivos");
+  const data = await res.json();
+  return data.urls;
 }
