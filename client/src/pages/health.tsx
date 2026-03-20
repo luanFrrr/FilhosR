@@ -5,6 +5,7 @@ import {
   useCreateGrowthRecord,
   useUpdateGrowthRecord,
   useArchiveGrowthRecord,
+  useDeleteGrowthRecord,
 } from "@/hooks/use-growth";
 import { useVaccineRecords } from "@/hooks/use-vaccines";
 import { Header } from "@/components/layout/header";
@@ -49,6 +50,7 @@ import {
   Shield,
   Stethoscope,
   Syringe,
+  Trash2,
 } from "lucide-react";
 import { cn, formatDecimalBR, parseDecimalBR, parseLocalDate } from "@/lib/utils";
 import type { GrowthRecord } from "@shared/schema";
@@ -80,10 +82,12 @@ export default function Health() {
   const createGrowthRecord = useCreateGrowthRecord();
   const updateGrowthRecord = useUpdateGrowthRecord();
   const archiveGrowthRecord = useArchiveGrowthRecord();
+  const deleteGrowthRecord = useDeleteGrowthRecord();
 
   const [growthOpen, setGrowthOpen] = useState(false);
   const [growthEditOpen, setGrowthEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteGrowthOpen, setDeleteGrowthOpen] = useState(false);
   const [selectedGrowth, setSelectedGrowth] = useState<GrowthRecord | null>(null);
   const [activeChartTab, setActiveChartTab] = useState<"weight" | "height">(
     "weight",
@@ -219,6 +223,27 @@ export default function Health() {
         },
         onError: () => {
           toast({ title: "Erro ao arquivar", variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  const confirmDeleteGrowth = () => {
+    if (!activeChild || !selectedGrowth) return;
+
+    deleteGrowthRecord.mutate(
+      { id: selectedGrowth.id, childId: activeChild.id },
+      {
+        onSuccess: () => {
+          setDeleteGrowthOpen(false);
+          setSelectedGrowth(null);
+          toast({
+            title: "Registro excluido",
+            description: "O registro foi removido do historico.",
+          });
+        },
+        onError: () => {
+          toast({ title: "Erro ao excluir", variant: "destructive" });
         },
       },
     );
@@ -440,6 +465,16 @@ export default function Health() {
                         >
                           <Archive className="h-4 w-4" />
                         </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedGrowth(record);
+                            setDeleteGrowthOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -559,6 +594,26 @@ export default function Health() {
               className="bg-amber-600 hover:bg-amber-700"
             >
               {archiveGrowthRecord.isPending ? "Arquivando..." : "Arquivar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteGrowthOpen} onOpenChange={setDeleteGrowthOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acao remove o registro de crescimento de forma permanente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteGrowth}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteGrowthRecord.isPending ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

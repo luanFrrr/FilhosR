@@ -463,6 +463,34 @@ export async function registerRoutes(
     res.json(record);
   });
 
+  app.delete(api.growth.delete.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const id = Number(req.params.id);
+    const existing = await storage.getGrowthRecordById(id);
+    if (!existing) {
+      return res.status(404).json({ message: "Registro não encontrado" });
+    }
+    if (!(await hasChildAccess(userId, existing.childId))) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    await db.transaction(async (tx) => {
+      await storage.deleteGrowthRecord(id, tx);
+      await recordPoints(
+        tx,
+        existing.childId,
+        -10,
+        "growth_delete",
+        "growth_record",
+        id,
+      );
+    });
+
+    res.status(204).send();
+  });
+
   // Vaccines
   app.get(api.vaccines.list.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);

@@ -59,7 +59,7 @@ import {
   type HealthFollowUpWithRelations,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, or, sql, count, desc, inArray, type SQL } from "drizzle-orm";
+import { eq, and, gt, or, sql, count, desc, asc, inArray, type SQL } from "drizzle-orm";
 import {
   DEVELOPMENT_AGE_BANDS,
   NEWBORN_SCREENINGS,
@@ -212,6 +212,7 @@ export interface IStorage {
     record: Partial<InsertGrowthRecord>,
   ): Promise<GrowthRecord>;
   archiveGrowthRecord(id: number): Promise<GrowthRecord>;
+  deleteGrowthRecord(id: number, tx?: any): Promise<void>;
 
   // Vaccines
   getVaccines(childId: number): Promise<Vaccine[]>;
@@ -625,6 +626,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(growthRecords)
       .where(eq(growthRecords.childId, childId))
+      .orderBy(asc(growthRecords.date), asc(growthRecords.id))
       .limit(500);
     return records.filter((r) => !r.notes?.startsWith("[ARCHIVED]"));
   }
@@ -669,6 +671,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(growthRecords.id, id))
       .returning();
     return archived;
+  }
+
+  async deleteGrowthRecord(id: number, tx?: any): Promise<void> {
+    const executor = tx ?? db;
+    await executor.delete(growthRecords).where(eq(growthRecords.id, id));
   }
 
   // Vaccines

@@ -68,3 +68,23 @@ export function useArchiveGrowthRecord() {
     },
   });
 }
+
+export function useDeleteGrowthRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
+      const url = buildUrl(api.growth.delete.path, { id });
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) {
+        throw new Error("Failed to delete growth record");
+      }
+      return { childId };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [api.growth.list.path, variables.childId],
+      });
+      queryClient.invalidateQueries({ queryKey: [api.auth.gamification.path] });
+    },
+  });
+}
