@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from "react";
+import React, { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -22,18 +22,17 @@ import {
   ForegroundNotificationCenter,
   type ForegroundNotificationPayload,
 } from "@/components/notifications/ForegroundNotificationCenter";
-
-const DashboardPage = React.lazy(() => import("@/pages/dashboard"));
-const HealthPage = React.lazy(() => import("@/pages/health"));
-const MemoriesPage = React.lazy(() => import("@/pages/memories"));
-const OnboardingPage = React.lazy(() => import("@/pages/onboarding"));
-const SettingsPage = React.lazy(() => import("@/pages/settings"));
-const VaccineCardPage = React.lazy(() => import("@/pages/vaccine-card"));
-const DailyPhotosPage = React.lazy(() => import("@/pages/daily-photos"));
-const LandingPage = React.lazy(() => import("@/pages/landing"));
-const PrivacyPage = React.lazy(() => import("@/pages/privacy"));
-const DeleteAccountPage = React.lazy(() => import("@/pages/delete-account"));
-const NotFoundPage = React.lazy(() => import("@/pages/not-found"));
+import DashboardPage from "@/pages/dashboard";
+import HealthPage from "@/pages/health";
+import MemoriesPage from "@/pages/memories";
+import OnboardingPage from "@/pages/onboarding";
+import SettingsPage from "@/pages/settings";
+import VaccineCardPage from "@/pages/vaccine-card";
+import DailyPhotosPage from "@/pages/daily-photos";
+import LandingPage from "@/pages/landing";
+import PrivacyPage from "@/pages/privacy";
+import DeleteAccountPage from "@/pages/delete-account";
+import NotFoundPage from "@/pages/not-found";
 
 function RouteLoader() {
   return (
@@ -138,19 +137,17 @@ function AuthenticatedRouter() {
           navigateFromNotification(notification.url, notification.childId);
         }}
       />
-      <Suspense fallback={<RouteLoader />}>
-        <Switch>
-          <Route path="/" component={DashboardPage} />
-          <Route path="/growth" component={GrowthRedirect} />
-          <Route path="/health" component={HealthPage} />
-          <Route path="/memories" component={MemoriesPage} />
-          <Route path="/settings" component={SettingsPage} />
-          <Route path="/onboarding" component={OnboardingPage} />
-          <Route path="/vaccines" component={VaccineCardPage} />
-          <Route path="/daily-photos" component={DailyPhotosPage} />
-          <Route component={NotFoundPage} />
-        </Switch>
-      </Suspense>
+      <Switch>
+        <Route path="/" component={DashboardPage} />
+        <Route path="/growth" component={GrowthRedirect} />
+        <Route path="/health" component={HealthPage} />
+        <Route path="/memories" component={MemoriesPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/onboarding" component={OnboardingPage} />
+        <Route path="/vaccines" component={VaccineCardPage} />
+        <Route path="/daily-photos" component={DailyPhotosPage} />
+        <Route component={NotFoundPage} />
+      </Switch>
       {!isAuthPage && <BottomNav />}
     </>
   );
@@ -162,18 +159,10 @@ function AppContent() {
 
   // Páginas públicas que não precisam de autenticação
   if (location === "/privacy") {
-    return (
-      <Suspense fallback={<RouteLoader />}>
-        <PrivacyPage />
-      </Suspense>
-    );
+    return <PrivacyPage />;
   }
   if (location === "/delete-account") {
-    return (
-      <Suspense fallback={<RouteLoader />}>
-        <DeleteAccountPage />
-      </Suspense>
-    );
+    return <DeleteAccountPage />;
   }
 
   if (isLoading) {
@@ -181,11 +170,7 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
-    return (
-      <Suspense fallback={<RouteLoader />}>
-        <LandingPage />
-      </Suspense>
-    );
+    return <LandingPage />;
   }
 
   return (

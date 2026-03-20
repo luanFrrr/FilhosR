@@ -1,7 +1,7 @@
-const CACHE_NAME = "filhos-v16";
+const CACHE_NAME = "filhos-v17";
 const IMAGE_CACHE_NAME = "filhos-images-v3";
 const MAX_IMAGE_CACHE_ENTRIES = 200;
-const STATIC_ASSETS = ["/manifest.json?v=20260309"];
+const STATIC_ASSETS = ["/manifest.json?v=20260320"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -46,6 +46,18 @@ function isHttpRequest(request) {
   }
 }
 
+function isAppAssetRequest(request) {
+  try {
+    const url = new URL(request.url);
+    return (
+      url.origin === self.location.origin &&
+      url.pathname.startsWith("/assets/")
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 async function trimImageCache() {
   const cache = await caches.open(IMAGE_CACHE_NAME);
   const keys = await cache.keys();
@@ -54,6 +66,24 @@ async function trimImageCache() {
     for (let i = 0; i < toDelete; i++) {
       await cache.delete(keys[i]);
     }
+  }
+}
+
+async function networkFirstCache(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    throw error;
   }
 }
 
@@ -118,6 +148,11 @@ self.addEventListener("fetch", (event) => {
           });
         }),
     );
+    return;
+  }
+
+  if (isAppAssetRequest(event.request)) {
+    event.respondWith(networkFirstCache(event.request));
     return;
   }
 
