@@ -59,8 +59,9 @@ export function useUnreadNotificationsCount() {
       if (!res.ok) throw new Error("Erro ao buscar contador de notificações");
       return res.json();
     },
-    staleTime: 10_000,
-    refetchInterval: 30_000,
+    staleTime: 30_000,
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
   });
 }
 
