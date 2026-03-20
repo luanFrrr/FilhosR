@@ -139,6 +139,7 @@ export function useHealthFollowUps(
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: childId > 0,
+    placeholderData: (previousData) => previousData,
   });
 }
 

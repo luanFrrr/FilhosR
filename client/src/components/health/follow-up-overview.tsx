@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -230,9 +230,6 @@ export function FollowUpOverview({
   const [loadingExamFile, setLoadingExamFile] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [openDevelopmentItem, setOpenDevelopmentItem] = useState<string>("");
-  const didInitializeDevelopmentAccordion = useRef(false);
-  const timelineSectionRef = useRef<HTMLElement | null>(null);
-  const keepTimelineInViewRef = useRef(false);
 
   const followUps = useMemo(
     () => data?.pages.flatMap((page) => page.data) || [],
@@ -265,35 +262,6 @@ export function FollowUpOverview({
   const pendingNeonatalCount =
     neonatalFollowUp?.neonatalScreenings.filter((item) => !item.isCompleted)
       .length ?? 0;
-
-  useEffect(() => {
-    if (developmentFollowUps.length === 0) return;
-
-    const closestFollowUp =
-      developmentFollowUps.find(
-        (followUp) => getAgeBandMeta(followUp)?.key === closestAgeBand.key,
-      ) || developmentFollowUps[0];
-
-    setOpenDevelopmentItem((current) => {
-      if (!didInitializeDevelopmentAccordion.current) {
-        didInitializeDevelopmentAccordion.current = true;
-        return current || String(closestFollowUp.id);
-      }
-
-      if (
-        current &&
-        developmentFollowUps.some((followUp) => String(followUp.id) === current)
-      ) {
-        return current;
-      }
-
-      if (!current) {
-        return current;
-      }
-
-      return String(closestFollowUp.id);
-    });
-  }, [closestAgeBand.key, developmentFollowUps]);
 
   useEffect(() => {
     if (!legacyRecordId || followUps.length === 0) return;
@@ -558,25 +526,6 @@ export function FollowUpOverview({
       },
     );
   };
-
-  useEffect(() => {
-    if (!keepTimelineInViewRef.current || !timelineSectionRef.current) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      timelineSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-      keepTimelineInViewRef.current = false;
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [
-    timelineCategoryFilter,
-    timelineEndDate,
-    timelineStartDate,
-    timelineFollowUps.length,
-  ]);
 
   if (isLoading) {
     return (
@@ -933,7 +882,7 @@ export function FollowUpOverview({
         </Accordion>
       </section>
 
-      <section className="space-y-4" ref={timelineSectionRef}>
+      <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
@@ -950,17 +899,13 @@ export function FollowUpOverview({
             startDate={timelineStartDate}
             endDate={timelineEndDate}
             onChange={(startDate, endDate) => {
-              keepTimelineInViewRef.current = true;
               setTimelineStartDate(startDate);
               setTimelineEndDate(endDate);
             }}
           />
           <Select
             value={timelineCategoryFilter}
-            onValueChange={(value) => {
-              keepTimelineInViewRef.current = true;
-              setTimelineCategoryFilter(value);
-            }}
+            onValueChange={setTimelineCategoryFilter}
           >
             <SelectTrigger className="h-9 w-[220px] rounded-full">
               <SelectValue placeholder="Categoria" />
