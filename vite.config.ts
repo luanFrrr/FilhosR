@@ -31,50 +31,6 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes("node_modules")) return;
-
-          if (
-            id.includes("react") ||
-            id.includes("scheduler") ||
-            id.includes("wouter") ||
-            id.includes("@tanstack/react-query")
-          ) {
-            return "react-vendor";
-          }
-
-          if (
-            id.includes("@radix-ui") ||
-            id.includes("cmdk") ||
-            id.includes("vaul") ||
-            id.includes("input-otp")
-          ) {
-            return "ui-vendor";
-          }
-
-          if (
-            id.includes("recharts") ||
-            id.includes("framer-motion") ||
-            id.includes("embla-carousel-react") ||
-            id.includes("react-image-crop")
-          ) {
-            return "visual-vendor";
-          }
-
-          if (id.includes("date-fns")) {
-            return "date-vendor";
-          }
-
-          if (id.includes("lucide-react") || id.includes("react-icons")) {
-            return "icon-vendor";
-          }
-
-          return "vendor";
-        },
-      },
-    },
   },
   server: {
     fs: {
