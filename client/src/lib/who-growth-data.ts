@@ -169,6 +169,21 @@ const HEIGHT_GIRLS: PercentileRow[] = [
 
 export type GrowthMetric = "weight" | "height";
 export type Gender = "male" | "female";
+export type GrowthAssessmentTone =
+  | "critical-low"
+  | "low"
+  | "normal"
+  | "high"
+  | "critical-high";
+
+export type GrowthAssessment = {
+  metric: GrowthMetric;
+  ageMonths: number;
+  zone: string;
+  tone: GrowthAssessmentTone;
+  shortLabel: string;
+  summary: string;
+};
 
 function getTable(metric: GrowthMetric, gender: Gender): PercentileRow[] {
   if (metric === "weight") return gender === "male" ? WEIGHT_BOYS : WEIGHT_GIRLS;
@@ -230,4 +245,89 @@ export function getChildPercentileZone(
   if (value < p85) return "Entre P50 e P85";
   if (value < p97) return "Entre P85 e P97";
   return "Acima do P97";
+}
+
+function preciseAgeMonths(birthDate: Date, recordDate: Date): number {
+  const msDiff = recordDate.getTime() - birthDate.getTime();
+  return Math.round((msDiff / (1000 * 60 * 60 * 24 * 30.4375)) * 10) / 10;
+}
+
+export function getGrowthAssessment(
+  value: number,
+  birthDate: string | Date,
+  recordDate: string | Date,
+  metric: GrowthMetric,
+  gender: Gender,
+): GrowthAssessment | null {
+  const birth = new Date(birthDate);
+  const record = new Date(recordDate);
+
+  if (Number.isNaN(birth.getTime()) || Number.isNaN(record.getTime())) {
+    return null;
+  }
+
+  const ageMonths = preciseAgeMonths(birth, record);
+  if (ageMonths < 0) {
+    return null;
+  }
+
+  const table = getTable(metric, gender);
+  const p3 = interpolate(table, ageMonths, "p3");
+  const p15 = interpolate(table, ageMonths, "p15");
+  const p85 = interpolate(table, ageMonths, "p85");
+  const p97 = interpolate(table, ageMonths, "p97");
+  const metricLabel = metric === "weight" ? "peso" : "altura";
+
+  if (value < p3) {
+    return {
+      metric,
+      ageMonths,
+      zone: "Abaixo do P3",
+      tone: "critical-low",
+      shortLabel: `${metricLabel} abaixo da faixa esperada`,
+      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} abaixo da faixa de referência para a idade.`,
+    };
+  }
+
+  if (value < p15) {
+    return {
+      metric,
+      ageMonths,
+      zone: "Entre P3 e P15",
+      tone: "low",
+      shortLabel: `${metricLabel} perto do limite inferior`,
+      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} perto do limite inferior da faixa esperada para a idade.`,
+    };
+  }
+
+  if (value <= p85) {
+    return {
+      metric,
+      ageMonths,
+      zone: "Entre P15 e P85",
+      tone: "normal",
+      shortLabel: `${metricLabel} dentro da faixa esperada`,
+      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} dentro da faixa esperada para a idade.`,
+    };
+  }
+
+  if (value <= p97) {
+    return {
+      metric,
+      ageMonths,
+      zone: "Entre P85 e P97",
+      tone: "high",
+      shortLabel: `${metricLabel} perto do limite superior`,
+      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} perto do limite superior da faixa esperada para a idade.`,
+    };
+  }
+
+  return {
+    metric,
+    ageMonths,
+    zone: "Acima do P97",
+    tone: "critical-high",
+    shortLabel: `${metricLabel} acima da faixa esperada`,
+    summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} acima da faixa de referência para a idade.`,
+  };
 }

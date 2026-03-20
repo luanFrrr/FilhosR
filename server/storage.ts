@@ -8,6 +8,7 @@ import {
   milestones,
   diaryEntries,
   gamification,
+  gamificationEvents,
   susVaccines,
   vaccineRecords,
   dailyPhotos,
@@ -579,12 +580,17 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChild(id: number): Promise<void> {
     await db.transaction(async (tx) => {
-      // 1. Deletar likes de milestones (dependem dos IDs de milestones desta criança)
+      // 1. Deletar likes dependentes de registros sociais desta criança.
       await tx.execute(
         sql`DELETE FROM milestone_likes WHERE milestone_id IN (SELECT id FROM milestones WHERE child_id = ${id})`,
       );
+      await tx.execute(
+        sql`DELETE FROM diary_likes WHERE diary_entry_id IN (SELECT id FROM diary_entries WHERE child_id = ${id})`,
+      );
 
-      // 2. Deletar comentários de atividade
+      // 2. Deletar registros auxiliares vinculados diretamente à criança.
+      await tx.delete(notifications).where(eq(notifications.childId, id));
+      await tx.delete(gamificationEvents).where(eq(gamificationEvents.childId, id));
       await tx.delete(activityComments).where(eq(activityComments.childId, id));
 
       // 3. Deletar códigos de convite

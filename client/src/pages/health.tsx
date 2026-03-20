@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
 import {
   useGrowthRecords,
@@ -34,6 +34,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -53,6 +55,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn, formatDecimalBR, parseDecimalBR, parseLocalDate } from "@/lib/utils";
+import { getGrowthAssessment, type GrowthAssessment, type Gender } from "@/lib/who-growth-data";
 import type { GrowthRecord } from "@shared/schema";
 
 const growthSchema = z.object({
@@ -259,6 +262,90 @@ export default function Health() {
       ?.filter((record) => record.height)
       .map((record) => ({ date: record.date, value: Number(record.height) })) || [];
 
+  const sortedGrowthRecords = useMemo(() => {
+    if (!growthRecords) return [];
+
+    return [...growthRecords].sort((a, b) => {
+      const dateDiff =
+        new Date(b.date).getTime() - new Date(a.date).getTime();
+
+      if (dateDiff !== 0) return dateDiff;
+
+      return b.id - a.id;
+    });
+  }, [growthRecords]);
+
+  const latestGrowthRecord = sortedGrowthRecords[0] ?? null;
+
+  const latestGrowthInsights = useMemo(() => {
+    if (!activeChild?.birthDate || !latestGrowthRecord) return null;
+    if (activeChild.gender !== "male" && activeChild.gender !== "female") return null;
+
+    const gender = activeChild.gender as Gender;
+    const weightAssessment =
+      latestGrowthRecord.weight != null
+        ? getGrowthAssessment(
+            Number(latestGrowthRecord.weight),
+            activeChild.birthDate,
+            latestGrowthRecord.date,
+            "weight",
+            gender,
+          )
+        : null;
+    const heightAssessment =
+      latestGrowthRecord.height != null
+        ? getGrowthAssessment(
+            Number(latestGrowthRecord.height),
+            activeChild.birthDate,
+            latestGrowthRecord.date,
+            "height",
+            gender,
+          )
+        : null;
+
+    if (!weightAssessment && !heightAssessment) return null;
+
+    const assessments = [weightAssessment, heightAssessment].filter(
+      (item): item is GrowthAssessment => item !== null,
+    );
+
+    const hasAttention = assessments.some(
+      (item) => item.tone === "critical-low" || item.tone === "critical-high",
+    );
+    const hasWatch = assessments.some(
+      (item) => item.tone === "low" || item.tone === "high",
+    );
+
+    const tone = hasAttention ? "attention" : hasWatch ? "watch" : "ok";
+    const badgeLabel =
+      tone === "attention"
+        ? "Acompanhar com mais cuidado"
+        : tone === "watch"
+          ? "Vale observar"
+          : "Dentro da faixa esperada";
+    const badgeClassName =
+      tone === "attention"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : tone === "watch"
+          ? "border-amber-200 bg-amber-50 text-amber-700"
+          : "border-emerald-200 bg-emerald-50 text-emerald-700";
+
+    const summaryParts = assessments.map((item) => item.summary.toLowerCase());
+    const joinedSummary =
+      summaryParts.length === 1
+        ? summaryParts[0]
+        : `${summaryParts[0]} e ${summaryParts[1]}`;
+
+    return {
+      tone,
+      badgeLabel,
+      badgeClassName,
+      weightAssessment,
+      heightAssessment,
+      summary: `Pelas curvas de crescimento de referencia usadas no app, ${activeChild.name} está com ${joinedSummary}`,
+    };
+  }, [activeChild, latestGrowthRecord]);
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header title="Saude" showChildSelector={false} />
@@ -345,6 +432,38 @@ export default function Health() {
                 gender={activeChild?.gender}
                 metric={activeChartTab}
               />
+              {latestGrowthInsights ? (
+                <Alert className="mt-5 rounded-2xl border-border/70 bg-muted/30">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <AlertTitle className="text-sm font-semibold text-foreground">
+                        Resumo da ultima medicao
+                      </AlertTitle>
+                      <AlertDescription className="text-sm leading-6 text-muted-foreground">
+                        {latestGrowthInsights.summary}. Essa leitura serve como orientacao geral e nao substitui a avaliacao do pediatra.
+                      </AlertDescription>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", latestGrowthInsights.badgeClassName)}
+                    >
+                      {latestGrowthInsights.badgeLabel}
+                    </Badge>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {latestGrowthInsights.weightAssessment ? (
+                      <Badge variant="secondary" className="rounded-full">
+                        Peso: {latestGrowthInsights.weightAssessment.shortLabel}
+                      </Badge>
+                    ) : null}
+                    {latestGrowthInsights.heightAssessment ? (
+                      <Badge variant="secondary" className="rounded-full">
+                        Altura: {latestGrowthInsights.heightAssessment.shortLabel}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </Alert>
+              ) : null}
             </div>
 
             <div>
@@ -430,7 +549,7 @@ export default function Health() {
               </div>
 
               <div className="space-y-3">
-                {growthRecords?.map((record) => (
+                {sortedGrowthRecords.map((record) => (
                   <div
                     key={record.id}
                     className="rounded-xl border border-border bg-card p-4 shadow-sm"

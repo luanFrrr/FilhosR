@@ -37,54 +37,91 @@ export const children = pgTable("children", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const caregivers = pgTable("caregivers", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  userId: varchar("user_id").notNull(), // OIDC sub claim (UUID string)
-  relationship: text("relationship").notNull(), // 'father', 'mother', 'guardian', etc.
-  role: text("role").notNull().default("viewer"), // 'owner', 'editor', 'viewer'
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const caregivers = pgTable(
+  "caregivers",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
+    userId: varchar("user_id").notNull(), // OIDC sub claim (UUID string)
+    relationship: text("relationship").notNull(), // 'father', 'mother', 'guardian', etc.
+    role: text("role").notNull().default("viewer"), // 'owner', 'editor', 'viewer'
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childIdx: index("caregivers_child_idx").on(table.childId),
+  }),
+);
 
-export const growthRecords = pgTable("growth_records", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  date: date("date").notNull(),
-  weight: decimal("weight"),
-  height: decimal("height"),
-  headCircumference: decimal("head_circumference"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const growthRecords = pgTable(
+  "growth_records",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    weight: decimal("weight"),
+    height: decimal("height"),
+    headCircumference: decimal("head_circumference"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childDateIdx: index("growth_records_child_date_idx").on(table.childId, table.date),
+  }),
+);
 
-export const vaccines = pgTable("vaccines", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  name: text("name").notNull(),
-  scheduledDate: date("scheduled_date").notNull(),
-  administeredDate: date("administered_date"),
-  status: text("status").notNull().default("pending"), // 'pending', 'completed', 'overdue'
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const vaccines = pgTable(
+  "vaccines",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    scheduledDate: date("scheduled_date").notNull(),
+    administeredDate: date("administered_date"),
+    status: text("status").notNull().default("pending"), // 'pending', 'completed', 'overdue'
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childScheduledDateIdx: index("vaccines_child_scheduled_date_idx").on(
+      table.childId,
+      table.scheduledDate,
+    ),
+  }),
+);
 
-export const milestones = pgTable("milestones", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  userId: varchar("user_id"),
-  date: date("date").notNull(),
-  title: text("title").notNull(),
-  description: text("description"),
-  photoUrl: text("photo_url"),
-  likesCount: integer("likes_count").notNull().default(0),
-  isPrivate: boolean("is_private").notNull().default(false),
-  isPublic: boolean("is_public").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const milestones = pgTable(
+  "milestones",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
+    userId: varchar("user_id"),
+    date: date("date").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    photoUrl: text("photo_url"),
+    likesCount: integer("likes_count").notNull().default(0),
+    isPrivate: boolean("is_private").notNull().default(false),
+    isPublic: boolean("is_public").default(false),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childDateIdx: index("milestones_child_date_idx").on(table.childId, table.date),
+  }),
+);
 
 export const diaryEntries = pgTable("diary_entries", {
   id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
+  childId: integer("child_id")
+    .notNull()
+    .references(() => children.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
   content: text("content"),
   photoUrls: text("photo_urls").array(),
@@ -108,7 +145,9 @@ export const gamification = pgTable(
   "gamification",
   {
     id: serial("id").primaryKey(),
-    childId: integer("child_id").notNull(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
     points: integer("points").default(0),
     level: text("level").default("Iniciante"),
     achievements: jsonb("achievements").default([]),
@@ -124,7 +163,9 @@ export const gamificationEvents = pgTable(
   "gamification_events",
   {
     id: serial("id").primaryKey(),
-    childId: integer("child_id").notNull(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
     delta: integer("delta").notNull(),
     reason: text("reason").notNull(),
     recordType: text("record_type").notNull(),
@@ -157,7 +198,9 @@ export const dailyPhotos = pgTable(
   "daily_photos",
   {
     id: serial("id").primaryKey(),
-    childId: integer("child_id").notNull(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
     date: date("date").notNull(),
     photoUrl: text("photo_url").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
@@ -196,7 +239,9 @@ export const notifications = pgTable(
     actorUserId: varchar("actor_user_id"),
     actorName: text("actor_name"),
     actorAvatar: text("actor_avatar"),
-    childId: integer("child_id").notNull(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
     type: text("type").notNull(),
     title: text("title").notNull(),
     body: text("body").notNull(),
@@ -222,24 +267,34 @@ export const notifications = pgTable(
 );
 
 // Códigos de convite para compartilhar crianças entre cuidadores
-export const inviteCodes = pgTable("invite_codes", {
-  id: serial("id").primaryKey(),
-  code: varchar("code", { length: 10 }).notNull().unique(),
-  childId: integer("child_id").notNull(),
-  createdBy: varchar("created_by").notNull(), // userId do criador
-  usedBy: varchar("used_by"), // userId de quem resgatou
-  relationship: text("relationship").notNull().default("caregiver"), // relação do convidado
-  expiresAt: timestamp("expires_at").notNull(),
-  usedAt: timestamp("used_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const inviteCodes = pgTable(
+  "invite_codes",
+  {
+    id: serial("id").primaryKey(),
+    code: varchar("code", { length: 10 }).notNull().unique(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
+    createdBy: varchar("created_by").notNull(), // userId do criador
+    usedBy: varchar("used_by"), // userId de quem resgatou
+    relationship: text("relationship").notNull().default("caregiver"), // relação do convidado
+    expiresAt: timestamp("expires_at").notNull(),
+    usedAt: timestamp("used_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childIdx: index("invite_codes_child_idx").on(table.childId),
+  }),
+);
 
 // Registros vacinais individuais
 export const vaccineRecords = pgTable(
   "vaccine_records",
   {
     id: serial("id").primaryKey(),
-    childId: integer("child_id").notNull(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
     susVaccineId: integer("sus_vaccine_id").notNull(),
     dose: text("dose").notNull(), // Ex: "1ª dose", "2ª dose", "Reforço"
     applicationDate: date("application_date"), // nullable = dose pendente (ainda não aplicada)
@@ -370,15 +425,27 @@ export const inviteCodesRelations = relations(inviteCodes, ({ one }) => ({
   }),
 }));
 
-export const activityComments = pgTable("activity_comments", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  recordType: text("record_type").notNull(),
-  recordId: integer("record_id").notNull(),
-  userId: varchar("user_id").notNull(),
-  text: text("text").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const activityComments = pgTable(
+  "activity_comments",
+  {
+    id: serial("id").primaryKey(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
+    recordType: text("record_type").notNull(),
+    recordId: integer("record_id").notNull(),
+    userId: varchar("user_id").notNull(),
+    text: text("text").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childRecordIdx: index("activity_comments_child_record_idx").on(
+      table.childId,
+      table.recordType,
+      table.recordId,
+    ),
+  }),
+);
 
 export const activityCommentsRelations = relations(
   activityComments,
@@ -400,7 +467,9 @@ export const milestoneLikes = pgTable(
   {
     id: serial("id").primaryKey(),
     childId: integer("child_id"),
-    milestoneId: integer("milestone_id").notNull(),
+    milestoneId: integer("milestone_id")
+      .notNull()
+      .references(() => milestones.id, { onDelete: "cascade" }),
     userId: varchar("user_id").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
   },
@@ -435,7 +504,9 @@ export const diaryLikes = pgTable(
   {
     id: serial("id").primaryKey(),
     childId: integer("child_id"),
-    diaryEntryId: integer("diary_entry_id").notNull(),
+    diaryEntryId: integer("diary_entry_id")
+      .notNull()
+      .references(() => diaryEntries.id, { onDelete: "cascade" }),
     userId: varchar("user_id").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
   },
@@ -470,7 +541,9 @@ export const healthFollowUps = pgTable(
   "health_follow_ups",
   {
     id: serial("id").primaryKey(),
-    childId: integer("child_id").notNull(),
+    childId: integer("child_id")
+      .notNull()
+      .references(() => children.id, { onDelete: "cascade" }),
     createdBy: varchar("created_by"),
     category: text("category").notNull(),
     title: text("title").notNull(),
@@ -499,7 +572,9 @@ export const neonatalScreenings = pgTable(
   "neonatal_screenings",
   {
     id: serial("id").primaryKey(),
-    followUpId: integer("follow_up_id").notNull(),
+    followUpId: integer("follow_up_id")
+      .notNull()
+      .references(() => healthFollowUps.id, { onDelete: "cascade" }),
     screeningType: text("screening_type").notNull(),
     isCompleted: boolean("is_completed").notNull().default(false),
     completedAt: date("completed_at"),
@@ -517,7 +592,9 @@ export const developmentMilestones = pgTable(
   "development_milestones",
   {
     id: serial("id").primaryKey(),
-    followUpId: integer("follow_up_id").notNull(),
+    followUpId: integer("follow_up_id")
+      .notNull()
+      .references(() => healthFollowUps.id, { onDelete: "cascade" }),
     milestoneKey: text("milestone_key").notNull(),
     ageBand: text("age_band").notNull(),
     title: text("title").notNull(),
@@ -537,7 +614,9 @@ export const healthExams = pgTable(
   "health_exams",
   {
     id: serial("id").primaryKey(),
-    followUpId: integer("follow_up_id").notNull(),
+    followUpId: integer("follow_up_id")
+      .notNull()
+      .references(() => healthFollowUps.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     examDate: date("exam_date").notNull(),
     notes: text("notes"),
