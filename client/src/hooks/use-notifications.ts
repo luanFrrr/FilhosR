@@ -62,9 +62,10 @@ export function useUnreadNotificationsCount() {
     staleTime: 30_000,
     refetchInterval: () =>
       typeof document !== "undefined" && document.visibilityState === "visible"
-        ? 60_000
+        ? 120_000
         : false,
     refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
   });
 }
 
