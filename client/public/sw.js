@@ -183,13 +183,23 @@ self.addEventListener("push", (event) => {
 
   const data = event.data.json();
 
-  const options = {
+  const pushData = {
+    title: data.title || "Filhos",
     body: data.body || "",
+    url:
+      data?.data?.url ||
+      data.url ||
+      "/",
+    childId: data?.data?.childId || data.childId || null,
+  };
+
+  const options = {
+    body: pushData.body,
     icon: data.icon || "/icons/icon-notification-192x192.png",
     badge: data.badge || "/icons/badge-96x96.png",
     tag: data.tag || "filhos-notification",
     vibrate: [200, 100, 200],
-    data: data.data || { url: "/" },
+    data: data.data || { url: pushData.url, childId: pushData.childId },
     actions: [
       { action: "open", title: "Abrir" },
       { action: "dismiss", title: "Dispensar" },
@@ -198,7 +208,25 @@ self.addEventListener("push", (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || "Filhos", options),
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        const visibleClients = clientList.filter(
+          (client) => client.visibilityState === "visible",
+        );
+
+        if (visibleClients.length > 0) {
+          visibleClients.forEach((client) => {
+            client.postMessage({
+              type: "PUSH_RECEIVED",
+              ...pushData,
+            });
+          });
+          return;
+        }
+
+        return self.registration.showNotification(pushData.title, options);
+      }),
   );
 });
 
@@ -228,11 +256,16 @@ self.addEventListener("notificationclick", (event) => {
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && "focus" in client) {
-            client.postMessage({ type: "NAVIGATE", url: urlPath, childId });
-            return client.focus();
+        const internalClient = clientList.find((client) =>
+          client.url.includes(self.location.origin),
+        );
+
+        if (internalClient) {
+          if ("navigate" in internalClient) {
+            return internalClient.navigate(urlToOpen).then(() => internalClient.focus());
           }
+          internalClient.postMessage({ type: "NAVIGATE", url: urlPath, childId });
+          return internalClient.focus();
         }
         return clients.openWindow(urlToOpen);
       }),

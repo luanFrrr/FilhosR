@@ -21,6 +21,7 @@ import {
   useUnreadNotificationsCount,
 } from "@/hooks/use-notifications";
 import { useChildContext } from "@/hooks/use-child-context";
+import { normalizeNotificationTarget } from "@/lib/notification-navigation";
 import { cn } from "@/lib/utils";
 
 function formatRelativeDate(value: string | null): string {
@@ -69,8 +70,10 @@ export function NotificationInbox() {
     }
 
     setOpen(false);
-    const target = notification.deepLink || "/";
-    if (target.startsWith("/")) {
+    const { target, isInternal } = normalizeNotificationTarget(
+      notification.deepLink,
+    );
+    if (isInternal) {
       setLocation(target);
       return;
     }

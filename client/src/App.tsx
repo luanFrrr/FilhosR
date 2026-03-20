@@ -9,12 +9,18 @@ import { BottomNav } from "@/components/layout/bottom-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { useChildContext } from "@/hooks/use-child-context";
 import {
+  appendNotifyChildId,
   extractNotifyChildFromPath,
+  normalizeNotificationTarget,
   resolveNotifyChildId,
 } from "@/lib/notification-navigation";
 import { Loader2 } from "lucide-react";
 import { NotificationPermissionBanner } from "@/components/notifications/NotificationPermissionBanner";
 import { PermissionPrompt } from "@/components/permissions/PermissionPrompt";
+import {
+  ForegroundNotificationCenter,
+  type ForegroundNotificationPayload,
+} from "@/components/notifications/ForegroundNotificationCenter";
 
 // Pages
 import Dashboard from "@/pages/dashboard";
@@ -41,6 +47,38 @@ function AuthenticatedRouter() {
   const [location, setLocation] = useLocation();
   const { setActiveChildId } = useChildContext();
   const isAuthPage = location === "/onboarding";
+  const [foregroundNotification, setForegroundNotification] =
+    React.useState<ForegroundNotificationPayload | null>(null);
+  const lastNavigationRef = React.useRef<string | null>(null);
+
+  const navigateFromNotification = React.useCallback(
+    (rawUrl: string | null | undefined, rawChildId?: unknown) => {
+      const { target, isInternal } = normalizeNotificationTarget(rawUrl);
+      const payloadChildId = resolveNotifyChildId(rawChildId);
+      const targetWithChild = appendNotifyChildId(target, payloadChildId);
+
+      if (isInternal) {
+        const parsed = extractNotifyChildFromPath(targetWithChild);
+        const targetChildId = payloadChildId || parsed.childId;
+
+        if (targetChildId) {
+          setActiveChildId(targetChildId);
+        }
+
+        if (parsed.path.startsWith("/")) {
+          if (lastNavigationRef.current === parsed.path && location === parsed.path) {
+            return;
+          }
+          lastNavigationRef.current = parsed.path;
+          setLocation(parsed.path);
+          return;
+        }
+      }
+
+      window.location.assign(target);
+    },
+    [location, setActiveChildId, setLocation],
+  );
 
   useEffect(() => {
     if (!location.startsWith("/")) return;
@@ -57,29 +95,38 @@ function AuthenticatedRouter() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === "NAVIGATE" && event.data?.url) {
-        const rawUrl = String(event.data.url);
-        const parsed = extractNotifyChildFromPath(rawUrl);
-        const payloadChildId = resolveNotifyChildId(event.data.childId);
-        const targetChildId = payloadChildId || parsed.childId;
-        if (targetChildId) {
-          setActiveChildId(targetChildId);
-        }
-        if (parsed.path.startsWith("/")) {
-          setLocation(parsed.path);
-        } else {
-          window.location.assign(parsed.path);
-        }
+        navigateFromNotification(
+          String(event.data.url),
+          event.data.childId,
+        );
+      }
+
+      if (event.data?.type === "PUSH_RECEIVED") {
+        setForegroundNotification({
+          title: event.data.title,
+          body: event.data.body,
+          url: event.data.url,
+          childId: resolveNotifyChildId(event.data.childId),
+        });
       }
     };
     navigator.serviceWorker?.addEventListener("message", handler);
     return () =>
       navigator.serviceWorker?.removeEventListener("message", handler);
-  }, [setActiveChildId, setLocation]);
+  }, [navigateFromNotification]);
 
   return (
     <>
       <PermissionPrompt />
       <NotificationPermissionBanner />
+      <ForegroundNotificationCenter
+        notification={foregroundNotification}
+        onDismiss={() => setForegroundNotification(null)}
+        onOpen={(notification) => {
+          setForegroundNotification(null);
+          navigateFromNotification(notification.url, notification.childId);
+        }}
+      />
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/growth" component={GrowthRedirect} />
@@ -131,6 +178,7 @@ function AppContent() {
 }
 
 import { ThemeProvider } from "@/hooks/use-theme";
+import React from "react";
 
 function App() {
   return (

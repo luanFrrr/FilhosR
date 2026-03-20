@@ -72,8 +72,54 @@ export function useMarkNotificationAsRead() {
       const res = await apiRequest("PATCH", `/api/notifications/${id}/read`);
       return (await res.json()) as InboxNotification;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["notifications"] });
+
+      const previousLists = queryClient.getQueriesData<InboxNotification[]>({
+        queryKey: ["notifications"],
+      });
+      const previousUnread = queryClient.getQueryData<{ count: number }>(
+        notificationsKeys.unreadCount,
+      );
+
+      for (const [key, value] of previousLists) {
+        if (!Array.isArray(value)) continue;
+        queryClient.setQueryData<InboxNotification[]>(key, (current = []) =>
+          current.map((notification) =>
+            notification.id === id && !notification.readAt
+              ? { ...notification, readAt: new Date().toISOString() }
+              : notification,
+          ),
+        );
+      }
+
+      if (previousUnread) {
+        queryClient.setQueryData(notificationsKeys.unreadCount, {
+          count: Math.max(0, previousUnread.count - 1),
+        });
+      }
+
+      return { previousLists, previousUnread };
+    },
+    onError: (_error, _id, context) => {
+      context?.previousLists?.forEach(([key, value]) => {
+        queryClient.setQueryData(key, value);
+      });
+      if (context?.previousUnread) {
+        queryClient.setQueryData(
+          notificationsKeys.unreadCount,
+          context.previousUnread,
+        );
+      }
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueriesData<InboxNotification[]>(
+        { queryKey: ["notifications"] },
+        (current = []) =>
+          current.map((notification) =>
+            notification.id === updated.id ? updated : notification,
+          ),
+      );
     },
   });
 }
@@ -86,9 +132,44 @@ export function useMarkAllNotificationsAsRead() {
       const res = await apiRequest("POST", "/api/notifications/read-all");
       return (await res.json()) as { updated: number };
     },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["notifications"] });
+
+      const previousLists = queryClient.getQueriesData<InboxNotification[]>({
+        queryKey: ["notifications"],
+      });
+      const previousUnread = queryClient.getQueryData<{ count: number }>(
+        notificationsKeys.unreadCount,
+      );
+
+      for (const [key, value] of previousLists) {
+        if (!Array.isArray(value)) continue;
+        queryClient.setQueryData<InboxNotification[]>(key, (current = []) =>
+          current.map((notification) =>
+            notification.readAt
+              ? notification
+              : { ...notification, readAt: new Date().toISOString() },
+          ),
+        );
+      }
+
+      queryClient.setQueryData(notificationsKeys.unreadCount, { count: 0 });
+
+      return { previousLists, previousUnread };
+    },
+    onError: (_error, _variables, context) => {
+      context?.previousLists?.forEach(([key, value]) => {
+        queryClient.setQueryData(key, value);
+      });
+      if (context?.previousUnread) {
+        queryClient.setQueryData(
+          notificationsKeys.unreadCount,
+          context.previousUnread,
+        );
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }
-
