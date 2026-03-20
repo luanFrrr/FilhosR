@@ -44,16 +44,37 @@ import {
 } from "@shared/health-catalog";
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
-// Global: 300 requests por IP por janela de 15 minutos
+const getClientAddress = (req: Request) => {
+  const forwardedFor = req.headers["x-forwarded-for"];
+  const forwardedValue = Array.isArray(forwardedFor)
+    ? forwardedFor[0]
+    : forwardedFor;
+  const firstForwardedIp = forwardedValue?.split(",")[0]?.trim();
+
+  return firstForwardedIp || req.ip || req.socket.remoteAddress || "unknown";
+};
+
+const getAuthenticatedRateLimitKey = (req: Request) => {
+  const authenticatedUserId = (req as any).user?.claims?.sub;
+  if (authenticatedUserId) {
+    return `user:${authenticatedUserId}`;
+  }
+  return `ip:${getClientAddress(req)}`;
+};
+
+const getIpRateLimitKey = (req: Request) => `ip:${getClientAddress(req)}`;
+
+// Global: mais folga para uso normal do app, chaveando por usuário autenticado
+// quando disponível para evitar 429 indevido entre dispositivos/sessões.
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 1200,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getAuthenticatedRateLimitKey,
   message: {
     message: "Muitas requisições. Tente novamente em alguns minutos.",
   },
-  validate: { xForwardedForHeader: false },
 });
 
 // Auth: 10 tentativas por IP por 15 minutos (proteção contra brute force)
@@ -62,6 +83,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getIpRateLimitKey,
   message: {
     message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
   },
@@ -73,6 +95,7 @@ const uploadLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getAuthenticatedRateLimitKey,
   message: {
     message: "Limite de uploads atingido. Tente novamente em alguns minutos.",
   },
@@ -84,6 +107,7 @@ const pushTestLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getAuthenticatedRateLimitKey,
   message: { message: "Limite de notificações de teste atingido." },
 });
 

@@ -7,6 +7,10 @@ import { createServer } from "http";
 const app = express();
 const httpServer = createServer(app);
 
+// Produção roda atrás de proxy/reverse proxy; sem isso req.ip colapsa vários
+// clientes no mesmo endereço e o rate limit pode bloquear usuários legítimos.
+app.set("trust proxy", 1);
+
 app.use(express.json({ limit: '15mb' }));
 
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
