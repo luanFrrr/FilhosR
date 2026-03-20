@@ -37,6 +37,15 @@ function isSupabaseImageUrl(url) {
   );
 }
 
+function isHttpRequest(request) {
+  try {
+    const url = new URL(request.url);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (_) {
+    return false;
+  }
+}
+
 async function trimImageCache() {
   const cache = await caches.open(IMAGE_CACHE_NAME);
   const keys = await cache.keys();
@@ -84,6 +93,10 @@ async function handleSupabaseImage(request) {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
+    return;
+  }
+
+  if (!isHttpRequest(event.request)) {
     return;
   }
 
