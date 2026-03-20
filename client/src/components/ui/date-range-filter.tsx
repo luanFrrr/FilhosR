@@ -36,7 +36,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
         {hasFilter ? "Filtrado" : "Período"}
       </Button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 bg-card border border-border rounded-xl shadow-lg p-3 w-64 space-y-3">
+        <div className="absolute left-0 top-full mt-2 z-50 w-[min(16rem,calc(100vw-2rem))] space-y-3 rounded-xl border border-border bg-card p-3 shadow-lg">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">De</label>
             <Input
