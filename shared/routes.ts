@@ -3,17 +3,22 @@ import {
   insertChildSchema,
   insertGrowthRecordSchema,
   insertVaccineSchema,
-  insertHealthRecordSchema,
+  insertHealthFollowUpSchema,
+  insertDevelopmentMilestoneSchema,
+  insertHealthExamSchema,
+  insertNeonatalScreeningSchema,
   insertMilestoneSchema,
   insertDiaryEntrySchema,
   insertVaccineRecordSchema,
   insertDailyPhotoSchema,
-  insertMedicalRecordSchema,
   users,
   children,
   growthRecords,
   vaccines,
-  healthRecords,
+  healthFollowUps,
+  neonatalScreenings,
+  developmentMilestones,
+  healthExams,
   milestones,
   diaryEntries,
   gamification,
@@ -21,11 +26,10 @@ import {
   vaccineRecords,
   dailyPhotos,
   inviteCodes,
-    caregivers,
-    activityComments,
-    notifications,
-    medicalRecords,
-  } from "./schema";
+  caregivers,
+  activityComments,
+  notifications,
+} from "./schema";
 
 // ============================================
 // SHARED ERROR SCHEMAS
@@ -201,96 +205,126 @@ export const api = {
     },
   },
 
-  // Health Records
-  health: {
+  // Unified Health Follow-ups
+  healthFollowUps: {
     list: {
       method: "GET" as const,
-      path: "/api/children/:childId/health",
+      path: "/api/children/:childId/health-follow-ups",
       responses: {
         200: z.object({
-          data: z.array(z.custom<typeof healthRecords.$inferSelect>()),
+          data: z.array(
+            z.custom<
+              typeof healthFollowUps.$inferSelect & {
+                neonatalScreenings: typeof neonatalScreenings.$inferSelect[];
+                developmentMilestones: typeof developmentMilestones.$inferSelect[];
+                healthExams: typeof healthExams.$inferSelect[];
+              }
+            >(),
+          ),
           nextCursor: z.string().nullable(),
         }),
       },
     },
     create: {
       method: "POST" as const,
-      path: "/api/children/:childId/health",
-      input: insertHealthRecordSchema.omit({ childId: true }),
+      path: "/api/children/:childId/health-follow-ups",
+      input: insertHealthFollowUpSchema.omit({ childId: true }),
       responses: {
-        201: z.custom<typeof healthRecords.$inferSelect>(),
+        201: z.custom<typeof healthFollowUps.$inferSelect>(),
         400: errorSchemas.validation,
       },
     },
     update: {
       method: "PATCH" as const,
-      path: "/api/health/:id",
-      input: insertHealthRecordSchema.partial(),
+      path: "/api/health-follow-ups/:id",
+      input: insertHealthFollowUpSchema.partial(),
       responses: {
-        200: z.custom<typeof healthRecords.$inferSelect>(),
+        200: z.custom<typeof healthFollowUps.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     delete: {
       method: "DELETE" as const,
-      path: "/api/health/:id",
+      path: "/api/health-follow-ups/:id",
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,
       },
     },
-  },
-
-  // Medical Records (consultas/exames)
-  medicalRecords: {
-    list: {
-      method: "GET" as const,
-      path: "/api/children/:childId/medical-records",
-      responses: {
-        200: z.object({
-          data: z.array(z.custom<typeof medicalRecords.$inferSelect>()),
-          nextCursor: z.string().nullable(),
-        }),
-      },
-    },
-    create: {
-      method: "POST" as const,
-      path: "/api/children/:childId/medical-records",
-      responses: {
-        201: z.custom<typeof medicalRecords.$inferSelect>(),
-        400: errorSchemas.validation,
-      },
-    },
-    update: {
+    updateNeonatal: {
       method: "PATCH" as const,
-      path: "/api/medical-records/:id",
+      path: "/api/health-follow-ups/:id/neonatal-screenings/:screeningType",
+      input: insertNeonatalScreeningSchema
+        .pick({ isCompleted: true, completedAt: true, notes: true })
+        .partial(),
       responses: {
-        200: z.custom<typeof medicalRecords.$inferSelect>(),
-        400: errorSchemas.validation,
+        200: z.custom<typeof neonatalScreenings.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
-    getFileUrl: {
+    updateMilestone: {
+      method: "PATCH" as const,
+      path: "/api/health-follow-ups/:id/development-milestones/:milestoneKey",
+      input: insertDevelopmentMilestoneSchema
+        .pick({ status: true, notes: true, checkedAt: true })
+        .partial(),
+      responses: {
+        200: z.custom<typeof developmentMilestones.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    createExam: {
+      method: "POST" as const,
+      path: "/api/health-follow-ups/:id/exams",
+      input: insertHealthExamSchema.omit({ followUpId: true }).extend({
+        files: z
+          .array(
+            z.object({
+              fileBase64: z.string(),
+              fileMimeType: z.string(),
+              fileName: z.string(),
+            }),
+          )
+          .optional(),
+      }),
+      responses: {
+        201: z.custom<typeof healthExams.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    updateExam: {
+      method: "PATCH" as const,
+      path: "/api/health-exams/:id",
+      input: insertHealthExamSchema.partial().extend({
+        newFiles: z
+          .array(
+            z.object({
+              fileBase64: z.string(),
+              fileMimeType: z.string(),
+              fileName: z.string(),
+            }),
+          )
+          .optional(),
+        removeFilePaths: z.array(z.string()).optional(),
+      }),
+      responses: {
+        200: z.custom<typeof healthExams.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    deleteExam: {
+      method: "DELETE" as const,
+      path: "/api/health-exams/:id",
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+    getExamFileUrl: {
       method: "GET" as const,
-      path: "/api/medical-records/:id/file-url",
+      path: "/api/health-exams/:id/file-url",
       responses: {
         200: z.object({ url: z.string() }),
-        404: errorSchemas.notFound,
-      },
-    },
-    getFileUrls: {
-      method: "GET" as const,
-      path: "/api/medical-records/:id/file-urls",
-      responses: {
-        200: z.object({ urls: z.array(z.object({ path: z.string(), url: z.string() })) }),
-        404: errorSchemas.notFound,
-      },
-    },
-    delete: {
-      method: "DELETE" as const,
-      path: "/api/medical-records/:id",
-      responses: {
-        204: z.void(),
         404: errorSchemas.notFound,
       },
     },

@@ -1,32 +1,27 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useChildContext } from "@/hooks/use-child-context";
-import {
-  useHealthRecords,
-  useCreateHealthRecord,
-  useUpdateHealthRecord,
-  useDeleteHealthRecord,
-} from "@/hooks/use-health";
 import {
   useGrowthRecords,
   useCreateGrowthRecord,
   useUpdateGrowthRecord,
   useArchiveGrowthRecord,
 } from "@/hooks/use-growth";
+import { useVaccineRecords } from "@/hooks/use-vaccines";
 import { Header } from "@/components/layout/header";
 import { GrowthChart } from "@/components/growth/growth-chart";
+import { FollowUpOverview } from "@/components/health/follow-up-overview";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -37,44 +32,29 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Syringe,
-  Thermometer,
-  Shield,
-  ChevronRight,
-  Pencil,
-  Trash2,
-  LineChart,
-  Plus,
-  Scale,
-  Ruler,
-  Archive,
-  Stethoscope,
-  Loader2,
-  ChevronDown,
-} from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { useForm, Controller } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation, useSearch } from "wouter";
-import { MedicalTimeline } from "@/components/medical/medical-timeline";
-import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import {
-  cn,
-  parseLocalDate,
-  parseDecimalBR,
-  formatDecimalBR,
-} from "@/lib/utils";
-import { useVaccineRecords } from "@/hooks/use-vaccines";
-import type { HealthRecord, GrowthRecord } from "@shared/schema";
+  Archive,
+  ChevronRight,
+  LineChart,
+  Pencil,
+  Plus,
+  Ruler,
+  Scale,
+  Shield,
+  Stethoscope,
+  Syringe,
+} from "lucide-react";
+import { cn, formatDecimalBR, parseDecimalBR, parseLocalDate } from "@/lib/utils";
+import type { GrowthRecord } from "@shared/schema";
 
 const growthSchema = z.object({
-  date: z.string().min(1, "Data é obrigatória"),
+  date: z.string().min(1, "Data e obrigatoria"),
   weight: z.string().optional(),
   height: z.string().optional(),
   headCircumference: z.string().optional(),
@@ -86,81 +66,29 @@ export default function Health() {
   const { activeChild } = useChildContext();
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
-  const tabParam = searchParams.get("tab") || "vaccines";
+  const rawTabParam = searchParams.get("tab");
+  const tabParam =
+    rawTabParam === "history" || rawTabParam === "medical"
+      ? "follow-up"
+      : rawTabParam || "follow-up";
   const idParam = searchParams.get("id");
   const [, setLocation] = useLocation();
-  const [sickFilterStart, setSickFilterStart] = useState<string | undefined>();
-  const [sickFilterEnd, setSickFilterEnd] = useState<string | undefined>();
-  const sickFilters = sickFilterStart || sickFilterEnd
-    ? { startDate: sickFilterStart, endDate: sickFilterEnd }
-    : undefined;
-  const {
-    data: sickPages,
-    fetchNextPage: fetchNextSickPage,
-    hasNextPage: hasNextSickPage,
-    isFetchingNextPage: isFetchingNextSickPage,
-  } = useHealthRecords(activeChild?.id || 0, sickFilters);
+  const { toast } = useToast();
+
   const { data: vaccineRecords } = useVaccineRecords(activeChild?.id || 0);
   const { data: growthRecords } = useGrowthRecords(activeChild?.id || 0);
-  const createSickRecord = useCreateHealthRecord();
-  const updateSickRecord = useUpdateHealthRecord();
-  const deleteSickRecord = useDeleteHealthRecord();
   const createGrowthRecord = useCreateGrowthRecord();
   const updateGrowthRecord = useUpdateGrowthRecord();
   const archiveGrowthRecord = useArchiveGrowthRecord();
-  const { toast } = useToast();
-  const [sickDialogOpen, setSickDialogOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<HealthRecord | null>(null);
+
   const [growthOpen, setGrowthOpen] = useState(false);
   const [growthEditOpen, setGrowthEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [selectedGrowth, setSelectedGrowth] = useState<GrowthRecord | null>(
-    null,
-  );
+  const [selectedGrowth, setSelectedGrowth] = useState<GrowthRecord | null>(null);
   const [activeChartTab, setActiveChartTab] = useState<"weight" | "height">(
     "weight",
   );
   const [highlightRecordId, setHighlightRecordId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (idParam) {
-      setHighlightRecordId(Number(idParam));
-      // Limpa os params para evitar trigger extra on reload
-      setLocation(`/health?tab=${tabParam}`, { replace: true });
-    }
-  }, [idParam, tabParam, setLocation]);
-
-  useEffect(() => {
-    if (highlightRecordId && (growthRecords || sickPages)) {
-      // Pequeno timeout pro DOM renderizar a tab correta se for necessário
-      const timeoutId = setTimeout(() => {
-        let prefix = "health-record";
-        if (tabParam === "growth") prefix = "growth-record";
-        
-        const element = document.querySelector(`[data-testid="${prefix}-${highlightRecordId}"]`);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-          
-          element.classList.add("ring-2", "ring-primary", "bg-primary/5", "transition-all", "duration-1000");
-          setTimeout(() => {
-            element.classList.remove("ring-2", "ring-primary", "bg-primary/5");
-            setHighlightRecordId(null);
-          }, 3000);
-        }
-      }, 300);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [highlightRecordId, growthRecords, sickPages, tabParam]);
-
-  const sickForm = useForm({
-    defaultValues: {
-      date: new Date().toISOString().split("T")[0],
-      symptoms: "",
-      medication: "",
-      notes: "",
-    },
-  });
 
   const growthForm = useForm<GrowthForm>({
     resolver: zodResolver(growthSchema),
@@ -179,83 +107,35 @@ export default function Health() {
     },
   });
 
-  const onSickSubmit = (data: any) => {
-    if (!activeChild) return;
+  useEffect(() => {
+    if (!idParam) return;
+    setHighlightRecordId(Number(idParam));
+    setLocation(`/health?tab=${tabParam}`, { replace: true });
+  }, [idParam, setLocation, tabParam]);
 
-    if (editingRecord) {
-      updateSickRecord.mutate(
-        {
-          id: editingRecord.id,
-          childId: activeChild.id,
-          ...data,
-          date: data.date.includes("T") ? data.date.split("T")[0] : data.date,
-        },
-        {
-          onSuccess: () => {
-            setSickDialogOpen(false);
-            setEditingRecord(null);
-            sickForm.reset();
-            toast({ title: "Registro atualizado!" });
-          },
-        },
+  useEffect(() => {
+    if (!highlightRecordId || tabParam !== "growth" || !growthRecords) return;
+
+    const timeoutId = setTimeout(() => {
+      const element = document.querySelector(
+        `[data-testid="growth-record-${highlightRecordId}"]`,
       );
-    } else {
-      createSickRecord.mutate(
-        {
-          childId: activeChild.id,
-          ...data,
-          date: data.date.includes("T") ? data.date.split("T")[0] : data.date,
-        },
-        {
-          onSuccess: () => {
-            setSickDialogOpen(false);
-            sickForm.reset();
-            toast({ title: "Registro salvo!" });
-          },
-        },
-      );
-    }
-  };
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.classList.add("ring-2", "ring-primary", "bg-primary/5");
+        setTimeout(() => {
+          element.classList.remove("ring-2", "ring-primary", "bg-primary/5");
+          setHighlightRecordId(null);
+        }, 3000);
+      }
+    }, 250);
 
-  const handleEdit = (record: HealthRecord) => {
-    setEditingRecord(record);
-    sickForm.reset({
-      date: record.date,
-      symptoms: record.symptoms,
-      medication: record.medication || "",
-      notes: record.notes || "",
-    });
-    setSickDialogOpen(true);
-  };
-
-  const handleDelete = (record: HealthRecord) => {
-    if (!activeChild) return;
-    deleteSickRecord.mutate(
-      { id: record.id, childId: activeChild.id },
-      {
-        onSuccess: () => {
-          toast({ title: "Registro excluído!" });
-        },
-      },
-    );
-  };
-
-  const handleDialogClose = (open: boolean) => {
-    setSickDialogOpen(open);
-    if (!open) {
-      setEditingRecord(null);
-      sickForm.reset({
-        date: new Date().toISOString().split("T")[0],
-        symptoms: "",
-        medication: "",
-        notes: "",
-      });
-    }
-  };
+    return () => clearTimeout(timeoutId);
+  }, [growthRecords, highlightRecordId, tabParam]);
 
   const onGrowthSubmit = (data: GrowthForm) => {
     if (!activeChild) return;
-    const date = data.date.includes("T") ? data.date.split("T")[0] : data.date;
+
     const weight = parseDecimalBR(data.weight);
     const height = parseDecimalBR(data.height);
     const head = parseDecimalBR(data.headCircumference);
@@ -263,7 +143,7 @@ export default function Health() {
     createGrowthRecord.mutate(
       {
         childId: activeChild.id,
-        date,
+        date: data.date,
         weight: weight !== null ? weight.toString() : undefined,
         height: height !== null ? height.toString() : undefined,
         headCircumference: head !== null ? head.toString() : undefined,
@@ -271,11 +151,8 @@ export default function Health() {
       {
         onSuccess: () => {
           setGrowthOpen(false);
-          growthForm.reset();
-          toast({
-            title: "Registro salvo com sucesso!",
-            className: "bg-green-500 text-white border-none",
-          });
+          growthForm.reset({ date: new Date().toISOString().split("T")[0] });
+          toast({ title: "Registro salvo com sucesso!" });
         },
         onError: () => {
           toast({ title: "Erro ao salvar", variant: "destructive" });
@@ -299,7 +176,7 @@ export default function Health() {
 
   const onGrowthEditSubmit = (data: GrowthForm) => {
     if (!activeChild || !selectedGrowth) return;
-    const date = data.date.includes("T") ? data.date.split("T")[0] : data.date;
+
     const weight = parseDecimalBR(data.weight);
     const height = parseDecimalBR(data.height);
     const head = parseDecimalBR(data.headCircumference);
@@ -308,7 +185,7 @@ export default function Health() {
       {
         id: selectedGrowth.id,
         childId: activeChild.id,
-        date,
+        date: data.date,
         weight: weight !== null ? weight.toString() : undefined,
         height: height !== null ? height.toString() : undefined,
         headCircumference: head !== null ? head.toString() : undefined,
@@ -317,10 +194,7 @@ export default function Health() {
         onSuccess: () => {
           setGrowthEditOpen(false);
           setSelectedGrowth(null);
-          toast({
-            title: "Registro atualizado!",
-            className: "bg-green-500 text-white border-none",
-          });
+          toast({ title: "Registro atualizado!" });
         },
         onError: () => {
           toast({ title: "Erro ao atualizar", variant: "destructive" });
@@ -329,26 +203,18 @@ export default function Health() {
     );
   };
 
-  const onGrowthArchive = (record: GrowthRecord) => {
-    setSelectedGrowth(record);
-    setArchiveOpen(true);
-  };
-
   const confirmArchive = () => {
     if (!activeChild || !selectedGrowth) return;
+
     archiveGrowthRecord.mutate(
-      {
-        id: selectedGrowth.id,
-        childId: activeChild.id,
-      },
+      { id: selectedGrowth.id, childId: activeChild.id },
       {
         onSuccess: () => {
           setArchiveOpen(false);
           setSelectedGrowth(null);
           toast({
             title: "Registro arquivado",
-            description: "O registro foi ocultado do histórico.",
-            className: "bg-amber-500 text-white border-none",
+            description: "O registro foi ocultado do historico.",
           });
         },
         onError: () => {
@@ -360,83 +226,86 @@ export default function Health() {
 
   const weightData =
     growthRecords
-      ?.filter((r) => r.weight)
-      .map((r) => ({ date: r.date, value: Number(r.weight) })) || [];
+      ?.filter((record) => record.weight)
+      .map((record) => ({ date: record.date, value: Number(record.weight) })) || [];
+
   const heightData =
     growthRecords
-      ?.filter((r) => r.height)
-      .map((r) => ({ date: r.date, value: Number(r.height) })) || [];
-
-  const visibleRecords = sickPages?.pages.flatMap((p) => p.data) || [];
+      ?.filter((record) => record.height)
+      .map((record) => ({ date: record.date, value: Number(record.height) })) || [];
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <Header title="Saúde" showChildSelector={false} />
+      <Header title="Saude" showChildSelector={false} />
 
-      <main className="max-w-md mx-auto px-4 py-6">
-        <Tabs value={tabParam} onValueChange={(v) => setLocation(`/health?tab=${v}`, { replace: true })} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8 bg-muted/50 p-1 h-auto rounded-xl">
+      <main className="mx-auto max-w-md px-4 py-6">
+        <Tabs
+          value={tabParam}
+          onValueChange={(value) => setLocation(`/health?tab=${value}`, { replace: true })}
+          className="w-full"
+        >
+          <TabsList className="mb-8 grid h-auto w-full grid-cols-3 rounded-xl bg-muted/50 p-1">
+            <TabsTrigger
+              value="follow-up"
+              className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm sm:text-sm"
+            >
+              <Stethoscope className="mr-1 h-4 w-4" /> Acompanhamento
+            </TabsTrigger>
             <TabsTrigger
               value="growth"
-              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
+              className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm sm:text-sm"
             >
-              <LineChart className="w-4 h-4 mr-1" /> Crescimento
+              <LineChart className="mr-1 h-4 w-4" /> Crescimento
             </TabsTrigger>
             <TabsTrigger
               value="vaccines"
-              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
+              className="rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm sm:text-sm"
             >
-              <Syringe className="w-4 h-4 mr-1" /> Vacinas
-            </TabsTrigger>
-            <TabsTrigger
-              value="medical"
-              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
-            >
-              <Stethoscope className="w-4 h-4 mr-1" /> Consultas
-            </TabsTrigger>
-            <TabsTrigger
-              value="history"
-              className="py-2.5 rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-primary font-semibold text-xs sm:text-sm"
-            >
-              <Thermometer className="w-4 h-4 mr-1" /> Doenças
+              <Syringe className="mr-1 h-4 w-4" /> Vacinas
             </TabsTrigger>
           </TabsList>
 
-          {/* ===== CRESCIMENTO TAB ===== */}
+          <TabsContent value="follow-up" className="space-y-4">
+            {activeChild ? (
+              <FollowUpOverview
+                childId={activeChild.id}
+                birthDate={activeChild.birthDate}
+                legacyRecordId={highlightRecordId}
+                legacyTab={rawTabParam}
+              />
+            ) : null}
+          </TabsContent>
+
           <TabsContent value="growth" className="space-y-8">
-            <div className="bg-muted/50 p-1 rounded-xl flex gap-1">
+            <div className="flex gap-1 rounded-xl bg-muted/50 p-1">
               <button
                 onClick={() => setActiveChartTab("weight")}
-                data-testid="tab-weight"
                 className={cn(
-                  "flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2",
+                  "flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
                   activeChartTab === "weight"
-                    ? "bg-card shadow text-primary"
+                    ? "bg-card text-primary shadow"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Scale className="w-4 h-4" /> Peso
+                <Scale className="h-4 w-4" /> Peso
               </button>
               <button
                 onClick={() => setActiveChartTab("height")}
-                data-testid="tab-height"
                 className={cn(
-                  "flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2",
+                  "flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
                   activeChartTab === "height"
-                    ? "bg-card shadow text-primary"
+                    ? "bg-card text-primary shadow"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Ruler className="w-4 h-4" /> Altura
+                <Ruler className="h-4 w-4" /> Altura
               </button>
             </div>
 
             <div className="mobile-card">
               <div className="mb-6">
                 <h2 className="text-lg font-display font-bold text-foreground">
-                  {activeChartTab === "weight"
-                    ? "Evolução do Peso"
-                    : "Evolução da Altura"}
+                  {activeChartTab === "weight" ? "Evolucao do peso" : "Evolucao da altura"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   Cada registro ajuda a acompanhar o desenvolvimento{" "}
@@ -454,23 +323,19 @@ export default function Health() {
             </div>
 
             <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-display font-bold text-lg">Histórico</h3>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-display font-bold">Historico</h3>
                 <Dialog open={growthOpen} onOpenChange={setGrowthOpen}>
                   <DialogTrigger asChild>
-                    <Button
-                      size="sm"
-                      data-testid="button-new-record"
-                      className="bg-primary text-white rounded-full px-4 gap-2 hover:bg-primary/90"
-                    >
-                      <Plus className="w-4 h-4" /> Novo Registro
+                    <Button size="sm" className="rounded-full gap-2 px-4">
+                      <Plus className="h-4 w-4" /> Novo registro
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-md rounded-2xl">
+                  <DialogContent className="rounded-2xl sm:max-w-md">
                     <DialogHeader>
-                      <DialogTitle>Registrar Medidas</DialogTitle>
+                      <DialogTitle>Registrar medidas</DialogTitle>
                       <DialogDescription>
-                        Adicione as medidas de crescimento da criança.
+                        Adicione peso, altura e perimetro cefalico.
                       </DialogDescription>
                     </DialogHeader>
                     <form
@@ -479,12 +344,7 @@ export default function Health() {
                     >
                       <div className="space-y-2">
                         <Label>Data</Label>
-                        <Input
-                          type="date"
-                          {...growthForm.register("date")}
-                          className="input-field"
-                          data-testid="input-date"
-                        />
+                        <Input type="date" {...growthForm.register("date")} />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -494,11 +354,9 @@ export default function Health() {
                             control={growthForm.control}
                             render={({ field }) => (
                               <DecimalInput
-                                placeholder="Ex: 12,5"
                                 value={field.value || ""}
                                 onChange={field.onChange}
-                                className="input-field"
-                                data-testid="input-weight"
+                                placeholder="Ex: 12,5"
                               />
                             )}
                           />
@@ -510,48 +368,36 @@ export default function Health() {
                             control={growthForm.control}
                             render={({ field }) => (
                               <DecimalInput
-                                placeholder="Ex: 85,0"
                                 value={field.value || ""}
                                 onChange={field.onChange}
+                                placeholder="Ex: 85,0"
                                 decimalPlaces={1}
-                                className="input-field"
-                                data-testid="input-height"
                               />
                             )}
                           />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>
-                          Perímetro Cefálico (cm){" "}
-                          <span className="text-muted-foreground text-xs">
-                            (Opcional)
-                          </span>
-                        </Label>
+                        <Label>Perimetro cefalico (cm)</Label>
                         <Controller
                           name="headCircumference"
                           control={growthForm.control}
                           render={({ field }) => (
                             <DecimalInput
-                              placeholder="Ex: 35,5"
                               value={field.value || ""}
                               onChange={field.onChange}
+                              placeholder="Ex: 35,5"
                               decimalPlaces={1}
-                              className="input-field"
-                              data-testid="input-head"
                             />
                           )}
                         />
                       </div>
                       <Button
                         type="submit"
-                        data-testid="button-save-record"
-                        className="w-full btn-primary"
+                        className="w-full"
                         disabled={createGrowthRecord.isPending}
                       >
-                        {createGrowthRecord.isPending
-                          ? "Salvando..."
-                          : "Salvar Registro"}
+                        {createGrowthRecord.isPending ? "Salvando..." : "Salvar registro"}
                       </Button>
                     </form>
                   </DialogContent>
@@ -559,344 +405,83 @@ export default function Health() {
               </div>
 
               <div className="space-y-3">
-                {growthRecords
-                  ?.slice()
-                  .sort((a, b) => {
-                    const dateA = new Date(a.date).getTime();
-                    const dateB = new Date(b.date).getTime();
-                    if (dateB !== dateA) return dateB - dateA;
-                    return (
-                      new Date(b.createdAt ?? 0).getTime() -
-                      new Date(a.createdAt ?? 0).getTime()
-                    );
-                  })
-                  .map((record) => (
-                    <div
-                      key={record.id}
-                      data-testid={`growth-record-${record.id}`}
-                      className="bg-card p-4 rounded-xl border border-border flex justify-between items-center"
-                    >
+                {growthRecords?.map((record) => (
+                  <div
+                    key={record.id}
+                    className="rounded-xl border border-border bg-card p-4 shadow-sm"
+                    data-testid={`growth-record-${record.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-bold text-foreground">
-                          {format(
-                            parseLocalDate(record.date),
-                            "dd 'de' MMMM, yyyy",
-                            { locale: ptBR },
-                          )}
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          {parseLocalDate(record.date).toLocaleDateString("pt-BR")}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatDistanceToNow(parseLocalDate(record.date), {
-                            locale: ptBR,
-                            addSuffix: true,
-                          })}
-                        </p>
+                        <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-foreground">
+                          {record.weight ? <div>Peso: {formatDecimalBR(record.weight)} kg</div> : null}
+                          {record.height ? <div>Altura: {formatDecimalBR(record.height, 1)} cm</div> : null}
+                          {record.headCircumference ? (
+                            <div className="col-span-2">
+                              PC: {formatDecimalBR(record.headCircumference, 1)} cm
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          {record.weight && (
-                            <div className="text-sm">
-                              <span className="font-bold text-blue-600">
-                                {formatDecimalBR(record.weight)}kg
-                              </span>
-                            </div>
-                          )}
-                          {record.height && (
-                            <div className="text-sm">
-                              <span className="font-bold text-emerald-600">
-                                {formatDecimalBR(record.height, 1)}cm
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => onGrowthEdit(record)}
-                            data-testid={`button-edit-${record.id}`}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => onGrowthArchive(record)}
-                            data-testid={`button-archive-${record.id}`}
-                          >
-                            <Archive className="w-4 h-4" />
-                          </Button>
-                        </div>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => onGrowthEdit(record)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedGrowth(record);
+                            setArchiveOpen(true);
+                          }}
+                        >
+                          <Archive className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                ))}
+
                 {(!growthRecords || growthRecords.length === 0) && (
-                  <p className="text-center text-muted-foreground py-8">
+                  <div className="rounded-2xl border border-dashed border-border py-10 text-center text-muted-foreground">
                     Nenhum registro ainda.
-                  </p>
+                  </div>
                 )}
               </div>
             </div>
           </TabsContent>
 
-          {/* ===== CONSULTAS/EXAMES TAB ===== */}
-          <TabsContent value="medical" className="space-y-4">
-            <MedicalTimeline />
-          </TabsContent>
-
-          {/* ===== VACINAS TAB ===== */}
           <TabsContent value="vaccines" className="space-y-4">
             <Link href="/vaccines">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-5 rounded-2xl text-white shadow-lg active:scale-[0.98] transition-transform cursor-pointer">
+              <div className="cursor-pointer rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600 p-5 text-white shadow-lg transition-transform active:scale-[0.98]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
-                      <Shield className="w-7 h-7 text-white" />
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
+                      <Shield className="h-7 w-7 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-lg">Carteira Vacinal</h3>
-                      <p className="text-white/80 text-sm">
+                      <h3 className="text-lg font-bold">Carteira vacinal</h3>
+                      <p className="text-sm text-white/80">
                         {vaccineRecords?.length || 0} vacinas registradas
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-6 h-6 text-white/70" />
+                  <ChevronRight className="h-6 w-6 text-white/70" />
                 </div>
               </div>
             </Link>
-
-            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl">
-              <h4 className="font-bold text-blue-900 text-sm mb-2">
-                Calendário do SUS
-              </h4>
-              <p className="text-xs text-blue-700">
-                Registre todas as vacinas do seu filho baseado no Programa
-                Nacional de Imunizações (PNI). Anexe fotos da carteirinha para
-                manter tudo organizado.
-              </p>
-            </div>
-          </TabsContent>
-
-          {/* ===== DOENÇAS TAB ===== */}
-          <TabsContent value="history" className="space-y-4">
-            <div className="flex justify-between items-center gap-2 mb-4">
-              <h3 className="font-display font-bold">Histórico de Doenças</h3>
-              <div className="flex items-center gap-2">
-                <DateRangeFilter
-                  startDate={sickFilterStart}
-                  endDate={sickFilterEnd}
-                  onChange={(s, e) => { setSickFilterStart(s); setSickFilterEnd(e); }}
-                />
-                <Dialog open={sickDialogOpen} onOpenChange={handleDialogClose}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="rounded-full" data-testid="button-add-health-record">
-                      <Plus className="w-4 h-4 mr-1" /> Registrar
-                    </Button>
-                  </DialogTrigger>
-                <DialogContent className="rounded-2xl max-w-sm mx-auto">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingRecord
-                        ? "Editar Registro"
-                        : "Registrar Sintoma/Doença"}
-                    </DialogTitle>
-                    <DialogDescription>
-                      {editingRecord
-                        ? "Edite as informações do registro"
-                        : "Anote os sintomas e medicações"}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form
-                    onSubmit={sickForm.handleSubmit(onSickSubmit)}
-                    className="space-y-4 pt-2"
-                  >
-                    <div className="space-y-2">
-                      <Label>Data</Label>
-                      <Input
-                        type="date"
-                        {...sickForm.register("date")}
-                        data-testid="input-health-date"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>O que a criança sentiu? (Sintomas)</Label>
-                      <Textarea
-                        {...sickForm.register("symptoms", { required: true })}
-                        className="min-h-[80px]"
-                        placeholder="Ex: Febre alta, tosse..."
-                        data-testid="input-health-symptoms"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Medicação (Opcional)</Label>
-                      <Input
-                        {...sickForm.register("medication")}
-                        placeholder="Ex: Paracetamol 5ml"
-                        data-testid="input-health-medication"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Observações (Opcional)</Label>
-                      <Textarea
-                        {...sickForm.register("notes")}
-                        className="min-h-[60px]"
-                        placeholder="Informações adicionais..."
-                        data-testid="input-health-notes"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={
-                        createSickRecord.isPending || updateSickRecord.isPending
-                      }
-                      data-testid="button-save-health"
-                    >
-                      {createSickRecord.isPending || updateSickRecord.isPending
-                        ? "Salvando..."
-                        : "Salvar"}
-                    </Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {visibleRecords
-                .slice()
-                .sort((a, b) => {
-                  const dateDiff =
-                    new Date(b.date).getTime() - new Date(a.date).getTime();
-                  if (dateDiff !== 0) return dateDiff;
-                  return (
-                    new Date(b.createdAt ?? 0).getTime() -
-                    new Date(a.createdAt ?? 0).getTime()
-                  );
-                })
-                .map((record) => (
-                  <div
-                    key={record.id}
-                    className="bg-card p-4 rounded-xl border border-border shadow-sm"
-                    data-testid={`health-record-${record.id}`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
-                          {format(
-                            parseLocalDate(record.date),
-                            "dd 'de' MMMM, yyyy",
-                            { locale: ptBR },
-                          )}
-                        </span>
-                        <h4 className="font-display font-bold text-lg text-foreground">
-                          {record.symptoms}
-                        </h4>
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleEdit(record)}
-                          data-testid={`button-edit-health-${record.id}`}
-                        >
-                          <Pencil className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              data-testid={`button-delete-health-${record.id}`}
-                            >
-                              <Trash2 className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="max-w-sm mx-auto">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Excluir registro?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. O registro será
-                                removido permanentemente.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(record)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                data-testid={`button-confirm-delete-${record.id}`}
-                              >
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                    {record.medication && (
-                      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/30 p-2 rounded-lg">
-                        <Syringe className="w-4 h-4" />
-                        <span>{record.medication}</span>
-                      </div>
-                    )}
-                    {record.notes && (
-                      <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                        {record.notes}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              {visibleRecords.length === 0 && (
-                <div className="text-center py-12 bg-card rounded-2xl border border-dashed">
-                  <Thermometer className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-muted-foreground">
-                    {sickFilters
-                      ? "Nenhum registro nesse período."
-                      : "Nenhum registro de doença."}
-                  </p>
-                  {!sickFilters && (
-                    <p className="text-muted-foreground text-sm">
-                      Saúde de ferro!
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {hasNextSickPage && (
-              <div className="flex justify-center pt-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => fetchNextSickPage()}
-                  disabled={isFetchingNextSickPage}
-                  data-testid="button-load-more-health"
-                  className="gap-2 text-muted-foreground"
-                >
-                  {isFetchingNextSickPage ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                  Carregar mais
-                </Button>
-              </div>
-            )}
           </TabsContent>
         </Tabs>
       </main>
 
-      {/* Growth Edit Dialog */}
       <Dialog open={growthEditOpen} onOpenChange={setGrowthEditOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
+        <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar Registro</DialogTitle>
-            <DialogDescription>
-              Altere os valores desejados e salve.
-            </DialogDescription>
+            <DialogTitle>Editar registro</DialogTitle>
+            <DialogDescription>Altere os valores desejados e salve.</DialogDescription>
           </DialogHeader>
           <form
             onSubmit={growthEditForm.handleSubmit(onGrowthEditSubmit)}
@@ -904,12 +489,7 @@ export default function Health() {
           >
             <div className="space-y-2">
               <Label>Data</Label>
-              <Input
-                type="date"
-                {...growthEditForm.register("date")}
-                className="input-field"
-                data-testid="edit-input-date"
-              />
+              <Input type="date" {...growthEditForm.register("date")} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -919,11 +499,9 @@ export default function Health() {
                   control={growthEditForm.control}
                   render={({ field }) => (
                     <DecimalInput
-                      placeholder="Ex: 12,5"
                       value={field.value || ""}
                       onChange={field.onChange}
-                      className="input-field"
-                      data-testid="edit-input-weight"
+                      placeholder="Ex: 12,5"
                     />
                   )}
                 />
@@ -935,70 +513,49 @@ export default function Health() {
                   control={growthEditForm.control}
                   render={({ field }) => (
                     <DecimalInput
-                      placeholder="Ex: 85,0"
                       value={field.value || ""}
                       onChange={field.onChange}
+                      placeholder="Ex: 85,0"
                       decimalPlaces={1}
-                      className="input-field"
-                      data-testid="edit-input-height"
                     />
                   )}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>
-                Perímetro Cefálico (cm){" "}
-                <span className="text-muted-foreground text-xs">
-                  (Opcional)
-                </span>
-              </Label>
+              <Label>Perimetro cefalico (cm)</Label>
               <Controller
                 name="headCircumference"
                 control={growthEditForm.control}
                 render={({ field }) => (
                   <DecimalInput
-                    placeholder="Ex: 35,5"
                     value={field.value || ""}
                     onChange={field.onChange}
+                    placeholder="Ex: 35,5"
                     decimalPlaces={1}
-                    className="input-field"
-                    data-testid="edit-input-head"
                   />
                 )}
               />
             </div>
-            <Button
-              type="submit"
-              data-testid="button-update-record"
-              className="w-full btn-primary"
-              disabled={updateGrowthRecord.isPending}
-            >
-              {updateGrowthRecord.isPending
-                ? "Salvando..."
-                : "Atualizar Registro"}
+            <Button type="submit" className="w-full" disabled={updateGrowthRecord.isPending}>
+              {updateGrowthRecord.isPending ? "Salvando..." : "Atualizar registro"}
             </Button>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Growth Archive Confirmation */}
       <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Arquivar registro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Este registro será ocultado do histórico. Ele não será excluído
-              permanentemente.
+              Este registro sera ocultado do historico.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-archive">
-              Cancelar
-            </AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmArchive}
-              data-testid="button-confirm-archive"
               className="bg-amber-600 hover:bg-amber-700"
             >
               {archiveGrowthRecord.isPending ? "Arquivando..." : "Arquivar"}

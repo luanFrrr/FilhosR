@@ -5,7 +5,6 @@ import {
   caregivers,
   growthRecords,
   vaccines,
-  healthRecords,
   milestones,
   diaryEntries,
   gamification,
@@ -25,8 +24,6 @@ import {
   type InsertGrowthRecord,
   type Vaccine,
   type InsertVaccine,
-  type HealthRecord,
-  type InsertHealthRecord,
   type Milestone,
   type InsertMilestone,
   type DiaryEntry,
@@ -50,12 +47,24 @@ import {
   type MilestoneWithSocial,
   type DiaryLikeStatus,
   type DiaryEntryWithSocial,
-  medicalRecords,
-  type MedicalRecord,
-  type InsertMedicalRecord,
+  healthFollowUps,
+  type HealthFollowUp,
+  type InsertHealthFollowUp,
+  neonatalScreenings,
+  type NeonatalScreening,
+  developmentMilestones,
+  type DevelopmentMilestone,
+  healthExams,
+  type HealthExam,
+  type HealthFollowUpWithRelations,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql, count, desc, inArray, type SQL } from "drizzle-orm";
+import {
+  DEVELOPMENT_AGE_BANDS,
+  NEWBORN_SCREENINGS,
+  addMonthsToDateString,
+} from "@shared/health-catalog";
 
 type DiaryCursor = {
   date: string;
@@ -145,6 +154,32 @@ function decodeDailyPhotosCursor(raw?: string | null): DailyPhotosCursor | null 
   }
 }
 
+function buildNewbornScreeningRows(followUpId: number) {
+  return NEWBORN_SCREENINGS.map((screening) => ({
+    followUpId,
+    screeningType: screening.key,
+    isCompleted: false,
+    completedAt: null,
+    notes: null,
+  }));
+}
+
+function buildDevelopmentMilestoneRows(
+  followUpId: number,
+  ageBand: string,
+  milestones: readonly { key: string; title: string }[],
+) {
+  return milestones.map((milestone) => ({
+    followUpId,
+    milestoneKey: milestone.key,
+    ageBand,
+    title: milestone.title,
+    status: "pending",
+    notes: null,
+    checkedAt: null,
+  }));
+}
+
 // ─── Cache em memória para dados estáticos ────────────────────────────────────
 let _susVaccinesCache: SusVaccine[] | null = null;
 let _susVaccinesCacheAt = 0;
@@ -184,33 +219,53 @@ export interface IStorage {
   createVaccine(vaccine: InsertVaccine): Promise<Vaccine>;
   updateVaccine(id: number, vaccine: Partial<InsertVaccine>): Promise<Vaccine>;
 
-  // Health
-  getHealthRecords(
+  // Unified Health Follow-ups
+  syncHealthFollowUps(childId: number, birthDate: string): Promise<void>;
+  getHealthFollowUps(
     childId: number,
-    opts?: { cursor?: string; limit?: number; startDate?: string; endDate?: string },
-  ): Promise<{ data: HealthRecord[]; nextCursor: string | null }>;
-  getHealthRecordById(id: number): Promise<HealthRecord | undefined>;
-  createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord>;
-  updateHealthRecord(
+    opts?: { cursor?: string; limit?: number },
+  ): Promise<{ data: HealthFollowUpWithRelations[]; nextCursor: string | null }>;
+  getHealthFollowUpById(id: number): Promise<HealthFollowUp | undefined>;
+  createHealthFollowUp(record: InsertHealthFollowUp): Promise<HealthFollowUp>;
+  updateHealthFollowUp(
     id: number,
-    data: Partial<InsertHealthRecord>,
-  ): Promise<HealthRecord | undefined>;
-  deleteHealthRecord(id: number): Promise<void>;
-
-  // Medical Records (consultas/exames)
-  getMedicalRecords(
-    childId: number,
-    cursor?: string,
-    limit?: number,
-    opts?: { startDate?: string; endDate?: string },
-  ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }>;
-  getMedicalRecordById(id: number): Promise<MedicalRecord | undefined>;
-  createMedicalRecord(record: InsertMedicalRecord): Promise<MedicalRecord>;
-  updateMedicalRecord(
+    data: Partial<InsertHealthFollowUp>,
+  ): Promise<HealthFollowUp | undefined>;
+  deleteHealthFollowUp(id: number): Promise<void>;
+  upsertNeonatalScreening(params: {
+    followUpId: number;
+    screeningType: string;
+    isCompleted?: boolean;
+    completedAt?: string | null;
+    notes?: string | null;
+  }): Promise<NeonatalScreening>;
+  upsertDevelopmentMilestone(params: {
+    followUpId: number;
+    milestoneKey: string;
+    ageBand: string;
+    title: string;
+    status?: string;
+    checkedAt?: string | null;
+    notes?: string | null;
+  }): Promise<DevelopmentMilestone>;
+  getHealthExamById(id: number): Promise<HealthExam | undefined>;
+  createHealthExam(record: {
+    followUpId: number;
+    title: string;
+    examDate: string;
+    notes?: string | null;
+    filePaths?: string[] | null;
+  }): Promise<HealthExam>;
+  updateHealthExam(
     id: number,
-    data: Partial<InsertMedicalRecord>,
-  ): Promise<MedicalRecord | undefined>;
-  deleteMedicalRecord(id: number): Promise<void>;
+    data: Partial<{
+      title: string;
+      examDate: string;
+      notes: string | null;
+      filePaths: string[] | null;
+    }>,
+  ): Promise<HealthExam | undefined>;
+  deleteHealthExam(id: number): Promise<void>;
 
   // Milestones
   getMilestones(childId: number, userId: string): Promise<Milestone[]>;
@@ -534,12 +589,20 @@ export class DatabaseStorage implements IStorage {
       // 5. Deletar registros de dados da criança
       await tx.delete(growthRecords).where(eq(growthRecords.childId, id));
       await tx.delete(vaccines).where(eq(vaccines.childId, id));
-      await tx.delete(healthRecords).where(eq(healthRecords.childId, id));
       await tx.delete(milestones).where(eq(milestones.childId, id));
       await tx.delete(diaryEntries).where(eq(diaryEntries.childId, id));
       await tx.delete(vaccineRecords).where(eq(vaccineRecords.childId, id));
       await tx.delete(dailyPhotos).where(eq(dailyPhotos.childId, id));
-      await tx.delete(medicalRecords).where(eq(medicalRecords.childId, id));
+      await tx.execute(
+        sql`DELETE FROM health_exams WHERE follow_up_id IN (SELECT id FROM health_follow_ups WHERE child_id = ${id})`,
+      );
+      await tx.execute(
+        sql`DELETE FROM neonatal_screenings WHERE follow_up_id IN (SELECT id FROM health_follow_ups WHERE child_id = ${id})`,
+      );
+      await tx.execute(
+        sql`DELETE FROM development_milestones WHERE follow_up_id IN (SELECT id FROM health_follow_ups WHERE child_id = ${id})`,
+      );
+      await tx.delete(healthFollowUps).where(eq(healthFollowUps.childId, id));
 
       // 6. Deletar gamificação
       await tx.delete(gamification).where(eq(gamification.childId, id));
@@ -636,148 +699,331 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // Health
-  async getHealthRecords(
-    childId: number,
-    opts?: { cursor?: string; limit?: number; startDate?: string; endDate?: string },
-  ): Promise<{ data: HealthRecord[]; nextCursor: string | null }> {
-    const pageSize = Math.min(opts?.limit ?? 20, 50);
-    const conditions: SQL[] = [eq(healthRecords.childId, childId)];
+  async syncHealthFollowUps(childId: number, birthDate: string): Promise<void> {
+    const existingFollowUps = await db
+      .select()
+      .from(healthFollowUps)
+      .where(eq(healthFollowUps.childId, childId));
 
-    if (opts?.startDate) {
-      conditions.push(sql`${healthRecords.date} >= ${opts.startDate}`);
+    const neonatalSourceType = "system_neonatal";
+    let neonatalFollowUp = existingFollowUps.find(
+      (followUp) =>
+        followUp.sourceType === neonatalSourceType &&
+        followUp.sourceId === childId,
+    );
+
+    const neonatalPayload = {
+      childId,
+      createdBy: null,
+      category: "neonatal",
+      title: "Triagem neonatal",
+      description: "Checklist inicial dos testes realizados ao nascer.",
+      followUpDate: birthDate,
+      sourceType: neonatalSourceType,
+      sourceId: childId,
+    };
+
+    if (neonatalFollowUp) {
+      const [updated] = await db
+        .update(healthFollowUps)
+        .set(neonatalPayload)
+        .where(eq(healthFollowUps.id, neonatalFollowUp.id))
+        .returning();
+      neonatalFollowUp = updated;
+    } else {
+      const [inserted] = await db
+        .insert(healthFollowUps)
+        .values(neonatalPayload)
+        .returning();
+      neonatalFollowUp = inserted;
     }
-    if (opts?.endDate) {
-      conditions.push(sql`${healthRecords.date} <= ${opts.endDate}`);
+
+    if (neonatalFollowUp) {
+      const existingScreenings = await db
+        .select()
+        .from(neonatalScreenings)
+        .where(eq(neonatalScreenings.followUpId, neonatalFollowUp.id));
+      const existingTypes = new Set(
+        existingScreenings.map((screening) => screening.screeningType),
+      );
+      const missingRows = buildNewbornScreeningRows(neonatalFollowUp.id).filter(
+        (row) => !existingTypes.has(row.screeningType),
+      );
+      if (missingRows.length > 0) {
+        await db.insert(neonatalScreenings).values(missingRows);
+      }
     }
+
+    for (const ageBand of DEVELOPMENT_AGE_BANDS) {
+      const sourceType = `system_development_${ageBand.key}`;
+      let followUp = existingFollowUps.find(
+        (item) => item.sourceType === sourceType && item.sourceId === childId,
+      );
+
+      const followUpPayload = {
+        childId,
+        createdBy: null,
+        category: "development",
+        title: `Marcos de desenvolvimento: ${ageBand.label}`,
+        description: `Acompanhamento do desenvolvimento para a faixa ${ageBand.label}.`,
+        followUpDate: addMonthsToDateString(birthDate, ageBand.targetMonths),
+        sourceType,
+        sourceId: childId,
+      };
+
+      if (followUp) {
+        const [updated] = await db
+          .update(healthFollowUps)
+          .set(followUpPayload)
+          .where(eq(healthFollowUps.id, followUp.id))
+          .returning();
+        followUp = updated;
+      } else {
+        const [inserted] = await db
+          .insert(healthFollowUps)
+          .values(followUpPayload)
+          .returning();
+        followUp = inserted;
+      }
+
+      if (!followUp) continue;
+
+      const existingMilestones = await db
+        .select()
+        .from(developmentMilestones)
+        .where(eq(developmentMilestones.followUpId, followUp.id));
+      const existingMilestoneKeys = new Set(
+        existingMilestones.map((milestone) => milestone.milestoneKey),
+      );
+      const missingMilestones = buildDevelopmentMilestoneRows(
+        followUp.id,
+        ageBand.key,
+        ageBand.milestones,
+      ).filter((row) => !existingMilestoneKeys.has(row.milestoneKey));
+
+      if (missingMilestones.length > 0) {
+        await db.insert(developmentMilestones).values(missingMilestones);
+      }
+    }
+  }
+
+  async getHealthFollowUps(
+    childId: number,
+    opts?: { cursor?: string; limit?: number },
+  ): Promise<{ data: HealthFollowUpWithRelations[]; nextCursor: string | null }> {
+    const pageSize = Math.min(opts?.limit ?? 20, 50);
+    const conditions: SQL[] = [eq(healthFollowUps.childId, childId)];
+
     if (opts?.cursor) {
       const [cursorDate, cursorId] = opts.cursor.split("|");
       conditions.push(
-        sql`(${healthRecords.date}, ${healthRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
+        sql`(${healthFollowUps.followUpDate}, ${healthFollowUps.id}) < (${cursorDate}, ${Number(cursorId)})`,
       );
     }
 
     const results = await db
       .select()
-      .from(healthRecords)
+      .from(healthFollowUps)
       .where(and(...conditions))
-      .orderBy(desc(healthRecords.date), desc(healthRecords.id))
+      .orderBy(desc(healthFollowUps.followUpDate), desc(healthFollowUps.id))
       .limit(pageSize + 1);
 
     const hasMore = results.length > pageSize;
     const data = hasMore ? results.slice(0, pageSize) : results;
+    const ids = data.map((followUp) => followUp.id);
+
+    const [screenings, milestones, exams] = ids.length
+      ? await Promise.all([
+          db
+            .select()
+            .from(neonatalScreenings)
+            .where(inArray(neonatalScreenings.followUpId, ids)),
+          db
+            .select()
+            .from(developmentMilestones)
+            .where(inArray(developmentMilestones.followUpId, ids)),
+          db.select().from(healthExams).where(inArray(healthExams.followUpId, ids)),
+        ])
+      : [[], [], []];
+
+    const enriched = data.map((followUp) => ({
+      ...followUp,
+      neonatalScreenings: screenings.filter(
+        (screening) => screening.followUpId === followUp.id,
+      ),
+      developmentMilestones: milestones.filter(
+        (milestone) => milestone.followUpId === followUp.id,
+      ),
+      healthExams: exams.filter((exam) => exam.followUpId === followUp.id),
+    }));
+
     const nextCursor =
       hasMore && data.length > 0
-        ? `${data[data.length - 1].date}|${data[data.length - 1].id}`
+        ? `${data[data.length - 1].followUpDate}|${data[data.length - 1].id}`
         : null;
 
-    return { data, nextCursor };
+    return { data: enriched, nextCursor };
   }
 
-  async getHealthRecordById(id: number): Promise<HealthRecord | undefined> {
-    const [record] = await db
+  async getHealthFollowUpById(id: number): Promise<HealthFollowUp | undefined> {
+    const [followUp] = await db
       .select()
-      .from(healthRecords)
-      .where(eq(healthRecords.id, id));
-    return record;
+      .from(healthFollowUps)
+      .where(eq(healthFollowUps.id, id));
+    return followUp;
   }
 
-  async createHealthRecord(record: InsertHealthRecord): Promise<HealthRecord> {
-    const [newRecord] = await db
-      .insert(healthRecords)
-      .values(record)
-      .returning();
-    return newRecord;
+  async createHealthFollowUp(
+    record: InsertHealthFollowUp,
+  ): Promise<HealthFollowUp> {
+    const [created] = await db.insert(healthFollowUps).values(record).returning();
+    return created;
   }
 
-  async updateHealthRecord(
+  async updateHealthFollowUp(
     id: number,
-    data: Partial<InsertHealthRecord>,
-  ): Promise<HealthRecord | undefined> {
+    data: Partial<InsertHealthFollowUp>,
+  ): Promise<HealthFollowUp | undefined> {
     const [updated] = await db
-      .update(healthRecords)
+      .update(healthFollowUps)
       .set(data)
-      .where(eq(healthRecords.id, id))
+      .where(eq(healthFollowUps.id, id))
       .returning();
     return updated;
   }
 
-  async deleteHealthRecord(id: number): Promise<void> {
-    await db.delete(healthRecords).where(eq(healthRecords.id, id));
+  async deleteHealthFollowUp(id: number): Promise<void> {
+    await db.delete(healthExams).where(eq(healthExams.followUpId, id));
+    await db
+      .delete(neonatalScreenings)
+      .where(eq(neonatalScreenings.followUpId, id));
+    await db
+      .delete(developmentMilestones)
+      .where(eq(developmentMilestones.followUpId, id));
+    await db.delete(healthFollowUps).where(eq(healthFollowUps.id, id));
   }
 
-  // Medical Records (consultas/exames)
-  async getMedicalRecords(
-    childId: number,
-    cursor?: string,
-    limit: number = 20,
-    opts?: { startDate?: string; endDate?: string },
-  ): Promise<{ data: MedicalRecord[]; nextCursor: string | null }> {
-    const pageSize = Math.min(limit, 50);
-    const conditions: SQL[] = [eq(medicalRecords.childId, childId)];
-
-    if (opts?.startDate) {
-      conditions.push(sql`${medicalRecords.examDate} >= ${opts.startDate}`);
-    }
-    if (opts?.endDate) {
-      conditions.push(sql`${medicalRecords.examDate} <= ${opts.endDate}`);
-    }
-    if (cursor) {
-      const [cursorDate, cursorId] = cursor.split("|");
-      conditions.push(
-        sql`(${medicalRecords.examDate}, ${medicalRecords.id}) < (${cursorDate}, ${Number(cursorId)})`,
+  async upsertNeonatalScreening(params: {
+    followUpId: number;
+    screeningType: string;
+    isCompleted?: boolean;
+    completedAt?: string | null;
+    notes?: string | null;
+  }): Promise<NeonatalScreening> {
+    const [existing] = await db
+      .select()
+      .from(neonatalScreenings)
+      .where(
+        and(
+          eq(neonatalScreenings.followUpId, params.followUpId),
+          eq(neonatalScreenings.screeningType, params.screeningType),
+        ),
       );
+
+    const payload = {
+      followUpId: params.followUpId,
+      screeningType: params.screeningType,
+      isCompleted: params.isCompleted ?? false,
+      completedAt: params.completedAt ?? null,
+      notes: params.notes ?? null,
+    };
+
+    if (existing) {
+      const [updated] = await db
+        .update(neonatalScreenings)
+        .set(payload)
+        .where(eq(neonatalScreenings.id, existing.id))
+        .returning();
+      return updated;
     }
 
-    const results = await db
-      .select()
-      .from(medicalRecords)
-      .where(and(...conditions))
-      .orderBy(desc(medicalRecords.examDate), desc(medicalRecords.id))
-      .limit(pageSize + 1);
-
-    const hasMore = results.length > pageSize;
-    const data = hasMore ? results.slice(0, pageSize) : results;
-    const nextCursor =
-      hasMore && data.length > 0
-        ? `${data[data.length - 1].examDate}|${data[data.length - 1].id}`
-        : null;
-
-    return { data, nextCursor };
-  }
-
-  async getMedicalRecordById(id: number): Promise<MedicalRecord | undefined> {
-    const [record] = await db
-      .select()
-      .from(medicalRecords)
-      .where(eq(medicalRecords.id, id));
-    return record;
-  }
-
-  async createMedicalRecord(
-    record: InsertMedicalRecord,
-  ): Promise<MedicalRecord> {
-    const [newRecord] = await db
-      .insert(medicalRecords)
-      .values(record)
+    const [created] = await db
+      .insert(neonatalScreenings)
+      .values(payload)
       .returning();
-    return newRecord;
+    return created;
   }
 
-  async updateMedicalRecord(
+  async upsertDevelopmentMilestone(params: {
+    followUpId: number;
+    milestoneKey: string;
+    ageBand: string;
+    title: string;
+    status?: string;
+    checkedAt?: string | null;
+    notes?: string | null;
+  }): Promise<DevelopmentMilestone> {
+    const [existing] = await db
+      .select()
+      .from(developmentMilestones)
+      .where(
+        and(
+          eq(developmentMilestones.followUpId, params.followUpId),
+          eq(developmentMilestones.milestoneKey, params.milestoneKey),
+        ),
+      );
+
+    const payload = {
+      followUpId: params.followUpId,
+      milestoneKey: params.milestoneKey,
+      ageBand: params.ageBand,
+      title: params.title,
+      status: params.status ?? "pending",
+      checkedAt: params.checkedAt ?? null,
+      notes: params.notes ?? null,
+    };
+
+    if (existing) {
+      const [updated] = await db
+        .update(developmentMilestones)
+        .set(payload)
+        .where(eq(developmentMilestones.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(developmentMilestones)
+      .values(payload)
+      .returning();
+    return created;
+  }
+
+  async getHealthExamById(id: number): Promise<HealthExam | undefined> {
+    const [exam] = await db.select().from(healthExams).where(eq(healthExams.id, id));
+    return exam;
+  }
+
+  async createHealthExam(record: {
+    followUpId: number;
+    title: string;
+    examDate: string;
+    notes?: string | null;
+    filePaths?: string[] | null;
+  }): Promise<HealthExam> {
+    const [created] = await db.insert(healthExams).values(record).returning();
+    return created;
+  }
+
+  async updateHealthExam(
     id: number,
-    data: Partial<InsertMedicalRecord>,
-  ): Promise<MedicalRecord | undefined> {
+    data: Partial<{
+      title: string;
+      examDate: string;
+      notes: string | null;
+      filePaths: string[] | null;
+    }>,
+  ): Promise<HealthExam | undefined> {
     const [updated] = await db
-      .update(medicalRecords)
+      .update(healthExams)
       .set(data)
-      .where(eq(medicalRecords.id, id))
+      .where(eq(healthExams.id, id))
       .returning();
     return updated;
   }
 
-  async deleteMedicalRecord(id: number): Promise<void> {
-    await db.delete(medicalRecords).where(eq(medicalRecords.id, id));
+  async deleteHealthExam(id: number): Promise<void> {
+    await db.delete(healthExams).where(eq(healthExams.id, id));
   }
 
   // Milestones

@@ -7,6 +7,8 @@ import {
   caregivers,
   activityComments,
   children,
+  healthExams,
+  healthFollowUps,
   milestones,
   diaryEntries,
   dailyPhotos,
@@ -33,9 +35,12 @@ import {
   deleteFileFromStorage,
   type UploadBucket,
 } from "./supabaseStorage";
-import { medicalRecords, type InsertMedicalRecord } from "@shared/schema";
 import rateLimit from "express-rate-limit";
 import { recordPoints } from "./gamificationHelper";
+import {
+  DEVELOPMENT_AGE_BANDS,
+  NEWBORN_SCREENINGS,
+} from "@shared/health-catalog";
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
 // Global: 300 requests por IP por janela de 15 minutos
@@ -318,11 +323,15 @@ export async function registerRoutes(
       .where(drizzleEq(vaccineRecords.childId, id));
     // Sem fotos para remover no Storage para vacinas
 
-    const medicalRows = await db
-      .select({ filePaths: medicalRecords.filePaths })
-      .from(medicalRecords)
-      .where(drizzleEq(medicalRecords.childId, id));
-    const healthFilePaths = medicalRows
+    const healthExamRows = await db
+      .select({ filePaths: healthExams.filePaths })
+      .from(healthExams)
+      .innerJoin(
+        healthFollowUps,
+        drizzleEq(healthExams.followUpId, healthFollowUps.id),
+      )
+      .where(drizzleEq(healthFollowUps.childId, id));
+    const healthFilePaths = healthExamRows
       .flatMap((r) => r.filePaths || [])
       .filter((p): p is string => !!p);
 
@@ -586,380 +595,400 @@ export async function registerRoutes(
     res.json(record);
   });
 
-  // Health
-  app.get(api.health.list.path, isAuthenticated, async (req, res) => {
+  // Unified health follow-ups
+  app.get(api.healthFollowUps.list.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+    if (!userId) return res.status(401).json({ message: "Nao autenticado" });
 
     const childId = Number(req.params.childId);
     if (!(await hasChildAccess(userId, childId))) {
       return res.status(403).json({ message: "Acesso negado" });
+    }
+
+    const child = await storage.getChild(childId);
+    if (!child) {
+      return res.status(404).json({ message: "Crianca nao encontrada" });
     }
 
     const cursor = req.query.cursor as string | undefined;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
-    const startDate = req.query.startDate as string | undefined;
-    const endDate = req.query.endDate as string | undefined;
 
-    const result = await storage.getHealthRecords(childId, { cursor, limit, startDate, endDate });
+    await storage.syncHealthFollowUps(childId, child.birthDate);
+    const result = await storage.getHealthFollowUps(childId, { cursor, limit });
     res.json(result);
   });
 
-  app.post(api.health.create.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-
-    const childId = Number(req.params.childId);
-    if (!(await hasChildAccess(userId, childId))) {
-      return res.status(403).json({ message: "Acesso negado" });
-    }
-
-    const input = api.health.create.input.parse(req.body);
-    const record = await storage.createHealthRecord({ ...input, childId });
-
-    // Responde imediatamente
-    res.status(201).json(record);
-
-    // Background: notificações (não bloqueia a resposta)
-    (async () => {
-      try {
-        const [user, child] = await Promise.all([
-          storage.getUser(userId),
-          storage.getChild(childId),
-        ]);
-        const userName = resolveUserName(user);
-        const childName = child?.name || "seu filho(a)";
-        notifyCaregivers(
-          childId,
-          userId,
-          "🤒 Novo registro de saúde",
-          `${userName} registrou um evento de saúde para ${childName}`,
-          `/health?tab=history&id=${record.id}`,
-          {
-            eventType: "health_created",
-            entityType: "health_record",
-            entityId: record.id,
-            recordType: "health",
-            recordId: record.id,
-          },
-        );
-      } catch (err) {
-        console.error("[bg] Erro pós-criação de saúde:", err);
-      }
-    })();
-  });
-
-  app.patch(api.health.update.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-
-    const id = Number(req.params.id);
-    const existing = await storage.getHealthRecordById(id);
-    if (!existing) {
-      return res.status(404).json({ message: "Registro não encontrado" });
-    }
-    if (!(await hasChildAccess(userId, existing.childId))) {
-      return res.status(403).json({ message: "Acesso negado" });
-    }
-
-    const input = api.health.update.input.parse(req.body);
-    const record = await storage.updateHealthRecord(id, input);
-    res.json(record);
-  });
-
-  app.delete(api.health.delete.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    if (!userId) return res.status(401).json({ message: "Não autenticado" });
-
-    const id = Number(req.params.id);
-    const existing = await storage.getHealthRecordById(id);
-    if (!existing) {
-      return res.status(404).json({ message: "Registro não encontrado" });
-    }
-    if (!(await hasChildAccess(userId, existing.childId))) {
-      return res.status(403).json({ message: "Acesso negado" });
-    }
-
-    await storage.deleteHealthRecord(id);
-    res.status(204).send();
-  });
-
-  // ─── Medical Records (consultas/exames) ──────────────────────────────────
-
-  app.get(
-    api.medicalRecords.list.path,
-    isAuthenticated,
-    async (req, res) => {
-      const userId = getUserId(req);
-      if (!userId) return res.status(401).json({ message: "Não autenticado" });
-
-      const childId = Number(req.params.childId);
-      if (!(await hasChildAccess(userId, childId))) {
-        return res.status(403).json({ message: "Acesso negado" });
-      }
-
-      const cursor = req.query.cursor as string | undefined;
-      const limit = req.query.limit ? Number(req.query.limit) : 20;
-      const startDate = req.query.startDate as string | undefined;
-      const endDate = req.query.endDate as string | undefined;
-      const result = await storage.getMedicalRecords(childId, cursor, limit, { startDate, endDate });
-      res.json(result);
-    },
-  );
-
   app.post(
-    api.medicalRecords.create.path,
+    api.healthFollowUps.create.path,
     isAuthenticated,
-    uploadLimiter,
     async (req, res) => {
       const userId = getUserId(req);
-      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
 
       const childId = Number(req.params.childId);
       if (!(await hasChildAccess(userId, childId))) {
         return res.status(403).json({ message: "Acesso negado" });
       }
 
-      try {
-        const { type, title, description, examDate, files } = req.body;
+      const input = api.healthFollowUps.create.input.parse(req.body);
+      const record = await storage.createHealthFollowUp({
+        childId,
+        createdBy: userId,
+        category: input.category,
+        title: input.title,
+        description: input.description ?? null,
+        followUpDate: input.followUpDate,
+        sourceType: null,
+        sourceId: null,
+      });
 
-        if (!type || !title || !examDate) {
-          return res.status(400).json({ message: "Campos obrigatórios: type, title, examDate" });
-        }
-
-        const allowedTypes = ["consulta", "exame"];
-        if (!allowedTypes.includes(type)) {
-          return res.status(400).json({ message: "Tipo deve ser 'consulta' ou 'exame'" });
-        }
-
-        const filePaths: string[] = [];
-
-        if (Array.isArray(files) && files.length > 0) {
-          if (files.length > 5) {
-            return res.status(400).json({ message: "Máximo de 5 arquivos por registro" });
-          }
-          const allowedMimes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-
-          for (const file of files) {
-            if (!file.fileBase64 || !file.fileMimeType || !file.fileName) continue;
-            if (!allowedMimes.includes(file.fileMimeType)) {
-              return res.status(400).json({ message: "Tipo de arquivo não permitido. Use PDF ou imagens." });
-            }
-            const buffer = Buffer.from(file.fileBase64, "base64");
-            if (buffer.length > 10 * 1024 * 1024) {
-              return res.status(400).json({ message: "Arquivo muito grande (máx 10MB cada)" });
-            }
-            const ext = file.fileName.split(".").pop() || "bin";
-            const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-            const storagePath = `${childId}/${safeName}`;
-            await uploadFileBuffer("health-files", storagePath, buffer, file.fileMimeType);
-            filePaths.push(storagePath);
-          }
-        }
-
-        const record = await storage.createMedicalRecord({
-          childId,
-          createdBy: userId,
-          type,
-          title,
-          description: description || null,
-          examDate,
-          filePaths: filePaths.length > 0 ? filePaths : null,
-        });
-
-        res.status(201).json(record);
-
-        (async () => {
-          try {
-            const [user, child] = await Promise.all([
-              storage.getUser(userId),
-              storage.getChild(childId),
-            ]);
-            const userName = resolveUserName(user);
-            const childName = child?.name || "seu filho(a)";
-            const typeLabel = type === "consulta" ? "consulta" : "exame";
-            notifyCaregivers(
-              childId,
-              userId,
-              `🏥 ${type === "consulta" ? "Nova consulta" : "Novo exame"}`,
-              `${userName} registrou ${typeLabel === "consulta" ? "uma" : "um"} ${typeLabel} para ${childName}: ${title}`,
-              `/health?tab=medical`,
-              {
-                eventType: "medical_record_created",
-                entityType: "medical_record",
-                entityId: record.id,
-                recordType: "medical",
-                recordId: record.id,
-              },
-            );
-          } catch (err) {
-            console.error("[bg] Erro pós-criação de registro médico:", err);
-          }
-        })();
-      } catch (err: any) {
-        console.error("Error creating medical record:", err);
-        res.status(500).json({ message: "Erro ao criar registro" });
-      }
+      res.status(201).json(record);
     },
   );
 
   app.patch(
-    api.medicalRecords.update.path,
+    api.healthFollowUps.update.path,
     isAuthenticated,
-    uploadLimiter,
     async (req, res) => {
       const userId = getUserId(req);
-      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
 
       const id = Number(req.params.id);
-      const existing = await storage.getMedicalRecordById(id);
+      const existing = await storage.getHealthFollowUpById(id);
       if (!existing) {
-        return res.status(404).json({ message: "Registro não encontrado" });
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
       }
       if (!(await hasChildAccess(userId, existing.childId))) {
         return res.status(403).json({ message: "Acesso negado" });
       }
 
+      const input = api.healthFollowUps.update.input.parse(req.body);
+      const record = await storage.updateHealthFollowUp(id, {
+        category: input.category,
+        title: input.title,
+        description: input.description,
+        followUpDate: input.followUpDate,
+      });
+      res.json(record);
+    },
+  );
+
+  app.delete(
+    api.healthFollowUps.delete.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const id = Number(req.params.id);
+      const existing = await storage.getHealthFollowUpById(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
+      }
+      if (!(await hasChildAccess(userId, existing.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+      if (existing.category === "development" || existing.category === "neonatal") {
+        return res
+          .status(400)
+          .json({ message: "Esse acompanhamento faz parte da estrutura fixa." });
+      }
+
+      await storage.deleteHealthFollowUp(id);
+      res.status(204).send();
+    },
+  );
+
+  app.patch(
+    api.healthFollowUps.updateNeonatal.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const id = Number(req.params.id);
+      const existing = await storage.getHealthFollowUpById(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
+      }
+      if (!(await hasChildAccess(userId, existing.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const screeningType = String(req.params.screeningType);
+      const isValidScreening = NEWBORN_SCREENINGS.some(
+        (item) => item.key === screeningType,
+      );
+      if (!isValidScreening) {
+        return res.status(400).json({ message: "Triagem invalida" });
+      }
+
+      const input = api.healthFollowUps.updateNeonatal.input.parse(req.body);
+      const screening = await storage.upsertNeonatalScreening({
+        followUpId: id,
+        screeningType,
+        isCompleted: input.isCompleted,
+        completedAt: input.completedAt ?? null,
+        notes: input.notes ?? null,
+      });
+      res.json(screening);
+    },
+  );
+
+  app.patch(
+    api.healthFollowUps.updateMilestone.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const id = Number(req.params.id);
+      const existing = await storage.getHealthFollowUpById(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
+      }
+      if (!(await hasChildAccess(userId, existing.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const milestoneKey = String(req.params.milestoneKey);
+      const ageBand = DEVELOPMENT_AGE_BANDS.find((band) =>
+        band.milestones.some((milestone) => milestone.key === milestoneKey),
+      );
+      const milestone = ageBand?.milestones.find(
+        (item) => item.key === milestoneKey,
+      );
+      if (!ageBand || !milestone) {
+        return res.status(400).json({ message: "Marco invalido" });
+      }
+
+      const input = api.healthFollowUps.updateMilestone.input.parse(req.body);
+      const record = await storage.upsertDevelopmentMilestone({
+        followUpId: id,
+        milestoneKey,
+        ageBand: ageBand.key,
+        title: milestone.title,
+        status: input.status,
+        checkedAt: input.checkedAt ?? null,
+        notes: input.notes ?? null,
+      });
+      res.json(record);
+    },
+  );
+
+  app.post(
+    api.healthFollowUps.createExam.path,
+    isAuthenticated,
+    uploadLimiter,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const followUpId = Number(req.params.id);
+      const followUp = await storage.getHealthFollowUpById(followUpId);
+      if (!followUp) {
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
+      }
+      if (!(await hasChildAccess(userId, followUp.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
       try {
-        const { type, title, description, examDate, newFiles, removeFilePaths } = req.body;
+        const input = api.healthFollowUps.createExam.input.parse(req.body);
+        const filePaths: string[] = [];
 
-        const updates: Partial<InsertMedicalRecord> = {};
-        if (type) updates.type = type;
-        if (title) updates.title = title;
-        if (description !== undefined) updates.description = description || null;
-        if (examDate) updates.examDate = examDate;
+        if (Array.isArray(input.files) && input.files.length > 0) {
+          if (input.files.length > 5) {
+            return res.status(400).json({ message: "Maximo de 5 arquivos por exame" });
+          }
 
-        let currentPaths = existing.filePaths ? [...existing.filePaths] : [];
+          const allowedMimes = [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+          ];
 
-        if (Array.isArray(removeFilePaths) && removeFilePaths.length > 0) {
-          for (const rp of removeFilePaths) {
-            if (currentPaths.includes(rp)) {
-              await deleteFileFromStorage("health-files", rp).catch(console.error);
-              currentPaths = currentPaths.filter((p) => p !== rp);
+          for (const file of input.files) {
+            if (!allowedMimes.includes(file.fileMimeType)) {
+              return res
+                .status(400)
+                .json({ message: "Tipo de arquivo nao permitido. Use PDF ou imagens." });
+            }
+            const buffer = Buffer.from(file.fileBase64, "base64");
+            if (buffer.length > 10 * 1024 * 1024) {
+              return res
+                .status(400)
+                .json({ message: "Arquivo muito grande (max 10MB cada)" });
+            }
+
+            const ext = file.fileName.split(".").pop() || "bin";
+            const safeName = `exam_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+            const storagePath = `${followUp.childId}/${safeName}`;
+            await uploadFileBuffer("health-files", storagePath, buffer, file.fileMimeType);
+            filePaths.push(storagePath);
+          }
+        }
+
+        const exam = await storage.createHealthExam({
+          followUpId,
+          title: input.title,
+          examDate: input.examDate,
+          notes: input.notes ?? null,
+          filePaths: filePaths.length > 0 ? filePaths : null,
+        });
+
+        res.status(201).json(exam);
+      } catch (err) {
+        console.error("Error creating health exam:", err);
+        res.status(500).json({ message: "Erro ao criar exame" });
+      }
+    },
+  );
+
+  app.patch(
+    api.healthFollowUps.updateExam.path,
+    isAuthenticated,
+    uploadLimiter,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const id = Number(req.params.id);
+      const exam = await storage.getHealthExamById(id);
+      if (!exam) return res.status(404).json({ message: "Exame nao encontrado" });
+
+      const followUp = await storage.getHealthFollowUpById(exam.followUpId);
+      if (!followUp) {
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
+      }
+      if (!(await hasChildAccess(userId, followUp.childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      try {
+        const input = api.healthFollowUps.updateExam.input.parse(req.body);
+        let currentPaths = exam.filePaths ? [...exam.filePaths] : [];
+
+        if (Array.isArray(input.removeFilePaths) && input.removeFilePaths.length > 0) {
+          for (const path of input.removeFilePaths) {
+            if (currentPaths.includes(path)) {
+              await deleteFileFromStorage("health-files", path).catch(console.error);
+              currentPaths = currentPaths.filter((item) => item !== path);
             }
           }
         }
 
-        if (Array.isArray(newFiles) && newFiles.length > 0) {
-          if (currentPaths.length + newFiles.length > 5) {
-            return res.status(400).json({ message: "Máximo de 5 arquivos por registro" });
+        if (Array.isArray(input.newFiles) && input.newFiles.length > 0) {
+          if (currentPaths.length + input.newFiles.length > 5) {
+            return res.status(400).json({ message: "Maximo de 5 arquivos por exame" });
           }
-          const allowedMimes = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-          for (const file of newFiles) {
-            if (!file.fileBase64 || !file.fileMimeType || !file.fileName) continue;
+
+          const allowedMimes = [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+          ];
+
+          for (const file of input.newFiles) {
             if (!allowedMimes.includes(file.fileMimeType)) {
-              return res.status(400).json({ message: "Tipo de arquivo não permitido. Use PDF ou imagens." });
+              return res
+                .status(400)
+                .json({ message: "Tipo de arquivo nao permitido. Use PDF ou imagens." });
             }
+
             const buffer = Buffer.from(file.fileBase64, "base64");
             if (buffer.length > 10 * 1024 * 1024) {
-              return res.status(400).json({ message: "Arquivo muito grande (máx 10MB cada)" });
+              return res
+                .status(400)
+                .json({ message: "Arquivo muito grande (max 10MB cada)" });
             }
+
             const ext = file.fileName.split(".").pop() || "bin";
-            const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-            const storagePath = `${existing.childId}/${safeName}`;
+            const safeName = `exam_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+            const storagePath = `${followUp.childId}/${safeName}`;
             await uploadFileBuffer("health-files", storagePath, buffer, file.fileMimeType);
             currentPaths.push(storagePath);
           }
         }
 
-        updates.filePaths = currentPaths.length > 0 ? currentPaths : null;
+        const updated = await storage.updateHealthExam(id, {
+          title: input.title,
+          examDate: input.examDate,
+          notes: input.notes ?? undefined,
+          filePaths: currentPaths.length > 0 ? currentPaths : null,
+        });
 
-        const record = await storage.updateMedicalRecord(id, updates);
-        res.json(record);
-      } catch (err: any) {
-        console.error("Error updating medical record:", err);
-        res.status(500).json({ message: "Erro ao atualizar registro" });
+        res.json(updated);
+      } catch (err) {
+        console.error("Error updating health exam:", err);
+        res.status(500).json({ message: "Erro ao atualizar exame" });
       }
     },
   );
 
   app.get(
-    api.medicalRecords.getFileUrl.path,
+    api.healthFollowUps.getExamFileUrl.path,
     isAuthenticated,
     async (req, res) => {
       const userId = getUserId(req);
-      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
 
       const id = Number(req.params.id);
-      const record = await storage.getMedicalRecordById(id);
-      if (!record) {
-        return res.status(404).json({ message: "Registro não encontrado" });
+      const exam = await storage.getHealthExamById(id);
+      if (!exam) return res.status(404).json({ message: "Exame nao encontrado" });
+
+      const followUp = await storage.getHealthFollowUpById(exam.followUpId);
+      if (!followUp) {
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
       }
-      if (!(await hasChildAccess(userId, record.childId))) {
+      if (!(await hasChildAccess(userId, followUp.childId))) {
         return res.status(403).json({ message: "Acesso negado" });
       }
-      if (!record.filePaths?.length) {
+      if (!exam.filePaths?.length) {
         return res.status(404).json({ message: "Nenhum arquivo anexado" });
       }
 
       try {
         const fileIndex = Number(req.query.index ?? 0);
-        const path = record.filePaths[fileIndex];
-        if (!path) return res.status(404).json({ message: "Arquivo não encontrado" });
+        const path = exam.filePaths[fileIndex];
+        if (!path) return res.status(404).json({ message: "Arquivo nao encontrado" });
         const url = await getSignedUrl("health-files", path, 3600);
         res.json({ url });
-      } catch (err: any) {
-        console.error("Error generating signed URL:", err);
+      } catch (err) {
+        console.error("Error generating health exam signed URL:", err);
         res.status(500).json({ message: "Erro ao gerar URL do arquivo" });
       }
     },
   );
 
-  app.get(
-    api.medicalRecords.getFileUrls.path,
-    isAuthenticated,
-    async (req, res) => {
-      const userId = getUserId(req);
-      if (!userId) return res.status(401).json({ message: "Não autenticado" });
-
-      const id = Number(req.params.id);
-      const record = await storage.getMedicalRecordById(id);
-      if (!record) return res.status(404).json({ message: "Registro não encontrado" });
-      if (!(await hasChildAccess(userId, record.childId))) {
-        return res.status(403).json({ message: "Acesso negado" });
-      }
-      if (!record.filePaths?.length) {
-        return res.json({ urls: [] });
-      }
-
-      try {
-        const urls = await Promise.all(
-          record.filePaths.map(async (p) => ({
-            path: p,
-            url: await getSignedUrl("health-files", p, 3600),
-          })),
-        );
-        res.json({ urls });
-      } catch (err: any) {
-        console.error("Error generating signed URLs:", err);
-        res.status(500).json({ message: "Erro ao gerar URLs dos arquivos" });
-      }
-    },
-  );
-
   app.delete(
-    api.medicalRecords.delete.path,
+    api.healthFollowUps.deleteExam.path,
     isAuthenticated,
     async (req, res) => {
       const userId = getUserId(req);
-      if (!userId) return res.status(401).json({ message: "Não autenticado" });
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
 
       const id = Number(req.params.id);
-      const record = await storage.getMedicalRecordById(id);
-      if (!record) {
-        return res.status(404).json({ message: "Registro não encontrado" });
+      const exam = await storage.getHealthExamById(id);
+      if (!exam) return res.status(404).json({ message: "Exame nao encontrado" });
+
+      const followUp = await storage.getHealthFollowUpById(exam.followUpId);
+      if (!followUp) {
+        return res.status(404).json({ message: "Acompanhamento nao encontrado" });
       }
-      if (!(await hasChildAccess(userId, record.childId))) {
+      if (!(await hasChildAccess(userId, followUp.childId))) {
         return res.status(403).json({ message: "Acesso negado" });
       }
 
-      if (record.filePaths?.length) {
-        for (const p of record.filePaths) {
-          await deleteFileFromStorage("health-files", p).catch(console.error);
+      if (exam.filePaths?.length) {
+        for (const path of exam.filePaths) {
+          await deleteFileFromStorage("health-files", path).catch(console.error);
         }
       }
 
-      await storage.deleteMedicalRecord(id);
+      await storage.deleteHealthExam(id);
       res.status(204).send();
     },
   );

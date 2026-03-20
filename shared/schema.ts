@@ -68,17 +68,6 @@ export const vaccines = pgTable("vaccines", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const healthRecords = pgTable("health_records", {
-  id: serial("id").primaryKey(),
-  childId: integer("child_id").notNull(),
-  date: date("date").notNull(),
-  symptoms: text("symptoms").notNull(),
-  diagnosis: text("diagnosis"),
-  medication: text("medication"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
 export const milestones = pgTable("milestones", {
   id: serial("id").primaryKey(),
   childId: integer("child_id").notNull(),
@@ -89,6 +78,7 @@ export const milestones = pgTable("milestones", {
   photoUrl: text("photo_url"),
   likesCount: integer("likes_count").notNull().default(0),
   isPrivate: boolean("is_private").notNull().default(false),
+  isPublic: boolean("is_public").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -100,6 +90,7 @@ export const diaryEntries = pgTable("diary_entries", {
   photoUrls: text("photo_urls").array(),
   likesCount: integer("likes_count").notNull().default(0),
   isPrivate: boolean("is_private").notNull().default(false),
+  isPublic: boolean("is_public").default(false),
   userId: varchar("user_id"), // Permite null para retrocompatibilidade
   moodEmoji: text("mood_emoji"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -253,6 +244,7 @@ export const vaccineRecords = pgTable(
     applicationDate: date("application_date"), // nullable = dose pendente (ainda não aplicada)
     applicationPlace: text("application_place"),
     notes: text("notes"),
+    photoUrls: text("photo_urls").array(),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
@@ -275,7 +267,6 @@ export const childrenRelations = relations(children, ({ many, one }) => ({
   caregivers: many(caregivers),
   growthRecords: many(growthRecords),
   vaccines: many(vaccines),
-  healthRecords: many(healthRecords),
   milestones: many(milestones),
   diaryEntries: many(diaryEntries),
   vaccineRecords: many(vaccineRecords),
@@ -312,13 +303,6 @@ export const growthRecordsRelations = relations(growthRecords, ({ one }) => ({
 export const vaccinesRelations = relations(vaccines, ({ one }) => ({
   child: one(children, {
     fields: [vaccines.childId],
-    references: [children.id],
-  }),
-}));
-
-export const healthRecordsRelations = relations(healthRecords, ({ one }) => ({
-  child: one(children, {
-    fields: [healthRecords.childId],
     references: [children.id],
   }),
 }));
@@ -481,31 +465,126 @@ export const diaryLikesRelations = relations(diaryLikes, ({ one }) => ({
   }),
 }));
 
-export const medicalRecords = pgTable(
-  "medical_records",
+export const healthFollowUps = pgTable(
+  "health_follow_ups",
   {
     id: serial("id").primaryKey(),
     childId: integer("child_id").notNull(),
-    createdBy: varchar("created_by").notNull(),
-    type: text("type").notNull(),
+    createdBy: varchar("created_by"),
+    category: text("category").notNull(),
     title: text("title").notNull(),
     description: text("description"),
+    followUpDate: date("follow_up_date").notNull(),
+    sourceType: text("source_type"),
+    sourceId: integer("source_id"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    childFollowUpDateIdx: index("health_follow_ups_child_follow_up_date_idx").on(
+      table.childId,
+      table.followUpDate,
+    ),
+    sourceUnique: uniqueIndex("health_follow_ups_source_unique").on(
+      table.sourceType,
+      table.sourceId,
+    ),
+  }),
+);
+
+export const neonatalScreenings = pgTable(
+  "neonatal_screenings",
+  {
+    id: serial("id").primaryKey(),
+    followUpId: integer("follow_up_id").notNull(),
+    screeningType: text("screening_type").notNull(),
+    isCompleted: boolean("is_completed").notNull().default(false),
+    completedAt: date("completed_at"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueFollowUpScreening: uniqueIndex(
+      "neonatal_screenings_follow_up_type_unique",
+    ).on(table.followUpId, table.screeningType),
+  }),
+);
+
+export const developmentMilestones = pgTable(
+  "development_milestones",
+  {
+    id: serial("id").primaryKey(),
+    followUpId: integer("follow_up_id").notNull(),
+    milestoneKey: text("milestone_key").notNull(),
+    ageBand: text("age_band").notNull(),
+    title: text("title").notNull(),
+    status: text("status").notNull().default("pending"),
+    notes: text("notes"),
+    checkedAt: date("checked_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    uniqueFollowUpMilestone: uniqueIndex(
+      "development_milestones_follow_up_key_unique",
+    ).on(table.followUpId, table.milestoneKey),
+  }),
+);
+
+export const healthExams = pgTable(
+  "health_exams",
+  {
+    id: serial("id").primaryKey(),
+    followUpId: integer("follow_up_id").notNull(),
+    title: text("title").notNull(),
     examDate: date("exam_date").notNull(),
+    notes: text("notes"),
     filePaths: text("file_paths").array(),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
-    childExamDateIdx: index("medical_records_child_exam_date_idx").on(
-      table.childId,
+    followUpExamDateIdx: index("health_exams_follow_up_exam_date_idx").on(
+      table.followUpId,
       table.examDate,
     ),
   }),
 );
 
-export const medicalRecordsRelations = relations(medicalRecords, ({ one }) => ({
-  child: one(children, {
-    fields: [medicalRecords.childId],
-    references: [children.id],
+export const healthFollowUpsRelations = relations(
+  healthFollowUps,
+  ({ one, many }) => ({
+    child: one(children, {
+      fields: [healthFollowUps.childId],
+      references: [children.id],
+    }),
+    neonatalScreenings: many(neonatalScreenings),
+    developmentMilestones: many(developmentMilestones),
+    healthExams: many(healthExams),
+  }),
+);
+
+export const neonatalScreeningsRelations = relations(
+  neonatalScreenings,
+  ({ one }) => ({
+    followUp: one(healthFollowUps, {
+      fields: [neonatalScreenings.followUpId],
+      references: [healthFollowUps.id],
+    }),
+  }),
+);
+
+export const developmentMilestonesRelations = relations(
+  developmentMilestones,
+  ({ one }) => ({
+    followUp: one(healthFollowUps, {
+      fields: [developmentMilestones.followUpId],
+      references: [healthFollowUps.id],
+    }),
+  }),
+);
+
+export const healthExamsRelations = relations(healthExams, ({ one }) => ({
+  followUp: one(healthFollowUps, {
+    fields: [healthExams.followUpId],
+    references: [healthFollowUps.id],
   }),
 }));
 
@@ -524,10 +603,6 @@ export const insertGrowthRecordSchema = createInsertSchema(growthRecords).omit({
   createdAt: true,
 });
 export const insertVaccineSchema = createInsertSchema(vaccines).omit({
-  id: true,
-  createdAt: true,
-});
-export const insertHealthRecordSchema = createInsertSchema(healthRecords).omit({
   id: true,
   createdAt: true,
 });
@@ -576,9 +651,6 @@ export type InsertGrowthRecord = z.infer<typeof insertGrowthRecordSchema>;
 export type Vaccine = typeof vaccines.$inferSelect;
 export type InsertVaccine = z.infer<typeof insertVaccineSchema>;
 
-export type HealthRecord = typeof healthRecords.$inferSelect;
-export type InsertHealthRecord = z.infer<typeof insertHealthRecordSchema>;
-
 export type Milestone = typeof milestones.$inferSelect;
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 
@@ -608,12 +680,44 @@ export type InsertAppNotification = z.infer<typeof insertNotificationSchema>;
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type InsertInviteCode = z.infer<typeof insertInviteCodeSchema>;
 
-export const insertMedicalRecordSchema = createInsertSchema(
-  medicalRecords,
+export const insertHealthFollowUpSchema = createInsertSchema(
+  healthFollowUps,
 ).omit({ id: true, createdAt: true });
 
-export type MedicalRecord = typeof medicalRecords.$inferSelect;
-export type InsertMedicalRecord = z.infer<typeof insertMedicalRecordSchema>;
+export const insertNeonatalScreeningSchema = createInsertSchema(
+  neonatalScreenings,
+).omit({ id: true, createdAt: true });
+
+export const insertDevelopmentMilestoneSchema = createInsertSchema(
+  developmentMilestones,
+).omit({ id: true, createdAt: true });
+
+export const insertHealthExamSchema = createInsertSchema(healthExams).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type HealthFollowUp = typeof healthFollowUps.$inferSelect;
+export type InsertHealthFollowUp = z.infer<typeof insertHealthFollowUpSchema>;
+
+export type NeonatalScreening = typeof neonatalScreenings.$inferSelect;
+export type InsertNeonatalScreening = z.infer<
+  typeof insertNeonatalScreeningSchema
+>;
+
+export type DevelopmentMilestone = typeof developmentMilestones.$inferSelect;
+export type InsertDevelopmentMilestone = z.infer<
+  typeof insertDevelopmentMilestoneSchema
+>;
+
+export type HealthExam = typeof healthExams.$inferSelect;
+export type InsertHealthExam = z.infer<typeof insertHealthExamSchema>;
+
+export type HealthFollowUpWithRelations = HealthFollowUp & {
+  neonatalScreenings: NeonatalScreening[];
+  developmentMilestones: DevelopmentMilestone[];
+  healthExams: HealthExam[];
+};
 
 export const insertActivityCommentSchema = createInsertSchema(
   activityComments,
@@ -671,6 +775,5 @@ export type UpdateChildRequest = Partial<InsertChild>;
 
 export type CreateGrowthRecordRequest = InsertGrowthRecord;
 export type CreateVaccineRequest = InsertVaccine;
-export type CreateHealthRecordRequest = InsertHealthRecord;
 export type CreateMilestoneRequest = InsertMilestone;
 export type CreateDiaryEntryRequest = InsertDiaryEntry;
