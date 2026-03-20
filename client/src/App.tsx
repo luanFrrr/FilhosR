@@ -1,9 +1,10 @@
+import React, { Suspense, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/hooks/use-theme";
 import { ChildProvider } from "@/hooks/use-child-context";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,18 +23,28 @@ import {
   type ForegroundNotificationPayload,
 } from "@/components/notifications/ForegroundNotificationCenter";
 
-// Pages
-import Dashboard from "@/pages/dashboard";
-import Health from "@/pages/health";
-import Memories from "@/pages/memories";
-import Onboarding from "@/pages/onboarding";
-import Settings from "@/pages/settings";
-import VaccineCard from "@/pages/vaccine-card";
-import DailyPhotos from "@/pages/daily-photos";
-import Landing from "@/pages/landing";
-import Privacy from "@/pages/privacy";
-import DeleteAccount from "@/pages/delete-account";
-import NotFound from "@/pages/not-found";
+const DashboardPage = React.lazy(() => import("@/pages/dashboard"));
+const HealthPage = React.lazy(() => import("@/pages/health"));
+const MemoriesPage = React.lazy(() => import("@/pages/memories"));
+const OnboardingPage = React.lazy(() => import("@/pages/onboarding"));
+const SettingsPage = React.lazy(() => import("@/pages/settings"));
+const VaccineCardPage = React.lazy(() => import("@/pages/vaccine-card"));
+const DailyPhotosPage = React.lazy(() => import("@/pages/daily-photos"));
+const LandingPage = React.lazy(() => import("@/pages/landing"));
+const PrivacyPage = React.lazy(() => import("@/pages/privacy"));
+const DeleteAccountPage = React.lazy(() => import("@/pages/delete-account"));
+const NotFoundPage = React.lazy(() => import("@/pages/not-found"));
+
+function RouteLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Carregando...</p>
+      </div>
+    </div>
+  );
+}
 
 function GrowthRedirect() {
   const [, setLocation] = useLocation();
@@ -127,17 +138,19 @@ function AuthenticatedRouter() {
           navigateFromNotification(notification.url, notification.childId);
         }}
       />
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/growth" component={GrowthRedirect} />
-        <Route path="/health" component={Health} />
-        <Route path="/memories" component={Memories} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/onboarding" component={Onboarding} />
-        <Route path="/vaccines" component={VaccineCard} />
-        <Route path="/daily-photos" component={DailyPhotos} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<RouteLoader />}>
+        <Switch>
+          <Route path="/" component={DashboardPage} />
+          <Route path="/growth" component={GrowthRedirect} />
+          <Route path="/health" component={HealthPage} />
+          <Route path="/memories" component={MemoriesPage} />
+          <Route path="/settings" component={SettingsPage} />
+          <Route path="/onboarding" component={OnboardingPage} />
+          <Route path="/vaccines" component={VaccineCardPage} />
+          <Route path="/daily-photos" component={DailyPhotosPage} />
+          <Route component={NotFoundPage} />
+        </Switch>
+      </Suspense>
       {!isAuthPage && <BottomNav />}
     </>
   );
@@ -149,25 +162,30 @@ function AppContent() {
 
   // Páginas públicas que não precisam de autenticação
   if (location === "/privacy") {
-    return <Privacy />;
+    return (
+      <Suspense fallback={<RouteLoader />}>
+        <PrivacyPage />
+      </Suspense>
+    );
   }
   if (location === "/delete-account") {
-    return <DeleteAccount />;
-  }
-
-  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
+      <Suspense fallback={<RouteLoader />}>
+        <DeleteAccountPage />
+      </Suspense>
     );
   }
 
+  if (isLoading) {
+    return <RouteLoader />;
+  }
+
   if (!isAuthenticated) {
-    return <Landing />;
+    return (
+      <Suspense fallback={<RouteLoader />}>
+        <LandingPage />
+      </Suspense>
+    );
   }
 
   return (
@@ -176,9 +194,6 @@ function AppContent() {
     </ChildProvider>
   );
 }
-
-import { ThemeProvider } from "@/hooks/use-theme";
-import React from "react";
 
 function App() {
   return (
