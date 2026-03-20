@@ -793,7 +793,7 @@ export function FollowUpOverview({
         </section>
       )}
 
-      <section className="space-y-4" ref={timelineSectionRef}>
+      <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
@@ -813,7 +813,7 @@ export function FollowUpOverview({
           collapsible
           value={openDevelopmentItem}
           onValueChange={setOpenDevelopmentItem}
-          className="space-y-3"
+          className="space-y-2.5"
         >
           {developmentFollowUps.map((followUp) => {
             const ageBand = getAgeBandMeta(followUp);
@@ -823,37 +823,37 @@ export function FollowUpOverview({
               <AccordionItem
                 key={followUp.id}
                 value={String(followUp.id)}
-                className="overflow-hidden rounded-3xl border border-border bg-card px-5 shadow-sm"
+                className="overflow-hidden rounded-2xl border border-border bg-card px-4 shadow-sm"
               >
-                <AccordionTrigger className="py-5 hover:no-underline">
-                  <div className="flex w-full items-start justify-between gap-3 pr-4 text-left">
+                <AccordionTrigger className="py-4 hover:no-underline">
+                  <div className="flex w-full items-start justify-between gap-2.5 pr-2 text-left">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-base font-display font-bold text-foreground">
+                        <h4 className="text-[15px] font-display font-bold text-foreground">
                           {ageBand?.label || followUp.title}
                         </h4>
                         {isCurrent ? (
-                          <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">
+                          <Badge className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] text-primary hover:bg-primary/10">
                             Agora
                           </Badge>
                         ) : null}
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="mt-0.5 text-[13px] text-muted-foreground">
                         {ageBand
                           ? `Faixa de referencia em torno de ${ageBand.targetMonths} meses`
                           : "Acompanhamento do desenvolvimento"}
                       </p>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {getMilestoneSummary(followUp.developmentMilestones)}
                       </p>
                     </div>
-                    <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
-                      <Baby className="w-5 h-5" />
+                    <div className="rounded-xl bg-amber-100 p-2.5 text-amber-700">
+                      <Baby className="h-4.5 w-4.5" />
                     </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="pt-1">
-                  <div className="space-y-3">
+                <AccordionContent className="pb-4 pt-0.5">
+                  <div className="space-y-2.5">
                     {followUp.developmentMilestones.map((milestone) => {
                       const statusConfig =
                         developmentStatusConfig[milestone.status] ||
@@ -861,17 +861,17 @@ export function FollowUpOverview({
                       return (
                         <div
                           key={milestone.id}
-                          className="rounded-2xl border border-border p-4"
+                          className="rounded-xl border border-border p-3"
                         >
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div>
-                              <p className="font-medium text-foreground">
+                              <p className="text-sm font-medium text-foreground">
                                 {milestone.title}
                               </p>
                               <Badge
                                 variant="outline"
                                 className={cn(
-                                  "mt-2 rounded-full px-3 py-1",
+                                  "mt-1.5 rounded-full px-2.5 py-0.5 text-[11px]",
                                   statusConfig.className,
                                 )}
                               >
@@ -883,7 +883,7 @@ export function FollowUpOverview({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="rounded-full"
+                                className="h-8 rounded-full px-3 text-xs"
                                 onClick={() =>
                                   setMilestoneStatus(followUp.id, milestone, "ok")
                                 }
@@ -894,7 +894,7 @@ export function FollowUpOverview({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="rounded-full"
+                                className="h-8 rounded-full px-3 text-xs"
                                 onClick={() =>
                                   setMilestoneStatus(
                                     followUp.id,
@@ -909,7 +909,7 @@ export function FollowUpOverview({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="rounded-full"
+                                className="h-8 rounded-full px-3 text-xs"
                                 onClick={() =>
                                   setMilestoneStatus(
                                     followUp.id,
@@ -933,7 +933,7 @@ export function FollowUpOverview({
         </Accordion>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-4" ref={timelineSectionRef}>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">

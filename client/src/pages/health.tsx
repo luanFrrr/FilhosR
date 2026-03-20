@@ -11,6 +11,11 @@ import { useVaccineRecords } from "@/hooks/use-vaccines";
 import { Header } from "@/components/layout/header";
 import { GrowthChart } from "@/components/growth/growth-chart";
 import { FollowUpOverview } from "@/components/health/follow-up-overview";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +48,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   Archive,
+  ChevronDown,
   ChevronRight,
   LineChart,
   Pencil,
@@ -96,6 +102,7 @@ export default function Health() {
     "weight",
   );
   const [highlightRecordId, setHighlightRecordId] = useState<number | null>(null);
+  const [growthInsightOpen, setGrowthInsightOpen] = useState(false);
 
   const growthForm = useForm<GrowthForm>({
     resolver: zodResolver(growthSchema),
@@ -252,20 +259,63 @@ export default function Health() {
     );
   };
 
+  const growthRecordsWithInitial = useMemo(() => {
+    const records = growthRecords ? [...growthRecords] : [];
+
+    if (!activeChild?.birthDate) return records;
+
+    const hasInitialMeasure =
+      activeChild.initialWeight != null ||
+      activeChild.initialHeight != null ||
+      activeChild.initialHeadCircumference != null;
+
+    if (!hasInitialMeasure) return records;
+
+    const birthRecordIndex = records.findIndex(
+      (record) => record.date === activeChild.birthDate,
+    );
+
+    if (birthRecordIndex >= 0) {
+      const birthRecord = records[birthRecordIndex];
+      records[birthRecordIndex] = {
+        ...birthRecord,
+        weight: birthRecord.weight ?? activeChild.initialWeight ?? null,
+        height: birthRecord.height ?? activeChild.initialHeight ?? null,
+        headCircumference:
+          birthRecord.headCircumference ??
+          activeChild.initialHeadCircumference ??
+          null,
+      };
+      return records;
+    }
+
+    return [
+      {
+        id: -activeChild.id,
+        childId: activeChild.id,
+        date: activeChild.birthDate,
+        weight: activeChild.initialWeight ?? null,
+        height: activeChild.initialHeight ?? null,
+        headCircumference: activeChild.initialHeadCircumference ?? null,
+        notes: null,
+        createdAt: new Date(activeChild.birthDate),
+      },
+      ...records,
+    ];
+  }, [activeChild, growthRecords]);
+
   const weightData =
-    growthRecords
+    growthRecordsWithInitial
       ?.filter((record) => record.weight)
       .map((record) => ({ date: record.date, value: Number(record.weight) })) || [];
 
   const heightData =
-    growthRecords
+    growthRecordsWithInitial
       ?.filter((record) => record.height)
       .map((record) => ({ date: record.date, value: Number(record.height) })) || [];
 
   const sortedGrowthRecords = useMemo(() => {
-    if (!growthRecords) return [];
-
-    return [...growthRecords].sort((a, b) => {
+    return [...growthRecordsWithInitial].sort((a, b) => {
       const dateDiff =
         new Date(b.date).getTime() - new Date(a.date).getTime();
 
@@ -273,7 +323,7 @@ export default function Health() {
 
       return b.id - a.id;
     });
-  }, [growthRecords]);
+  }, [growthRecordsWithInitial]);
 
   const latestGrowthRecord = sortedGrowthRecords[0] ?? null;
 
@@ -433,36 +483,71 @@ export default function Health() {
                 metric={activeChartTab}
               />
               {latestGrowthInsights ? (
-                <Alert className="mt-5 rounded-2xl border-border/70 bg-muted/30">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
+                <Collapsible
+                  open={growthInsightOpen}
+                  onOpenChange={setGrowthInsightOpen}
+                  className="mt-5 rounded-2xl border border-border/70 bg-muted/20"
+                >
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">
+                        Leitura da ultima medicao
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Resumo curto com base nas curvas de referencia do app.
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "rounded-full px-3 py-1 text-[11px] font-semibold",
+                          latestGrowthInsights.badgeClassName,
+                        )}
+                      >
+                        {latestGrowthInsights.badgeLabel}
+                      </Badge>
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full"
+                        >
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 text-muted-foreground transition-transform",
+                              growthInsightOpen && "rotate-180",
+                            )}
+                          />
+                        </Button>
+                      </CollapsibleTrigger>
+                    </div>
+                  </div>
+                  <CollapsibleContent>
+                    <Alert className="mx-3 mb-3 rounded-2xl border-border/70 bg-background/90">
                       <AlertTitle className="text-sm font-semibold text-foreground">
                         Resumo da ultima medicao
                       </AlertTitle>
-                      <AlertDescription className="text-sm leading-6 text-muted-foreground">
-                        {latestGrowthInsights.summary}. Essa leitura serve como orientacao geral e nao substitui a avaliacao do pediatra.
+                      <AlertDescription className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {latestGrowthInsights.summary}. Essa leitura serve como
+                        orientacao geral e nao substitui a avaliacao do pediatra.
                       </AlertDescription>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={cn("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", latestGrowthInsights.badgeClassName)}
-                    >
-                      {latestGrowthInsights.badgeLabel}
-                    </Badge>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {latestGrowthInsights.weightAssessment ? (
-                      <Badge variant="secondary" className="rounded-full">
-                        Peso: {latestGrowthInsights.weightAssessment.shortLabel}
-                      </Badge>
-                    ) : null}
-                    {latestGrowthInsights.heightAssessment ? (
-                      <Badge variant="secondary" className="rounded-full">
-                        Altura: {latestGrowthInsights.heightAssessment.shortLabel}
-                      </Badge>
-                    ) : null}
-                  </div>
-                </Alert>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {latestGrowthInsights.weightAssessment ? (
+                          <Badge variant="secondary" className="rounded-full">
+                            Peso: {latestGrowthInsights.weightAssessment.shortLabel}
+                          </Badge>
+                        ) : null}
+                        {latestGrowthInsights.heightAssessment ? (
+                          <Badge variant="secondary" className="rounded-full">
+                            Altura: {latestGrowthInsights.heightAssessment.shortLabel}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </Alert>
+                  </CollapsibleContent>
+                </Collapsible>
               ) : null}
             </div>
 
