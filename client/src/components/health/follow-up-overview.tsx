@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -177,20 +178,33 @@ export function FollowUpOverview({
   legacyTab?: string | null;
 }) {
   const { toast } = useToast();
+  const [timelineStartDate, setTimelineStartDate] = useState<string | undefined>();
+  const [timelineEndDate, setTimelineEndDate] = useState<string | undefined>();
+  const [timelineCategoryFilter, setTimelineCategoryFilter] =
+    useState<string>("all");
+  const timelineQueryFilters = useMemo(
+    () => ({
+      startDate: timelineStartDate,
+      endDate: timelineEndDate,
+      category:
+        timelineCategoryFilter === "all" ? undefined : timelineCategoryFilter,
+    }),
+    [timelineCategoryFilter, timelineEndDate, timelineStartDate],
+  );
   const {
     data,
     isLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useHealthFollowUps(childId);
-  const createFollowUp = useCreateHealthFollowUp();
-  const updateFollowUp = useUpdateHealthFollowUp();
-  const deleteFollowUp = useDeleteHealthFollowUp();
-  const updateScreening = useUpdateNeonatalScreening();
-  const updateMilestone = useUpdateDevelopmentMilestone();
-  const createExam = useCreateHealthExam();
-  const deleteExam = useDeleteHealthExam();
+  } = useHealthFollowUps(childId, timelineQueryFilters);
+  const createFollowUp = useCreateHealthFollowUp(timelineQueryFilters);
+  const updateFollowUp = useUpdateHealthFollowUp(timelineQueryFilters);
+  const deleteFollowUp = useDeleteHealthFollowUp(timelineQueryFilters);
+  const updateScreening = useUpdateNeonatalScreening(timelineQueryFilters);
+  const updateMilestone = useUpdateDevelopmentMilestone(timelineQueryFilters);
+  const createExam = useCreateHealthExam(timelineQueryFilters);
+  const deleteExam = useDeleteHealthExam(timelineQueryFilters);
 
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [examOpen, setExamOpen] = useState(false);
@@ -212,6 +226,7 @@ export function FollowUpOverview({
   const [loadingExamFile, setLoadingExamFile] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [openDevelopmentItem, setOpenDevelopmentItem] = useState<string>("");
+  const didInitializeDevelopmentAccordion = useRef(false);
 
   const followUps = useMemo(
     () => data?.pages.flatMap((page) => page.data) || [],
@@ -254,12 +269,22 @@ export function FollowUpOverview({
       ) || developmentFollowUps[0];
 
     setOpenDevelopmentItem((current) => {
+      if (!didInitializeDevelopmentAccordion.current) {
+        didInitializeDevelopmentAccordion.current = true;
+        return current || String(closestFollowUp.id);
+      }
+
       if (
         current &&
         developmentFollowUps.some((followUp) => String(followUp.id) === current)
       ) {
         return current;
       }
+
+      if (!current) {
+        return current;
+      }
+
       return String(closestFollowUp.id);
     });
   }, [closestAgeBand.key, developmentFollowUps]);
@@ -332,15 +357,24 @@ export function FollowUpOverview({
       description: followUpDescription.trim() || undefined,
       followUpDate,
     };
+    const isEditing = Boolean(editingFollowUp);
+    const editingId = editingFollowUp?.id;
 
-    if (editingFollowUp) {
+    setFollowUpOpen(false);
+    resetFollowUpForm();
+
+    if (isEditing && editingId) {
       updateFollowUp.mutate(
-        { id: editingFollowUp.id, ...payload },
+        { id: editingId, ...payload },
         {
           onSuccess: () => {
-            setFollowUpOpen(false);
-            resetFollowUpForm();
             toast({ title: "Acompanhamento atualizado" });
+          },
+          onError: () => {
+            toast({
+              title: "Erro ao atualizar acompanhamento",
+              variant: "destructive",
+            });
           },
         },
       );
@@ -349,9 +383,13 @@ export function FollowUpOverview({
 
     createFollowUp.mutate(payload, {
       onSuccess: () => {
-        setFollowUpOpen(false);
-        resetFollowUpForm();
         toast({ title: "Acompanhamento registrado" });
+      },
+      onError: () => {
+        toast({
+          title: "Erro ao salvar acompanhamento",
+          variant: "destructive",
+        });
       },
     });
   };
@@ -841,6 +879,34 @@ export function FollowUpOverview({
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangeFilter
+            startDate={timelineStartDate}
+            endDate={timelineEndDate}
+            onChange={(startDate, endDate) => {
+              setTimelineStartDate(startDate);
+              setTimelineEndDate(endDate);
+            }}
+          />
+          <Select
+            value={timelineCategoryFilter}
+            onValueChange={setTimelineCategoryFilter}
+          >
+            <SelectTrigger className="h-9 w-[220px] rounded-full">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as categorias</SelectItem>
+              <SelectItem value="routine">Rotina</SelectItem>
+              <SelectItem value="consultation">Consulta</SelectItem>
+              <SelectItem value="condition">Doenca/Intercorrencia</SelectItem>
+            </SelectContent>
+          </Select>
+          <Badge variant="outline" className="rounded-full px-3 py-1">
+            {timelineFollowUps.length} registro(s) no filtro atual
+          </Badge>
+        </div>
+
         {timelineFollowUps.length === 0 && (
           <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
             <Stethoscope className="mx-auto h-10 w-10 text-muted-foreground/40" />
@@ -917,6 +983,11 @@ export function FollowUpOverview({
                   Nenhum exame anexado a este acompanhamento.
                 </p>
               )}
+
+              <p className="mt-3 text-xs text-muted-foreground">
+                Arquivos ficam no storage e o banco guarda apenas os caminhos e
+                metadados do anexo.
+              </p>
 
               <div className="mt-3 space-y-3">
                 {followUp.healthExams.map((exam) => (

@@ -612,11 +612,26 @@ export async function registerRoutes(
 
     const cursor = req.query.cursor as string | undefined;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const rawCategory = req.query.category as string | undefined;
+    const category =
+      rawCategory === "routine" ||
+      rawCategory === "consultation" ||
+      rawCategory === "condition"
+        ? rawCategory
+        : undefined;
 
     if (!cursor) {
       await storage.syncHealthFollowUps(childId, child.birthDate);
     }
-    const result = await storage.getHealthFollowUps(childId, { cursor, limit });
+    const result = await storage.getHealthFollowUps(childId, {
+      cursor,
+      limit,
+      startDate,
+      endDate,
+      category,
+    });
     res.json(result);
   });
 

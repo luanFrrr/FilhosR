@@ -59,7 +59,7 @@ import {
   type HealthFollowUpWithRelations,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql, count, desc, inArray, type SQL } from "drizzle-orm";
+import { eq, and, gt, or, sql, count, desc, inArray, type SQL } from "drizzle-orm";
 import {
   DEVELOPMENT_AGE_BANDS,
   NEWBORN_SCREENINGS,
@@ -223,7 +223,13 @@ export interface IStorage {
   syncHealthFollowUps(childId: number, birthDate: string): Promise<void>;
   getHealthFollowUps(
     childId: number,
-    opts?: { cursor?: string; limit?: number },
+    opts?: {
+      cursor?: string;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+      category?: string;
+    },
   ): Promise<{ data: HealthFollowUpWithRelations[]; nextCursor: string | null }>;
   getHealthFollowUpById(id: number): Promise<HealthFollowUp | undefined>;
   createHealthFollowUp(record: InsertHealthFollowUp): Promise<HealthFollowUp>;
@@ -825,10 +831,38 @@ export class DatabaseStorage implements IStorage {
 
   async getHealthFollowUps(
     childId: number,
-    opts?: { cursor?: string; limit?: number },
+    opts?: {
+      cursor?: string;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+      category?: string;
+    },
   ): Promise<{ data: HealthFollowUpWithRelations[]; nextCursor: string | null }> {
     const pageSize = Math.min(opts?.limit ?? 20, 50);
     const conditions: SQL[] = [eq(healthFollowUps.childId, childId)];
+    const timelineFilters: SQL[] = [
+      sql`${healthFollowUps.category} NOT IN ('neonatal', 'development')`,
+    ];
+
+    if (opts?.category) {
+      timelineFilters.push(eq(healthFollowUps.category, opts.category));
+    }
+    if (opts?.startDate) {
+      timelineFilters.push(sql`${healthFollowUps.followUpDate} >= ${opts.startDate}`);
+    }
+    if (opts?.endDate) {
+      timelineFilters.push(sql`${healthFollowUps.followUpDate} <= ${opts.endDate}`);
+    }
+
+    if (timelineFilters.length > 1) {
+      conditions.push(
+        or(
+          inArray(healthFollowUps.category, ["neonatal", "development"]),
+          and(...timelineFilters),
+        )!,
+      );
+    }
 
     if (opts?.cursor) {
       const [cursorDate, cursorId] = opts.cursor.split("|");
