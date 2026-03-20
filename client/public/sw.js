@@ -1,7 +1,7 @@
-const CACHE_NAME = "filhos-v17";
+const CACHE_NAME = "filhos-v18";
 const IMAGE_CACHE_NAME = "filhos-images-v3";
 const MAX_IMAGE_CACHE_ENTRIES = 200;
-const STATIC_ASSETS = ["/manifest.json?v=20260320"];
+const STATIC_ASSETS = ["/manifest.json?v=20260321"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

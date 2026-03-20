@@ -30,14 +30,18 @@ export function ChildProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (activeChildId) {
       localStorage.setItem("activeChildId", activeChildId.toString());
+    } else {
+      localStorage.removeItem("activeChildId");
+    }
 
-      const child = childList?.find((c) => c.id === activeChildId);
-      const theme = child?.theme;
-      if (theme && theme !== "default" && theme !== "neutral") {
-        document.documentElement.setAttribute("data-theme", theme);
-      } else {
-        document.documentElement.removeAttribute("data-theme");
-      }
+    const child = childList?.find((c) => c.id === activeChildId);
+    const theme = child?.theme;
+    if (theme && theme !== "default" && theme !== "neutral") {
+      localStorage.setItem("activeChildTheme", theme);
+      document.documentElement.setAttribute("data-theme", theme);
+    } else {
+      localStorage.removeItem("activeChildTheme");
+      document.documentElement.removeAttribute("data-theme");
     }
   }, [activeChildId, childList]);
 
