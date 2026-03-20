@@ -39,7 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -72,6 +72,28 @@ const growthSchema = z.object({
 });
 
 type GrowthForm = z.infer<typeof growthSchema>;
+
+function formatGrowthMetricLabel(metric: GrowthAssessment["metric"]): string {
+  if (metric === "weight") return "Peso";
+  if (metric === "height") return "Altura";
+  return "Perimetro cefalico";
+}
+
+function joinReadableList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} e ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+}
+
+function formatAssessmentAge(ageMonths: number): string {
+  if (ageMonths < 0.2) return "ao nascer";
+  if (ageMonths < 1) {
+    const days = Math.max(1, Math.round(ageMonths * 30.4375));
+    return `${days} ${days === 1 ? "dia" : "dias"}`;
+  }
+
+  return `${ageMonths.toFixed(1).replace(".", ",")} meses`;
+}
 
 export default function Health() {
   const { activeChild } = useChildContext();
@@ -352,47 +374,56 @@ export default function Health() {
             gender,
           )
         : null;
+    const headCircumferenceAssessment =
+      latestGrowthRecord.headCircumference != null
+        ? getGrowthAssessment(
+            Number(latestGrowthRecord.headCircumference),
+            activeChild.birthDate,
+            latestGrowthRecord.date,
+            "headCircumference",
+            gender,
+          )
+        : null;
 
-    if (!weightAssessment && !heightAssessment) return null;
+    if (!weightAssessment && !heightAssessment && !headCircumferenceAssessment) return null;
 
-    const assessments = [weightAssessment, heightAssessment].filter(
+    const assessments = [
+      weightAssessment,
+      heightAssessment,
+      headCircumferenceAssessment,
+    ].filter(
       (item): item is GrowthAssessment => item !== null,
     );
 
-    const hasAttention = assessments.some(
-      (item) => item.tone === "critical-low" || item.tone === "critical-high",
-    );
-    const hasWatch = assessments.some(
-      (item) => item.tone === "low" || item.tone === "high",
-    );
-
-    const tone = hasAttention ? "attention" : hasWatch ? "watch" : "ok";
+    const hasAttention = assessments.some((item) => item.tone !== "normal");
+    const tone = hasAttention ? "attention" : "ok";
     const badgeLabel =
       tone === "attention"
-        ? "Acompanhar com mais cuidado"
-        : tone === "watch"
-          ? "Vale observar"
-          : "Dentro da faixa esperada";
+        ? "Vale acompanhar"
+        : "Dentro da faixa esperada";
     const badgeClassName =
       tone === "attention"
-        ? "border-rose-200 bg-rose-50 text-rose-700"
-        : tone === "watch"
-          ? "border-amber-200 bg-amber-50 text-amber-700"
-          : "border-emerald-200 bg-emerald-50 text-emerald-700";
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-emerald-200 bg-emerald-50 text-emerald-700";
 
-    const summaryParts = assessments.map((item) => item.summary.toLowerCase());
-    const joinedSummary =
-      summaryParts.length === 1
-        ? summaryParts[0]
-        : `${summaryParts[0]} e ${summaryParts[1]}`;
+    const summaryParts = assessments.map(
+      (item) => `${formatGrowthMetricLabel(item.metric).toLowerCase()} ${item.shortLabel.toLowerCase()}`,
+    );
+    const measurementDateLabel = parseLocalDate(latestGrowthRecord.date).toLocaleDateString(
+      "pt-BR",
+    );
+    const ageLabel = formatAssessmentAge(assessments[0].ageMonths);
 
     return {
       tone,
       badgeLabel,
       badgeClassName,
-      weightAssessment,
-      heightAssessment,
-      summary: `Pelas curvas de crescimento de referencia usadas no app, ${activeChild.name} está com ${joinedSummary}`,
+      assessments,
+      measurementDateLabel,
+      ageLabel,
+      summary: `${activeChild.name} ficou com ${joinReadableList(summaryParts)} para a idade registrada.`,
+      guidance:
+        "Comparacao baseada em curvas de crescimento por idade e sexo. Serve como orientacao geral e nao substitui a avaliacao do pediatra.",
     };
   }, [activeChild, latestGrowthRecord]);
 
@@ -486,64 +517,54 @@ export default function Health() {
                 <Collapsible
                   open={growthInsightOpen}
                   onOpenChange={setGrowthInsightOpen}
-                  className="mt-5 rounded-2xl border border-border/70 bg-muted/20"
+                  className="mt-5"
                 >
-                  <div className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">
-                        Leitura da ultima medicao
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Resumo curto com base nas curvas de referencia do app.
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full justify-between rounded-2xl border border-border/70 bg-muted/20 px-3.5 py-3 hover:bg-muted/30"
+                    >
                       <Badge
                         variant="outline"
                         className={cn(
-                          "rounded-full px-3 py-1 text-[11px] font-semibold",
+                          "max-w-[calc(100%-2.5rem)] whitespace-normal rounded-full px-3 py-1.5 text-center text-xs font-semibold leading-5",
                           latestGrowthInsights.badgeClassName,
                         )}
                       >
                         {latestGrowthInsights.badgeLabel}
                       </Badge>
-                      <CollapsibleTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 rounded-full"
-                        >
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 text-muted-foreground transition-transform",
-                              growthInsightOpen && "rotate-180",
-                            )}
-                          />
-                        </Button>
-                      </CollapsibleTrigger>
-                    </div>
-                  </div>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                          growthInsightOpen && "rotate-180",
+                        )}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <Alert className="mx-3 mb-3 rounded-2xl border-border/70 bg-background/90">
-                      <AlertTitle className="text-sm font-semibold text-foreground">
-                        Resumo da ultima medicao
-                      </AlertTitle>
-                      <AlertDescription className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {latestGrowthInsights.summary}. Essa leitura serve como
-                        orientacao geral e nao substitui a avaliacao do pediatra.
+                    <Alert className="mt-3 rounded-2xl border-border/70 bg-background/90">
+                      <AlertDescription className="space-y-2 text-sm leading-6 text-muted-foreground">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
+                          Referente a {latestGrowthInsights.measurementDateLabel} •{" "}
+                          {latestGrowthInsights.ageLabel}
+                        </p>
+                        <p>{latestGrowthInsights.summary}</p>
+                        <p className="text-xs leading-5">
+                          {latestGrowthInsights.guidance}
+                        </p>
                       </AlertDescription>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {latestGrowthInsights.weightAssessment ? (
-                          <Badge variant="secondary" className="rounded-full">
-                            Peso: {latestGrowthInsights.weightAssessment.shortLabel}
+                        {latestGrowthInsights.assessments.map((assessment) => (
+                          <Badge
+                            key={assessment.metric}
+                            variant="secondary"
+                            className="rounded-full"
+                          >
+                            {formatGrowthMetricLabel(assessment.metric)}:{" "}
+                            {assessment.shortLabel}
                           </Badge>
-                        ) : null}
-                        {latestGrowthInsights.heightAssessment ? (
-                          <Badge variant="secondary" className="rounded-full">
-                            Altura: {latestGrowthInsights.heightAssessment.shortLabel}
-                          </Badge>
-                        ) : null}
+                        ))}
                       </div>
                     </Alert>
                   </CollapsibleContent>

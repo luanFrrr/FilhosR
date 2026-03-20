@@ -7,6 +7,62 @@ type PercentileRow = {
   p97: number;
 };
 
+const HEAD_CIRCUMFERENCE_BOYS: PercentileRow[] = [
+  { month: 0, p3: 32.1, p15: 33.1, p50: 34.5, p85: 35.8, p97: 36.9 },
+  { month: 1, p3: 35.1, p15: 36.1, p50: 37.3, p85: 38.5, p97: 39.5 },
+  { month: 2, p3: 36.9, p15: 37.9, p50: 39.1, p85: 40.3, p97: 41.3 },
+  { month: 3, p3: 38.3, p15: 39.3, p50: 40.5, p85: 41.7, p97: 42.7 },
+  { month: 4, p3: 39.4, p15: 40.4, p50: 41.6, p85: 42.9, p97: 43.9 },
+  { month: 5, p3: 40.3, p15: 41.3, p50: 42.6, p85: 43.8, p97: 44.8 },
+  { month: 6, p3: 41.0, p15: 42.1, p50: 43.3, p85: 44.6, p97: 45.6 },
+  { month: 7, p3: 41.7, p15: 42.7, p50: 44.0, p85: 45.3, p97: 46.3 },
+  { month: 8, p3: 42.2, p15: 43.2, p50: 44.5, p85: 45.8, p97: 46.9 },
+  { month: 9, p3: 42.6, p15: 43.7, p50: 45.0, p85: 46.3, p97: 47.4 },
+  { month: 10, p3: 43.0, p15: 44.1, p50: 45.4, p85: 46.7, p97: 47.8 },
+  { month: 11, p3: 43.4, p15: 44.4, p50: 45.8, p85: 47.1, p97: 48.2 },
+  { month: 12, p3: 43.6, p15: 44.7, p50: 46.1, p85: 47.4, p97: 48.5 },
+  { month: 13, p3: 43.9, p15: 45.0, p50: 46.3, p85: 47.7, p97: 48.8 },
+  { month: 14, p3: 44.1, p15: 45.2, p50: 46.6, p85: 47.9, p97: 49.0 },
+  { month: 15, p3: 44.3, p15: 45.5, p50: 46.8, p85: 48.2, p97: 49.3 },
+  { month: 16, p3: 44.5, p15: 45.6, p50: 47.0, p85: 48.4, p97: 49.5 },
+  { month: 17, p3: 44.7, p15: 45.8, p50: 47.2, p85: 48.6, p97: 49.7 },
+  { month: 18, p3: 44.9, p15: 46.0, p50: 47.4, p85: 48.7, p97: 49.9 },
+  { month: 19, p3: 45.0, p15: 46.2, p50: 47.5, p85: 48.9, p97: 50.0 },
+  { month: 20, p3: 45.2, p15: 46.3, p50: 47.7, p85: 49.1, p97: 50.2 },
+  { month: 21, p3: 45.3, p15: 46.4, p50: 47.8, p85: 49.2, p97: 50.4 },
+  { month: 22, p3: 45.4, p15: 46.6, p50: 48.0, p85: 49.4, p97: 50.5 },
+  { month: 23, p3: 45.6, p15: 46.7, p50: 48.1, p85: 49.5, p97: 50.7 },
+  { month: 24, p3: 45.7, p15: 46.8, p50: 48.3, p85: 49.7, p97: 50.8 },
+];
+
+const HEAD_CIRCUMFERENCE_GIRLS: PercentileRow[] = [
+  { month: 0, p3: 31.7, p15: 32.7, p50: 33.9, p85: 35.1, p97: 36.1 },
+  { month: 1, p3: 34.3, p15: 35.3, p50: 36.5, p85: 37.8, p97: 38.8 },
+  { month: 2, p3: 36.0, p15: 37.0, p50: 38.3, p85: 39.5, p97: 40.5 },
+  { month: 3, p3: 37.2, p15: 38.2, p50: 39.5, p85: 40.8, p97: 41.9 },
+  { month: 4, p3: 38.2, p15: 39.3, p50: 40.6, p85: 41.9, p97: 43.0 },
+  { month: 5, p3: 39.0, p15: 40.1, p50: 41.5, p85: 42.8, p97: 43.9 },
+  { month: 6, p3: 39.7, p15: 40.8, p50: 42.2, p85: 43.5, p97: 44.6 },
+  { month: 7, p3: 40.4, p15: 41.5, p50: 42.8, p85: 44.2, p97: 45.3 },
+  { month: 8, p3: 40.9, p15: 42.0, p50: 43.4, p85: 44.7, p97: 45.9 },
+  { month: 9, p3: 41.3, p15: 42.4, p50: 43.8, p85: 45.2, p97: 46.3 },
+  { month: 10, p3: 41.7, p15: 42.8, p50: 44.2, p85: 45.6, p97: 46.8 },
+  { month: 11, p3: 42.0, p15: 43.2, p50: 44.6, p85: 46.0, p97: 47.1 },
+  { month: 12, p3: 42.3, p15: 43.5, p50: 44.9, p85: 46.3, p97: 47.5 },
+  { month: 13, p3: 42.6, p15: 43.8, p50: 45.2, p85: 46.6, p97: 47.7 },
+  { month: 14, p3: 42.9, p15: 44.0, p50: 45.4, p85: 46.8, p97: 48.0 },
+  { month: 15, p3: 43.1, p15: 44.2, p50: 45.7, p85: 47.1, p97: 48.2 },
+  { month: 16, p3: 43.3, p15: 44.4, p50: 45.9, p85: 47.3, p97: 48.5 },
+  { month: 17, p3: 43.5, p15: 44.6, p50: 46.1, p85: 47.5, p97: 48.7 },
+  { month: 18, p3: 43.6, p15: 44.8, p50: 46.2, p85: 47.7, p97: 48.8 },
+  { month: 19, p3: 43.8, p15: 45.0, p50: 46.4, p85: 47.8, p97: 49.0 },
+  { month: 20, p3: 44.0, p15: 45.1, p50: 46.6, p85: 48.0, p97: 49.2 },
+  { month: 21, p3: 44.1, p15: 45.3, p50: 46.7, p85: 48.2, p97: 49.4 },
+  { month: 22, p3: 44.3, p15: 45.4, p50: 46.9, p85: 48.3, p97: 49.5 },
+  { month: 23, p3: 44.4, p15: 45.6, p50: 47.0, p85: 48.5, p97: 49.7 },
+  { month: 24, p3: 44.6, p15: 45.7, p50: 47.2, p85: 48.6, p97: 49.8 },
+];
+
 const WEIGHT_BOYS: PercentileRow[] = [
   { month: 0, p3: 2.5, p15: 2.9, p50: 3.3, p85: 3.9, p97: 4.4 },
   { month: 1, p3: 3.4, p15: 3.9, p50: 4.5, p85: 5.1, p97: 5.8 },
@@ -167,13 +223,11 @@ const HEIGHT_GIRLS: PercentileRow[] = [
   { month: 60, p3: 99.9, p15: 103.7, p50: 109.9, p85: 114.9, p97: 118.7 },
 ];
 
-export type GrowthMetric = "weight" | "height";
+export type GrowthMetric = "weight" | "height" | "headCircumference";
 export type Gender = "male" | "female";
 export type GrowthAssessmentTone =
   | "critical-low"
-  | "low"
   | "normal"
-  | "high"
   | "critical-high";
 
 export type GrowthAssessment = {
@@ -187,7 +241,10 @@ export type GrowthAssessment = {
 
 function getTable(metric: GrowthMetric, gender: Gender): PercentileRow[] {
   if (metric === "weight") return gender === "male" ? WEIGHT_BOYS : WEIGHT_GIRLS;
-  return gender === "male" ? HEIGHT_BOYS : HEIGHT_GIRLS;
+  if (metric === "height") return gender === "male" ? HEIGHT_BOYS : HEIGHT_GIRLS;
+  return gender === "male"
+    ? HEAD_CIRCUMFERENCE_BOYS
+    : HEAD_CIRCUMFERENCE_GIRLS;
 }
 
 function interpolate(table: PercentileRow[], month: number, key: keyof Omit<PercentileRow, "month">): number {
@@ -232,6 +289,10 @@ export function getChildPercentileZone(
   metric: GrowthMetric,
   gender: Gender,
 ): string {
+  if (metric === "headCircumference") {
+    return "";
+  }
+
   const table = getTable(metric, gender);
   const p3 = interpolate(table, ageMonths, "p3");
   const p15 = interpolate(table, ageMonths, "p15");
@@ -239,12 +300,12 @@ export function getChildPercentileZone(
   const p85 = interpolate(table, ageMonths, "p85");
   const p97 = interpolate(table, ageMonths, "p97");
 
-  if (value < p3) return "Abaixo do P3";
+  if (value < p3) return "Abaixo da curva inferior";
   if (value < p15) return "Entre P3 e P15";
   if (value < p50) return "Entre P15 e P50";
   if (value < p85) return "Entre P50 e P85";
   if (value < p97) return "Entre P85 e P97";
-  return "Acima do P97";
+  return "Acima da curva superior";
 }
 
 function preciseAgeMonths(birthDate: Date, recordDate: Date): number {
@@ -271,43 +332,29 @@ export function getGrowthAssessment(
     return null;
   }
 
+  const maxSupportedAgeMonths = metric === "headCircumference" ? 24 : 60;
+  if (ageMonths > maxSupportedAgeMonths) {
+    return null;
+  }
+
   const table = getTable(metric, gender);
   const p3 = interpolate(table, ageMonths, "p3");
-  const p15 = interpolate(table, ageMonths, "p15");
-  const p85 = interpolate(table, ageMonths, "p85");
   const p97 = interpolate(table, ageMonths, "p97");
-  const metricLabel = metric === "weight" ? "peso" : "altura";
+  const metricLabel =
+    metric === "weight"
+      ? "peso"
+      : metric === "height"
+        ? "altura"
+        : "perimetro cefalico";
 
   if (value < p3) {
     return {
       metric,
       ageMonths,
-      zone: "Abaixo do P3",
+      zone: "Abaixo da faixa esperada",
       tone: "critical-low",
-      shortLabel: `${metricLabel} abaixo da faixa esperada`,
+      shortLabel: "Abaixo da faixa esperada",
       summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} abaixo da faixa de referência para a idade.`,
-    };
-  }
-
-  if (value < p15) {
-    return {
-      metric,
-      ageMonths,
-      zone: "Entre P3 e P15",
-      tone: "low",
-      shortLabel: `${metricLabel} perto do limite inferior`,
-      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} perto do limite inferior da faixa esperada para a idade.`,
-    };
-  }
-
-  if (value <= p85) {
-    return {
-      metric,
-      ageMonths,
-      zone: "Entre P15 e P85",
-      tone: "normal",
-      shortLabel: `${metricLabel} dentro da faixa esperada`,
-      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} dentro da faixa esperada para a idade.`,
     };
   }
 
@@ -315,19 +362,19 @@ export function getGrowthAssessment(
     return {
       metric,
       ageMonths,
-      zone: "Entre P85 e P97",
-      tone: "high",
-      shortLabel: `${metricLabel} perto do limite superior`,
-      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} perto do limite superior da faixa esperada para a idade.`,
+      zone: "Dentro da faixa esperada",
+      tone: "normal",
+      shortLabel: "Dentro da faixa esperada",
+      summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} dentro da faixa esperada para a idade.`,
     };
   }
 
   return {
     metric,
     ageMonths,
-    zone: "Acima do P97",
+    zone: "Acima da faixa esperada",
     tone: "critical-high",
-    shortLabel: `${metricLabel} acima da faixa esperada`,
+    shortLabel: "Acima da faixa esperada",
     summary: `${metricLabel[0].toUpperCase()}${metricLabel.slice(1)} acima da faixa de referência para a idade.`,
   };
 }
