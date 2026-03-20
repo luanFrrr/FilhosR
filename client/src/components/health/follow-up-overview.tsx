@@ -45,6 +45,7 @@ import {
   useDeleteHealthFollowUp,
   useHealthFollowUps,
   useUpdateDevelopmentMilestone,
+  useUpdateHealthExam,
   useUpdateHealthFollowUp,
   useUpdateNeonatalScreening,
 } from "@/hooks/use-health-follow-ups";
@@ -204,6 +205,7 @@ export function FollowUpOverview({
   const updateScreening = useUpdateNeonatalScreening(timelineQueryFilters);
   const updateMilestone = useUpdateDevelopmentMilestone(timelineQueryFilters);
   const createExam = useCreateHealthExam(timelineQueryFilters);
+  const updateExam = useUpdateHealthExam(timelineQueryFilters);
   const deleteExam = useDeleteHealthExam(timelineQueryFilters);
 
   const [followUpOpen, setFollowUpOpen] = useState(false);
@@ -223,10 +225,14 @@ export function FollowUpOverview({
   const [examDate, setExamDate] = useState(new Date().toISOString().slice(0, 10));
   const [examNotes, setExamNotes] = useState("");
   const [examFiles, setExamFiles] = useState<File[]>([]);
+  const [editingExam, setEditingExam] = useState<HealthExam | null>(null);
+  const [removedExamFilePaths, setRemovedExamFilePaths] = useState<string[]>([]);
   const [loadingExamFile, setLoadingExamFile] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [openDevelopmentItem, setOpenDevelopmentItem] = useState<string>("");
   const didInitializeDevelopmentAccordion = useRef(false);
+  const timelineSectionRef = useRef<HTMLElement | null>(null);
+  const keepTimelineInViewRef = useRef(false);
 
   const followUps = useMemo(
     () => data?.pages.flatMap((page) => page.data) || [],
@@ -341,10 +347,12 @@ export function FollowUpOverview({
 
   const resetExamForm = () => {
     setSelectedFollowUp(null);
+    setEditingExam(null);
     setExamTitle("");
     setExamDate(new Date().toISOString().slice(0, 10));
     setExamNotes("");
     setExamFiles([]);
+    setRemovedExamFilePaths([]);
   };
 
   const handleFollowUpSubmit = () => {
@@ -406,13 +414,37 @@ export function FollowUpOverview({
         })),
       );
 
+      const payload = {
+        childId,
+        title: examTitle.trim(),
+        examDate,
+        notes: examNotes.trim() || undefined,
+      };
+
+      if (editingExam) {
+        updateExam.mutate(
+          {
+            id: editingExam.id,
+            ...payload,
+            newFiles: files.length > 0 ? files : undefined,
+            removeFilePaths:
+              removedExamFilePaths.length > 0 ? removedExamFilePaths : undefined,
+          },
+          {
+            onSuccess: () => {
+              setExamOpen(false);
+              resetExamForm();
+              toast({ title: "Exame atualizado" });
+            },
+          },
+        );
+        return;
+      }
+
       createExam.mutate(
         {
-          childId,
+          ...payload,
           followUpId: selectedFollowUp.id,
-          title: examTitle.trim(),
-          examDate,
-          notes: examNotes.trim() || undefined,
           files: files.length > 0 ? files : undefined,
         },
         {
@@ -430,7 +462,22 @@ export function FollowUpOverview({
 
   const handleOpenExam = (followUp: HealthFollowUpWithRelations) => {
     setSelectedFollowUp(followUp);
+    setEditingExam(null);
     setExamDate(followUp.followUpDate);
+    setExamOpen(true);
+  };
+
+  const handleEditExam = (
+    followUp: HealthFollowUpWithRelations,
+    exam: HealthExam,
+  ) => {
+    setSelectedFollowUp(followUp);
+    setEditingExam(exam);
+    setExamTitle(exam.title);
+    setExamDate(exam.examDate);
+    setExamNotes(exam.notes || "");
+    setExamFiles([]);
+    setRemovedExamFilePaths([]);
     setExamOpen(true);
   };
 
@@ -511,6 +558,25 @@ export function FollowUpOverview({
       },
     );
   };
+
+  useEffect(() => {
+    if (!keepTimelineInViewRef.current || !timelineSectionRef.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      timelineSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      keepTimelineInViewRef.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    timelineCategoryFilter,
+    timelineEndDate,
+    timelineStartDate,
+    timelineFollowUps.length,
+  ]);
 
   if (isLoading) {
     return (
@@ -727,7 +793,7 @@ export function FollowUpOverview({
         </section>
       )}
 
-      <section className="space-y-4">
+      <section className="space-y-4" ref={timelineSectionRef}>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
@@ -884,13 +950,17 @@ export function FollowUpOverview({
             startDate={timelineStartDate}
             endDate={timelineEndDate}
             onChange={(startDate, endDate) => {
+              keepTimelineInViewRef.current = true;
               setTimelineStartDate(startDate);
               setTimelineEndDate(endDate);
             }}
           />
           <Select
             value={timelineCategoryFilter}
-            onValueChange={setTimelineCategoryFilter}
+            onValueChange={(value) => {
+              keepTimelineInViewRef.current = true;
+              setTimelineCategoryFilter(value);
+            }}
           >
             <SelectTrigger className="h-9 w-[220px] rounded-full">
               <SelectValue placeholder="Categoria" />
@@ -1009,6 +1079,15 @@ export function FollowUpOverview({
                         )}
                       </div>
                       <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleEditExam(followUp, exam)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
                         size="icon"
                         variant="ghost"
                         onClick={() => removeExam(exam)}
@@ -1147,9 +1226,13 @@ export function FollowUpOverview({
       >
         <DialogContent className="max-w-md rounded-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Anexar exame</DialogTitle>
+            <DialogTitle>
+              {editingExam ? "Editar exame" : "Anexar exame"}
+            </DialogTitle>
             <DialogDescription>
-              Vincule exames ao contexto do acompanhamento.
+              {editingExam
+                ? "Atualize os dados e anexos vinculados a este exame."
+                : "Vincule exames ao contexto do acompanhamento."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1187,6 +1270,38 @@ export function FollowUpOverview({
 
             <div className="space-y-3">
               <Label>Arquivos</Label>
+              {editingExam?.filePaths
+                ?.filter((path) => !removedExamFilePaths.includes(path))
+                .map((path) => (
+                  <div
+                    key={path}
+                    className="flex items-center justify-between rounded-2xl border border-border px-3 py-2"
+                  >
+                    <button
+                      type="button"
+                      className="truncate text-left text-sm text-primary hover:underline"
+                      onClick={() => {
+                        const fileIndex = Math.max(
+                          editingExam.filePaths?.findIndex((item) => item === path) ?? 0,
+                          0,
+                        );
+                        openExamFile(editingExam.id, fileIndex);
+                      }}
+                    >
+                      {getFileName(path)}
+                    </button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() =>
+                        setRemovedExamFilePaths((current) => [...current, path])
+                      }
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
               {examFiles.map((file, index) => (
                 <div
                   key={`${file.name}-${index}`}
@@ -1227,9 +1342,13 @@ export function FollowUpOverview({
             <Button
               className="w-full"
               onClick={handleExamSubmit}
-              disabled={createExam.isPending}
+              disabled={createExam.isPending || updateExam.isPending}
             >
-              {createExam.isPending ? "Salvando..." : "Salvar exame"}
+              {createExam.isPending || updateExam.isPending
+                ? "Salvando..."
+                : editingExam
+                  ? "Salvar alteracoes"
+                  : "Salvar exame"}
             </Button>
           </div>
         </DialogContent>

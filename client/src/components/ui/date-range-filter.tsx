@@ -22,6 +22,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
   return (
     <div className="relative">
       <Button
+        type="button"
         variant="outline"
         size="sm"
         onClick={() => setOpen(!open)}
@@ -59,6 +60,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
           <div className="flex gap-2">
             {hasFilter && (
               <Button
+                type="button"
                 variant="ghost"
                 size="sm"
                 onClick={handleClear}
@@ -69,6 +71,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
               </Button>
             )}
             <Button
+              type="button"
               variant="default"
               size="sm"
               onClick={() => setOpen(false)}
