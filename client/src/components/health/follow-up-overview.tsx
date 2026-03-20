@@ -9,6 +9,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,8 +49,10 @@ import {
 } from "@/hooks/use-health-follow-ups";
 import { cn, parseLocalDate } from "@/lib/utils";
 import {
+  AGE_BASED_HEALTH_SUGGESTIONS,
   DEVELOPMENT_AGE_BANDS,
   NEWBORN_SCREENINGS,
+  getClosestDevelopmentAgeBand,
   getAgeInMonthsFromDates,
 } from "@shared/health-catalog";
 import type {
@@ -139,6 +147,24 @@ function getAgeBandMeta(followUp: HealthFollowUpWithRelations) {
   return DEVELOPMENT_AGE_BANDS.find((band) => band.key === ageBandKey);
 }
 
+function getMilestoneSummary(milestones: DevelopmentMilestone[]) {
+  const counts = milestones.reduce(
+    (acc, milestone) => {
+      acc[milestone.status] = (acc[milestone.status] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  if ((counts.delayed || 0) > 0) return `${counts.delayed} com atraso`;
+  if ((counts.attention || 0) > 0) return `${counts.attention} em atencao`;
+  if ((counts.ok || 0) === milestones.length && milestones.length > 0) {
+    return "Todos marcados como ok";
+  }
+
+  return `${counts.pending || 0} pendente(s)`;
+}
+
 export function FollowUpOverview({
   childId,
   birthDate,
@@ -185,6 +211,7 @@ export function FollowUpOverview({
   const [examFiles, setExamFiles] = useState<File[]>([]);
   const [loadingExamFile, setLoadingExamFile] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
+  const [openDevelopmentItem, setOpenDevelopmentItem] = useState<string>("");
 
   const followUps = useMemo(
     () => data?.pages.flatMap((page) => page.data) || [],
@@ -206,6 +233,36 @@ export function FollowUpOverview({
     () => getAgeInMonthsFromDates(birthDate),
     [birthDate],
   );
+  const closestAgeBand = useMemo(
+    () => getClosestDevelopmentAgeBand(currentAgeMonths),
+    [currentAgeMonths],
+  );
+  const ageSuggestion =
+    currentAgeMonths <= 1
+      ? AGE_BASED_HEALTH_SUGGESTIONS.newborn
+      : AGE_BASED_HEALTH_SUGGESTIONS[closestAgeBand.key];
+  const pendingNeonatalCount =
+    neonatalFollowUp?.neonatalScreenings.filter((item) => !item.isCompleted)
+      .length ?? 0;
+
+  useEffect(() => {
+    if (developmentFollowUps.length === 0) return;
+
+    const closestFollowUp =
+      developmentFollowUps.find(
+        (followUp) => getAgeBandMeta(followUp)?.key === closestAgeBand.key,
+      ) || developmentFollowUps[0];
+
+    setOpenDevelopmentItem((current) => {
+      if (
+        current &&
+        developmentFollowUps.some((followUp) => String(followUp.id) === current)
+      ) {
+        return current;
+      }
+      return String(closestFollowUp.id);
+    });
+  }, [closestAgeBand.key, developmentFollowUps]);
 
   useEffect(() => {
     if (!legacyRecordId || followUps.length === 0) return;
@@ -463,8 +520,94 @@ export function FollowUpOverview({
           <Badge variant="outline" className="rounded-full px-3 py-1">
             {developmentFollowUps.length} faixas de desenvolvimento
           </Badge>
+          <Badge variant="outline" className="rounded-full px-3 py-1">
+            Referencia atual: {closestAgeBand.label}
+          </Badge>
         </div>
       </div>
+
+      <section className="rounded-3xl border border-primary/15 bg-primary/5 p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-primary/70">
+              Sugestao pela idade
+            </p>
+            <h3 className="mt-2 text-lg font-display font-bold text-foreground">
+              {ageSuggestion.title}
+            </h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {ageSuggestion.summary}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+            <CalendarDays className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Badge className="rounded-full bg-background text-foreground hover:bg-background">
+            {currentAgeMonths} meses
+          </Badge>
+          <Badge variant="outline" className="rounded-full px-3 py-1">
+            Faixa mais proxima: {closestAgeBand.label}
+          </Badge>
+          {neonatalFollowUp && pendingNeonatalCount > 0 ? (
+            <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">
+              {pendingNeonatalCount} triagem(ns) pendente(s)
+            </Badge>
+          ) : null}
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <p className="text-sm font-semibold text-foreground">
+              Pontos de observacao desta fase
+            </p>
+            <div className="mt-3 space-y-2">
+              {ageSuggestion.focusAreas.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl bg-muted/40 px-3 py-2 text-sm text-foreground"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <p className="text-sm font-semibold text-foreground">
+              Marcos esperados mais proximos
+            </p>
+            <div className="mt-3 space-y-2">
+              {closestAgeBand.milestones.map((milestone) => (
+                <div
+                  key={milestone.key}
+                  className="rounded-2xl bg-muted/40 px-3 py-2 text-sm text-foreground"
+                >
+                  {milestone.title}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-4 md:col-span-2">
+            <p className="text-sm font-semibold text-foreground">
+              Registros, exames e anexos que costumam aparecer
+            </p>
+            <div className="mt-3 space-y-2">
+              {ageSuggestion.suggestedExams.map((suggestion) => (
+                <div
+                  key={suggestion}
+                  className="rounded-2xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                >
+                  {suggestion}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {neonatalFollowUp && (
         <section className="rounded-3xl border border-border bg-card p-5 shadow-sm">
@@ -483,6 +626,19 @@ export function FollowUpOverview({
             <div className="rounded-2xl bg-sky-100 p-3 text-sky-700">
               <ShieldCheck className="w-5 h-5" />
             </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              {pendingNeonatalCount === 0
+                ? "Triagem concluida"
+                : `${pendingNeonatalCount} item(ns) pendente(s)`}
+            </Badge>
+            {currentAgeMonths <= 1 ? (
+              <Badge className="rounded-full bg-sky-100 text-sky-700 hover:bg-sky-100">
+                Prioridade da idade atual
+              </Badge>
+            ) : null}
           </div>
 
           <div className="mt-4 grid gap-3">
@@ -548,117 +704,129 @@ export function FollowUpOverview({
           </Badge>
         </div>
 
-        {developmentFollowUps.map((followUp) => {
-          const ageBand = getAgeBandMeta(followUp);
-          const isCurrent =
-            ageBand &&
-            currentAgeMonths >= Math.max(ageBand.targetMonths - 3, 0) &&
-            currentAgeMonths <= ageBand.targetMonths + 3;
+        <Accordion
+          type="single"
+          collapsible
+          value={openDevelopmentItem}
+          onValueChange={setOpenDevelopmentItem}
+          className="space-y-3"
+        >
+          {developmentFollowUps.map((followUp) => {
+            const ageBand = getAgeBandMeta(followUp);
+            const isCurrent = ageBand?.key === closestAgeBand.key;
 
-          return (
-            <div
-              key={followUp.id}
-              className="rounded-3xl border border-border bg-card p-5 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-base font-display font-bold">
-                      {ageBand?.label || followUp.title}
-                    </h4>
-                    {isCurrent && (
-                      <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">
-                        Agora
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {ageBand
-                      ? `Faixa de referencia em torno de ${ageBand.targetMonths} meses`
-                      : "Acompanhamento do desenvolvimento"}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
-                  <Baby className="w-5 h-5" />
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {followUp.developmentMilestones.map((milestone) => {
-                  const statusConfig =
-                    developmentStatusConfig[milestone.status] ||
-                    developmentStatusConfig.pending;
-                  return (
-                    <div
-                      key={milestone.id}
-                      className="rounded-2xl border border-border p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {milestone.title}
-                          </p>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "mt-2 rounded-full px-3 py-1",
-                              statusConfig.className,
-                            )}
-                          >
-                            {statusConfig.label}
+            return (
+              <AccordionItem
+                key={followUp.id}
+                value={String(followUp.id)}
+                className="overflow-hidden rounded-3xl border border-border bg-card px-5 shadow-sm"
+              >
+                <AccordionTrigger className="py-5 hover:no-underline">
+                  <div className="flex w-full items-start justify-between gap-3 pr-4 text-left">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-base font-display font-bold text-foreground">
+                          {ageBand?.label || followUp.title}
+                        </h4>
+                        {isCurrent ? (
+                          <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">
+                            Agora
                           </Badge>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="rounded-full"
-                            onClick={() =>
-                              setMilestoneStatus(followUp.id, milestone, "ok")
-                            }
-                          >
-                            Ok
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="rounded-full"
-                            onClick={() =>
-                              setMilestoneStatus(
-                                followUp.id,
-                                milestone,
-                                "attention",
-                              )
-                            }
-                          >
-                            Atencao
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="rounded-full"
-                            onClick={() =>
-                              setMilestoneStatus(
-                                followUp.id,
-                                milestone,
-                                "delayed",
-                              )
-                            }
-                          >
-                            Atraso
-                          </Button>
-                        </div>
+                        ) : null}
                       </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {ageBand
+                          ? `Faixa de referencia em torno de ${ageBand.targetMonths} meses`
+                          : "Acompanhamento do desenvolvimento"}
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {getMilestoneSummary(followUp.developmentMilestones)}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+                    <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+                      <Baby className="w-5 h-5" />
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pt-1">
+                  <div className="space-y-3">
+                    {followUp.developmentMilestones.map((milestone) => {
+                      const statusConfig =
+                        developmentStatusConfig[milestone.status] ||
+                        developmentStatusConfig.pending;
+                      return (
+                        <div
+                          key={milestone.id}
+                          className="rounded-2xl border border-border p-4"
+                        >
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="font-medium text-foreground">
+                                {milestone.title}
+                              </p>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "mt-2 rounded-full px-3 py-1",
+                                  statusConfig.className,
+                                )}
+                              >
+                                {statusConfig.label}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() =>
+                                  setMilestoneStatus(followUp.id, milestone, "ok")
+                                }
+                              >
+                                Ok
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() =>
+                                  setMilestoneStatus(
+                                    followUp.id,
+                                    milestone,
+                                    "attention",
+                                  )
+                                }
+                              >
+                                Atencao
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() =>
+                                  setMilestoneStatus(
+                                    followUp.id,
+                                    milestone,
+                                    "delayed",
+                                  )
+                                }
+                              >
+                                Atraso
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
       </section>
 
       <section className="space-y-4">

@@ -1,4 +1,9 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type {
   HealthFollowUp,
@@ -14,11 +19,30 @@ const healthFollowUpKey = (childId: number) => [
   "health-follow-ups",
 ] as const;
 
+type HealthFollowUpsPage = {
+  data: HealthFollowUpWithRelations[];
+  nextCursor: string | null;
+};
+
+function updateHealthFollowUpsCache(
+  previous:
+    | InfiniteData<HealthFollowUpsPage, string | undefined>
+    | undefined,
+  updater: (followUp: HealthFollowUpWithRelations) => HealthFollowUpWithRelations,
+) {
+  if (!previous) return previous;
+
+  return {
+    ...previous,
+    pages: previous.pages.map((page) => ({
+      ...page,
+      data: page.data.map(updater),
+    })),
+  };
+}
+
 export function useHealthFollowUps(childId: number) {
-  return useInfiniteQuery<{
-    data: HealthFollowUpWithRelations[];
-    nextCursor: string | null;
-  }>({
+  return useInfiniteQuery<HealthFollowUpsPage>({
     queryKey: healthFollowUpKey(childId),
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
@@ -124,8 +148,69 @@ export function useUpdateNeonatalScreening() {
       );
       return (await res.json()) as NeonatalScreening;
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: healthFollowUpKey(variables.childId) });
+    onMutate: async (variables) => {
+      const queryKey = healthFollowUpKey(variables.childId);
+      await queryClient.cancelQueries({ queryKey });
+
+      const previous = queryClient.getQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(queryKey);
+
+      queryClient.setQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(queryKey, (current) =>
+        updateHealthFollowUpsCache(current, (followUp) => {
+          if (followUp.id !== variables.followUpId) return followUp;
+
+          return {
+            ...followUp,
+            neonatalScreenings: followUp.neonatalScreenings.map((screening) =>
+              screening.screeningType === variables.screeningType
+                ? {
+                    ...screening,
+                    isCompleted: variables.isCompleted ?? false,
+                    completedAt: variables.completedAt ?? null,
+                    notes:
+                      variables.notes !== undefined
+                        ? variables.notes
+                        : screening.notes,
+                  }
+                : screening,
+            ),
+          };
+        }),
+      );
+
+      return { previous, queryKey };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(healthFollowUpKey(variables.childId), (current) =>
+        updateHealthFollowUpsCache(current, (followUp) => {
+          if (followUp.id !== variables.followUpId) return followUp;
+
+          const hasScreening = followUp.neonatalScreenings.some(
+            (screening) => screening.screeningType === data.screeningType,
+          );
+
+          return {
+            ...followUp,
+            neonatalScreenings: hasScreening
+              ? followUp.neonatalScreenings.map((screening) =>
+                  screening.screeningType === data.screeningType
+                    ? data
+                    : screening,
+                )
+              : [...followUp.neonatalScreenings, data],
+          };
+        }),
+      );
     },
   });
 }
@@ -153,8 +238,72 @@ export function useUpdateDevelopmentMilestone() {
       );
       return (await res.json()) as DevelopmentMilestone;
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: healthFollowUpKey(variables.childId) });
+    onMutate: async (variables) => {
+      const queryKey = healthFollowUpKey(variables.childId);
+      await queryClient.cancelQueries({ queryKey });
+
+      const previous = queryClient.getQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(queryKey);
+
+      queryClient.setQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(queryKey, (current) =>
+        updateHealthFollowUpsCache(current, (followUp) => {
+          if (followUp.id !== variables.followUpId) return followUp;
+
+          return {
+            ...followUp,
+            developmentMilestones: followUp.developmentMilestones.map((milestone) =>
+              milestone.milestoneKey === variables.milestoneKey
+                ? {
+                    ...milestone,
+                    status: variables.status ?? milestone.status,
+                    checkedAt:
+                      variables.checkedAt !== undefined
+                        ? variables.checkedAt
+                        : milestone.checkedAt,
+                    notes:
+                      variables.notes !== undefined
+                        ? variables.notes
+                        : milestone.notes,
+                  }
+                : milestone,
+            ),
+          };
+        }),
+      );
+
+      return { previous, queryKey };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(healthFollowUpKey(variables.childId), (current) =>
+        updateHealthFollowUpsCache(current, (followUp) => {
+          if (followUp.id !== variables.followUpId) return followUp;
+
+          const hasMilestone = followUp.developmentMilestones.some(
+            (milestone) => milestone.milestoneKey === data.milestoneKey,
+          );
+
+          return {
+            ...followUp,
+            developmentMilestones: hasMilestone
+              ? followUp.developmentMilestones.map((milestone) =>
+                  milestone.milestoneKey === data.milestoneKey
+                    ? data
+                    : milestone,
+                )
+              : [...followUp.developmentMilestones, data],
+          };
+        }),
+      );
     },
   });
 }

@@ -89,6 +89,143 @@ export type DevelopmentMilestoneCatalogKey =
 
 export type DevelopmentStatus = "pending" | "ok" | "attention" | "delayed";
 
+export const AGE_BASED_HEALTH_SUGGESTIONS = {
+  newborn: {
+    title: "Recem-nascido e primeira semana",
+    summary:
+      "Priorize a triagem neonatal, a consulta da primeira semana e o registro das orientacoes de alta, com foco em aleitamento, ganho de peso e sinais de alerta.",
+    focusAreas: [
+      "Triagem neonatal e resultados registrados",
+      "Consulta da primeira semana de vida",
+      "Aleitamento, diurese, evacuacoes e ictericia",
+    ],
+    suggestedExams: [
+      "Registrar comprovantes e resultados da triagem neonatal quando estiverem disponiveis.",
+      "Anexar exames ou laudos entregues na maternidade ou solicitados na primeira consulta.",
+      "Usar o acompanhamento para guardar orientacoes clinicas da alta e reavaliacoes precoces.",
+    ],
+  },
+  "0_3m": {
+    title: "Primeiros meses de vida",
+    summary:
+      "Nas consultas de puericultura, acompanhe crescimento, alimentacao, sono, interacao e o inicio do controle motor e social.",
+    focusAreas: [
+      "Puericultura e ganho ponderal",
+      "Amamentacao ou alimentacao do lactente",
+      "Contato visual, sorriso social e controle cervical",
+    ],
+    suggestedExams: [
+      "Anexar exames solicitados por intercorrencias do periodo neonatal ou do inicio da puericultura.",
+      "Registrar reavaliacoes de triagem, bilirrubina, retorno precoce ou outros laudos indicados clinicamente.",
+      "Manter observacoes de crescimento e condutas da consulta no mesmo acompanhamento.",
+    ],
+  },
+  "6m": {
+    title: "Lactente em torno de 6 meses",
+    summary:
+      "Esta fase costuma concentrar revisao da alimentacao complementar, crescimento, postura, manipulacao de objetos e resposta social.",
+    focusAreas: [
+      "Introducao alimentar e rotina de sono",
+      "Rolar, sentar com apoio e explorar objetos",
+      "Balbucio e interacao com cuidadores",
+    ],
+    suggestedExams: [
+      "Anexar exames solicitados pelo pediatra em consultas de rotina ou por queixas especificas.",
+      "Registrar resultados laboratoriais, laudos ou orientacoes nutricionais quando houver indicacao clinica.",
+      "Associar o exame ao acompanhamento da consulta que motivou a solicitacao.",
+    ],
+  },
+  "9m": {
+    title: "Lactente em torno de 9 meses",
+    summary:
+      "O foco costuma estar na autonomia motora, na resposta ao nome, na comunicacao inicial e no seguimento do crescimento e da alimentacao.",
+    focusAreas: [
+      "Sentar com firmeza, arrastar-se ou engatinhar",
+      "Resposta ao nome e interacao por gestos e sons",
+      "Rotina alimentar, sono e intercorrencias recentes",
+    ],
+    suggestedExams: [
+      "Registrar exames ou laudos relacionados a consultas de seguimento, intercorrencias ou investigacao clinica.",
+      "Anexar PDFs, resultados e imagens no acompanhamento correspondente para manter o contexto.",
+      "Usar o mesmo registro para resumir a conduta orientada pela equipe de saude.",
+    ],
+  },
+  "1y": {
+    title: "Por volta de 1 ano",
+    summary:
+      "Na revisao de 1 ano, vale observar linguagem inicial, pinca fina, postura em pe, passos com apoio e aspectos da rotina alimentar e clinica.",
+    focusAreas: [
+      "Ficar em pe, locomocao com apoio e motricidade fina",
+      "Primeiras palavras e compreensao de ordens simples",
+      "Puericultura, alimentacao e seguimento clinico",
+    ],
+    suggestedExams: [
+      "Anexar exames solicitados na revisao de 1 ano ou em consultas com especialistas.",
+      "Guardar resultados laboratoriais, laudos de imagem ou pareceres no acompanhamento da visita correspondente.",
+      "Registrar no texto do acompanhamento a principal hipotese, conduta e retorno orientado.",
+    ],
+  },
+  "18m": {
+    title: "Por volta de 18 meses",
+    summary:
+      "Nesta etapa, o acompanhamento costuma valorizar autonomia para andar, comunicacao, brincadeira funcional e resposta a comandos simples.",
+    focusAreas: [
+      "Marcha com autonomia e exploracao do ambiente",
+      "Apontar, pedir, compreender e obedecer comandos simples",
+      "Linguagem, comportamento e rotina da crianca",
+    ],
+    suggestedExams: [
+      "Registrar exames solicitados para seguimento clinico, linguagem, audicao ou desenvolvimento, quando houver.",
+      "Centralizar laudos, pareceres e orientacoes vinculados a consultas dessa fase.",
+      "Manter o contexto do exame associado a queixa, avaliacao e plano de cuidado.",
+    ],
+  },
+  "2y": {
+    title: "Por volta de 2 anos",
+    summary:
+      "A observacao clinica costuma incluir linguagem em frases curtas, brincadeira simbolica, interacao social, sono, alimentacao e comportamento.",
+    focusAreas: [
+      "Correr, subir degraus e coordenacao global",
+      "Juncao de palavras, comunicacao e faz de conta",
+      "Alimentacao, sono, desfralde e comportamento",
+    ],
+    suggestedExams: [
+      "Anexar exames solicitados em consultas de rotina ou diante de queixas especificas.",
+      "Organizar laudos e resultados no acompanhamento que melhor explica o contexto clinico.",
+      "Registrar se o pedido surgiu por puericultura, intercorrencia ou encaminhamento.",
+    ],
+  },
+  "3y": {
+    title: "Por volta de 3 anos",
+    summary:
+      "O acompanhamento pode destacar linguagem mais elaborada, brincadeira com outras criancas, coordenacao motora e desenvolvimento global.",
+    focusAreas: [
+      "Frases mais completas e compreensao da fala",
+      "Brincadeira compartilhada e interacao social",
+      "Saltos, equilibrio e coordenacao motora",
+    ],
+    suggestedExams: [
+      "Registrar exames e laudos solicitados nesta etapa, especialmente quando houver seguimento ou encaminhamento.",
+      "Anexar resultados de consultas, intercorrencias, avaliacoes complementares e retornos especializados.",
+      "Usar o acompanhamento como historico clinico resumido da fase.",
+    ],
+  },
+} as const;
+
+export function getClosestDevelopmentAgeBand(months: number) {
+  return DEVELOPMENT_AGE_BANDS.reduce((closest, current) => {
+    const currentDistance = Math.abs(current.targetMonths - months);
+    const closestDistance = Math.abs(closest.targetMonths - months);
+
+    if (currentDistance < closestDistance) return current;
+    if (currentDistance === closestDistance && current.targetMonths > closest.targetMonths) {
+      return current;
+    }
+
+    return closest;
+  }, DEVELOPMENT_AGE_BANDS[0]);
+}
+
 export function addMonthsToDateString(dateString: string, months: number): string {
   const [year, month, day] = dateString.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));

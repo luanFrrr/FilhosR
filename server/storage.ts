@@ -704,38 +704,40 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(healthFollowUps)
       .where(eq(healthFollowUps.childId, childId));
+    const followUpsBySource = new Map<string, HealthFollowUp>();
+
+    for (const followUp of existingFollowUps) {
+      if (followUp.sourceType && followUp.sourceId !== null) {
+        followUpsBySource.set(
+          `${followUp.sourceType}:${followUp.sourceId}`,
+          followUp,
+        );
+      }
+    }
 
     const neonatalSourceType = "system_neonatal";
-    let neonatalFollowUp = existingFollowUps.find(
-      (followUp) =>
-        followUp.sourceType === neonatalSourceType &&
-        followUp.sourceId === childId,
-    );
+    const neonatalKey = `${neonatalSourceType}:${childId}`;
+    let neonatalFollowUp = followUpsBySource.get(neonatalKey);
 
-    const neonatalPayload = {
-      childId,
-      createdBy: null,
-      category: "neonatal",
-      title: "Triagem neonatal",
-      description: "Checklist inicial dos testes realizados ao nascer.",
-      followUpDate: birthDate,
-      sourceType: neonatalSourceType,
-      sourceId: childId,
-    };
-
-    if (neonatalFollowUp) {
-      const [updated] = await db
-        .update(healthFollowUps)
-        .set(neonatalPayload)
-        .where(eq(healthFollowUps.id, neonatalFollowUp.id))
-        .returning();
-      neonatalFollowUp = updated;
-    } else {
+    if (!neonatalFollowUp) {
       const [inserted] = await db
         .insert(healthFollowUps)
-        .values(neonatalPayload)
+        .values({
+          childId,
+          createdBy: null,
+          category: "neonatal",
+          title: "Triagem neonatal",
+          description: "Checklist inicial dos testes realizados ao nascer.",
+          followUpDate: birthDate,
+          sourceType: neonatalSourceType,
+          sourceId: childId,
+        })
         .returning();
       neonatalFollowUp = inserted;
+      if (inserted) {
+        existingFollowUps.push(inserted);
+        followUpsBySource.set(neonatalKey, inserted);
+      }
     }
 
     if (neonatalFollowUp) {
@@ -754,56 +756,70 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    const developmentFollowUps: HealthFollowUp[] = [];
+
     for (const ageBand of DEVELOPMENT_AGE_BANDS) {
       const sourceType = `system_development_${ageBand.key}`;
-      let followUp = existingFollowUps.find(
-        (item) => item.sourceType === sourceType && item.sourceId === childId,
-      );
+      const sourceKey = `${sourceType}:${childId}`;
+      let followUp = followUpsBySource.get(sourceKey);
 
-      const followUpPayload = {
-        childId,
-        createdBy: null,
-        category: "development",
-        title: `Marcos de desenvolvimento: ${ageBand.label}`,
-        description: `Acompanhamento do desenvolvimento para a faixa ${ageBand.label}.`,
-        followUpDate: addMonthsToDateString(birthDate, ageBand.targetMonths),
-        sourceType,
-        sourceId: childId,
-      };
-
-      if (followUp) {
-        const [updated] = await db
-          .update(healthFollowUps)
-          .set(followUpPayload)
-          .where(eq(healthFollowUps.id, followUp.id))
-          .returning();
-        followUp = updated;
-      } else {
+      if (!followUp) {
         const [inserted] = await db
           .insert(healthFollowUps)
-          .values(followUpPayload)
+          .values({
+            childId,
+            createdBy: null,
+            category: "development",
+            title: `Marcos de desenvolvimento: ${ageBand.label}`,
+            description: `Acompanhamento do desenvolvimento para a faixa ${ageBand.label}.`,
+            followUpDate: addMonthsToDateString(birthDate, ageBand.targetMonths),
+            sourceType,
+            sourceId: childId,
+          })
           .returning();
         followUp = inserted;
+        if (inserted) {
+          existingFollowUps.push(inserted);
+          followUpsBySource.set(sourceKey, inserted);
+        }
       }
 
-      if (!followUp) continue;
+      if (followUp) developmentFollowUps.push(followUp);
+    }
 
-      const existingMilestones = await db
-        .select()
-        .from(developmentMilestones)
-        .where(eq(developmentMilestones.followUpId, followUp.id));
-      const existingMilestoneKeys = new Set(
-        existingMilestones.map((milestone) => milestone.milestoneKey),
+    if (developmentFollowUps.length === 0) return;
+
+    const developmentFollowUpIds = developmentFollowUps.map((followUp) => followUp.id);
+    const existingMilestones = await db
+      .select()
+      .from(developmentMilestones)
+      .where(inArray(developmentMilestones.followUpId, developmentFollowUpIds));
+    const existingMilestoneKeys = new Set(
+      existingMilestones.map(
+        (milestone) => `${milestone.followUpId}:${milestone.milestoneKey}`,
+      ),
+    );
+
+    const allMissingMilestones = developmentFollowUps.flatMap((followUp) => {
+      const ageBand = DEVELOPMENT_AGE_BANDS.find(
+        (item) =>
+          followUp.sourceType === `system_development_${item.key}` &&
+          followUp.sourceId === childId,
       );
-      const missingMilestones = buildDevelopmentMilestoneRows(
+      if (!ageBand) return [];
+
+      return buildDevelopmentMilestoneRows(
         followUp.id,
         ageBand.key,
         ageBand.milestones,
-      ).filter((row) => !existingMilestoneKeys.has(row.milestoneKey));
+      ).filter(
+        (row) =>
+          !existingMilestoneKeys.has(`${row.followUpId}:${row.milestoneKey}`),
+      );
+    });
 
-      if (missingMilestones.length > 0) {
-        await db.insert(developmentMilestones).values(missingMilestones);
-      }
+    if (allMissingMilestones.length > 0) {
+      await db.insert(developmentMilestones).values(allMissingMilestones);
     }
   }
 

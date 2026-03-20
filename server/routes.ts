@@ -613,7 +613,9 @@ export async function registerRoutes(
     const cursor = req.query.cursor as string | undefined;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
 
-    await storage.syncHealthFollowUps(childId, child.birthDate);
+    if (!cursor) {
+      await storage.syncHealthFollowUps(childId, child.birthDate);
+    }
     const result = await storage.getHealthFollowUps(childId, { cursor, limit });
     res.json(result);
   });
