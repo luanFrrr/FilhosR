@@ -223,6 +223,12 @@ export interface IStorage {
 
   // Unified Health Follow-ups
   syncHealthFollowUps(childId: number, birthDate: string): Promise<void>;
+  getHealthFollowUpStructure(
+    childId: number,
+  ): Promise<{
+    neonatal: HealthFollowUpWithRelations | null;
+    development: HealthFollowUpWithRelations[];
+  }>;
   getHealthFollowUps(
     childId: number,
     opts?: {
@@ -719,111 +725,68 @@ export class DatabaseStorage implements IStorage {
   }
 
   async syncHealthFollowUps(childId: number, birthDate: string): Promise<void> {
-    const existingFollowUps = await db
+    const neonatalSourceType = "system_neonatal";
+    const fixedFollowUpRows = [
+      {
+        childId,
+        createdBy: null,
+        category: "neonatal",
+        title: "Triagem neonatal",
+        description: "Checklist inicial dos testes realizados ao nascer.",
+        followUpDate: birthDate,
+        sourceType: neonatalSourceType,
+        sourceId: childId,
+      },
+      ...DEVELOPMENT_AGE_BANDS.map((ageBand) => ({
+        childId,
+        createdBy: null,
+        category: "development",
+        title: `Marcos de desenvolvimento: ${ageBand.label}`,
+        description: `Acompanhamento do desenvolvimento para a faixa ${ageBand.label}.`,
+        followUpDate: addMonthsToDateString(birthDate, ageBand.targetMonths),
+        sourceType: `system_development_${ageBand.key}`,
+        sourceId: childId,
+      })),
+    ];
+
+    await db
+      .insert(healthFollowUps)
+      .values(fixedFollowUpRows)
+      .onConflictDoNothing({
+        target: [healthFollowUps.sourceType, healthFollowUps.sourceId],
+      });
+
+    const fixedFollowUps = await db
       .select()
       .from(healthFollowUps)
-      .where(eq(healthFollowUps.childId, childId));
-    const followUpsBySource = new Map<string, HealthFollowUp>();
+      .where(
+        and(
+          eq(healthFollowUps.childId, childId),
+          inArray(healthFollowUps.category, ["neonatal", "development"]),
+        ),
+      );
 
-    for (const followUp of existingFollowUps) {
-      if (followUp.sourceType && followUp.sourceId !== null) {
-        followUpsBySource.set(
-          `${followUp.sourceType}:${followUp.sourceId}`,
-          followUp,
-        );
-      }
-    }
-
-    const neonatalSourceType = "system_neonatal";
-    const neonatalKey = `${neonatalSourceType}:${childId}`;
-    let neonatalFollowUp = followUpsBySource.get(neonatalKey);
-
-    if (!neonatalFollowUp) {
-      const [inserted] = await db
-        .insert(healthFollowUps)
-        .values({
-          childId,
-          createdBy: null,
-          category: "neonatal",
-          title: "Triagem neonatal",
-          description: "Checklist inicial dos testes realizados ao nascer.",
-          followUpDate: birthDate,
-          sourceType: neonatalSourceType,
-          sourceId: childId,
-        })
-        .returning();
-      neonatalFollowUp = inserted;
-      if (inserted) {
-        existingFollowUps.push(inserted);
-        followUpsBySource.set(neonatalKey, inserted);
-      }
-    }
+    const neonatalFollowUp =
+      fixedFollowUps.find((followUp) => followUp.category === "neonatal") ?? null;
 
     if (neonatalFollowUp) {
-      const existingScreenings = await db
-        .select()
-        .from(neonatalScreenings)
-        .where(eq(neonatalScreenings.followUpId, neonatalFollowUp.id));
-      const existingTypes = new Set(
-        existingScreenings.map((screening) => screening.screeningType),
-      );
-      const missingRows = buildNewbornScreeningRows(neonatalFollowUp.id).filter(
-        (row) => !existingTypes.has(row.screeningType),
-      );
-      if (missingRows.length > 0) {
-        await db.insert(neonatalScreenings).values(missingRows);
-      }
+      await db
+        .insert(neonatalScreenings)
+        .values(buildNewbornScreeningRows(neonatalFollowUp.id))
+        .onConflictDoNothing({
+          target: [neonatalScreenings.followUpId, neonatalScreenings.screeningType],
+        });
     }
 
-    const developmentFollowUps: HealthFollowUp[] = [];
-
-    for (const ageBand of DEVELOPMENT_AGE_BANDS) {
-      const sourceType = `system_development_${ageBand.key}`;
-      const sourceKey = `${sourceType}:${childId}`;
-      let followUp = followUpsBySource.get(sourceKey);
-
-      if (!followUp) {
-        const [inserted] = await db
-          .insert(healthFollowUps)
-          .values({
-            childId,
-            createdBy: null,
-            category: "development",
-            title: `Marcos de desenvolvimento: ${ageBand.label}`,
-            description: `Acompanhamento do desenvolvimento para a faixa ${ageBand.label}.`,
-            followUpDate: addMonthsToDateString(birthDate, ageBand.targetMonths),
-            sourceType,
-            sourceId: childId,
-          })
-          .returning();
-        followUp = inserted;
-        if (inserted) {
-          existingFollowUps.push(inserted);
-          followUpsBySource.set(sourceKey, inserted);
-        }
-      }
-
-      if (followUp) developmentFollowUps.push(followUp);
-    }
-
-    if (developmentFollowUps.length === 0) return;
-
-    const developmentFollowUpIds = developmentFollowUps.map((followUp) => followUp.id);
-    const existingMilestones = await db
-      .select()
-      .from(developmentMilestones)
-      .where(inArray(developmentMilestones.followUpId, developmentFollowUpIds));
-    const existingMilestoneKeys = new Set(
-      existingMilestones.map(
-        (milestone) => `${milestone.followUpId}:${milestone.milestoneKey}`,
-      ),
+    const developmentRows = fixedFollowUps.filter(
+      (followUp) => followUp.category === "development",
     );
 
-    const allMissingMilestones = developmentFollowUps.flatMap((followUp) => {
+    if (developmentRows.length === 0) return;
+
+    const milestoneRows = developmentRows.flatMap((followUp) => {
       const ageBand = DEVELOPMENT_AGE_BANDS.find(
-        (item) =>
-          followUp.sourceType === `system_development_${item.key}` &&
-          followUp.sourceId === childId,
+        (item) => followUp.sourceType === `system_development_${item.key}`,
       );
       if (!ageBand) return [];
 
@@ -831,15 +794,83 @@ export class DatabaseStorage implements IStorage {
         followUp.id,
         ageBand.key,
         ageBand.milestones,
-      ).filter(
-        (row) =>
-          !existingMilestoneKeys.has(`${row.followUpId}:${row.milestoneKey}`),
       );
     });
 
-    if (allMissingMilestones.length > 0) {
-      await db.insert(developmentMilestones).values(allMissingMilestones);
+    if (milestoneRows.length > 0) {
+      await db
+        .insert(developmentMilestones)
+        .values(milestoneRows)
+        .onConflictDoNothing({
+          target: [
+            developmentMilestones.followUpId,
+            developmentMilestones.milestoneKey,
+          ],
+        });
     }
+  }
+
+  async getHealthFollowUpStructure(childId: number): Promise<{
+    neonatal: HealthFollowUpWithRelations | null;
+    development: HealthFollowUpWithRelations[];
+  }> {
+    const fixedFollowUps = await db
+      .select()
+      .from(healthFollowUps)
+      .where(
+        and(
+          eq(healthFollowUps.childId, childId),
+          inArray(healthFollowUps.category, ["neonatal", "development"]),
+        ),
+      )
+      .orderBy(asc(healthFollowUps.followUpDate), asc(healthFollowUps.id));
+
+    const ids = fixedFollowUps.map((followUp) => followUp.id);
+    if (ids.length === 0) {
+      return { neonatal: null, development: [] };
+    }
+
+    const [screenings, milestones] = await Promise.all([
+      db
+        .select()
+        .from(neonatalScreenings)
+        .where(inArray(neonatalScreenings.followUpId, ids)),
+      db
+        .select()
+        .from(developmentMilestones)
+        .where(inArray(developmentMilestones.followUpId, ids))
+        .orderBy(
+          asc(developmentMilestones.ageBand),
+          asc(developmentMilestones.createdAt),
+          asc(developmentMilestones.id),
+        ),
+    ]);
+
+    const screeningsByFollowUpId = new Map<number, NeonatalScreening[]>();
+    for (const screening of screenings) {
+      const items = screeningsByFollowUpId.get(screening.followUpId) ?? [];
+      items.push(screening);
+      screeningsByFollowUpId.set(screening.followUpId, items);
+    }
+
+    const milestonesByFollowUpId = new Map<number, DevelopmentMilestone[]>();
+    for (const milestone of milestones) {
+      const items = milestonesByFollowUpId.get(milestone.followUpId) ?? [];
+      items.push(milestone);
+      milestonesByFollowUpId.set(milestone.followUpId, items);
+    }
+
+    const enriched = fixedFollowUps.map((followUp) => ({
+      ...followUp,
+      neonatalScreenings: screeningsByFollowUpId.get(followUp.id) ?? [],
+      developmentMilestones: milestonesByFollowUpId.get(followUp.id) ?? [],
+      healthExams: [],
+    }));
+
+    return {
+      neonatal: enriched.find((followUp) => followUp.category === "neonatal") ?? null,
+      development: enriched.filter((followUp) => followUp.category === "development"),
+    };
   }
 
   async getHealthFollowUps(
@@ -853,28 +884,19 @@ export class DatabaseStorage implements IStorage {
     },
   ): Promise<{ data: HealthFollowUpWithRelations[]; nextCursor: string | null }> {
     const pageSize = Math.min(opts?.limit ?? 20, 50);
-    const conditions: SQL[] = [eq(healthFollowUps.childId, childId)];
-    const timelineFilters: SQL[] = [
-      sql`${healthFollowUps.category} NOT IN ('neonatal', 'development')`,
+    const conditions: SQL[] = [
+      eq(healthFollowUps.childId, childId),
+      inArray(healthFollowUps.category, ["routine", "consultation", "condition"]),
     ];
 
     if (opts?.category) {
-      timelineFilters.push(eq(healthFollowUps.category, opts.category));
+      conditions.push(eq(healthFollowUps.category, opts.category));
     }
     if (opts?.startDate) {
-      timelineFilters.push(sql`${healthFollowUps.followUpDate} >= ${opts.startDate}`);
+      conditions.push(sql`${healthFollowUps.followUpDate} >= ${opts.startDate}`);
     }
     if (opts?.endDate) {
-      timelineFilters.push(sql`${healthFollowUps.followUpDate} <= ${opts.endDate}`);
-    }
-
-    if (timelineFilters.length > 1) {
-      conditions.push(
-        or(
-          inArray(healthFollowUps.category, ["neonatal", "development"]),
-          and(...timelineFilters),
-        )!,
-      );
+      conditions.push(sql`${healthFollowUps.followUpDate} <= ${opts.endDate}`);
     }
 
     if (opts?.cursor) {
@@ -909,15 +931,37 @@ export class DatabaseStorage implements IStorage {
         ])
       : [[], [], []];
 
+    const screeningsByFollowUpId = new Map<number, NeonatalScreening[]>();
+    for (const screening of screenings) {
+      const items = screeningsByFollowUpId.get(screening.followUpId) ?? [];
+      items.push(screening);
+      screeningsByFollowUpId.set(screening.followUpId, items);
+    }
+
+    const milestonesByFollowUpId = new Map<number, DevelopmentMilestone[]>();
+    for (const milestone of milestones) {
+      const items = milestonesByFollowUpId.get(milestone.followUpId) ?? [];
+      items.push(milestone);
+      milestonesByFollowUpId.set(milestone.followUpId, items);
+    }
+
+    const examsByFollowUpId = new Map<number, HealthExam[]>();
+    for (const exam of exams) {
+      const items = examsByFollowUpId.get(exam.followUpId) ?? [];
+      items.push(exam);
+      examsByFollowUpId.set(exam.followUpId, items);
+    }
+
     const enriched = data.map((followUp) => ({
       ...followUp,
-      neonatalScreenings: screenings.filter(
-        (screening) => screening.followUpId === followUp.id,
-      ),
-      developmentMilestones: milestones.filter(
-        (milestone) => milestone.followUpId === followUp.id,
-      ),
-      healthExams: exams.filter((exam) => exam.followUpId === followUp.id),
+      neonatalScreenings: screeningsByFollowUpId.get(followUp.id) ?? [],
+      developmentMilestones: milestonesByFollowUpId.get(followUp.id) ?? [],
+      healthExams: (examsByFollowUpId.get(followUp.id) ?? []).sort((left, right) => {
+        const dateDiff =
+          new Date(right.examDate).getTime() - new Date(left.examDate).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return right.id - left.id;
+      }),
     }));
 
     const nextCursor =

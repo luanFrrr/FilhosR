@@ -38,17 +38,21 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
+  cleanupHealthExamUploads,
   getHealthExamFileUrl,
+  signHealthExamUploads,
   useCreateHealthExam,
   useCreateHealthFollowUp,
   useDeleteHealthExam,
   useDeleteHealthFollowUp,
+  useHealthFollowUpStructure,
   useHealthFollowUps,
   useUpdateDevelopmentMilestone,
   useUpdateHealthExam,
   useUpdateHealthFollowUp,
   useUpdateNeonatalScreening,
 } from "@/hooks/use-health-follow-ups";
+import { supabase } from "@/lib/supabase";
 import { cn, parseLocalDate } from "@/lib/utils";
 import {
   AGE_BASED_HEALTH_SUGGESTIONS,
@@ -141,6 +145,47 @@ function getFileName(path: string) {
   return parts[parts.length - 1];
 }
 
+async function uploadExamFilesDirect(childId: number, files: File[]) {
+  if (!supabase || files.length === 0) return null;
+  const supabaseClient = supabase;
+
+  const uploads = await signHealthExamUploads(
+    childId,
+    files.map((file) => ({
+      fileName: file.name,
+      fileMimeType: file.type,
+    })),
+  );
+
+  if (uploads.length !== files.length) {
+    throw new Error("Falha ao preparar upload dos arquivos");
+  }
+
+  const uploadedPaths: string[] = [];
+
+  try {
+    await Promise.all(
+      uploads.map(async (upload, index) => {
+        const file = files[index];
+        const { error } = await supabaseClient.storage
+          .from("health-files")
+          .uploadToSignedUrl(upload.path, upload.token, file, {
+            cacheControl: "3600",
+            contentType: file.type,
+            upsert: true,
+          });
+
+        if (error) throw error;
+        uploadedPaths.push(upload.path);
+      }),
+    );
+
+    return uploadedPaths;
+  } catch (error) {
+    throw error;
+  }
+}
+
 function getAgeBandMeta(followUp: HealthFollowUpWithRelations) {
   const ageBandKey =
     followUp.developmentMilestones[0]?.ageBand ||
@@ -165,6 +210,19 @@ function getMilestoneSummary(milestones: DevelopmentMilestone[]) {
   }
 
   return `${counts.pending || 0} pendente(s)`;
+}
+
+function getTimelineFollowUpSummary(followUp: HealthFollowUpWithRelations) {
+  const examCount = followUp.healthExams.length;
+  if (examCount > 0) {
+    return `${examCount} exame(s) vinculado(s)`;
+  }
+
+  if (followUp.description?.trim()) {
+    return "Toque para ver observacoes";
+  }
+
+  return "Toque para ver detalhes";
 }
 
 export function FollowUpOverview({
@@ -192,9 +250,11 @@ export function FollowUpOverview({
     }),
     [timelineCategoryFilter, timelineEndDate, timelineStartDate],
   );
+  const { data: structure, isLoading: isStructureLoading } =
+    useHealthFollowUpStructure(childId);
   const {
-    data,
-    isLoading,
+    data: timelineData,
+    isLoading: isTimelineLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -202,8 +262,8 @@ export function FollowUpOverview({
   const createFollowUp = useCreateHealthFollowUp(timelineQueryFilters);
   const updateFollowUp = useUpdateHealthFollowUp(timelineQueryFilters);
   const deleteFollowUp = useDeleteHealthFollowUp(timelineQueryFilters);
-  const updateScreening = useUpdateNeonatalScreening(timelineQueryFilters);
-  const updateMilestone = useUpdateDevelopmentMilestone(timelineQueryFilters);
+  const updateScreening = useUpdateNeonatalScreening();
+  const updateMilestone = useUpdateDevelopmentMilestone();
   const createExam = useCreateHealthExam(timelineQueryFilters);
   const updateExam = useUpdateHealthExam(timelineQueryFilters);
   const deleteExam = useDeleteHealthExam(timelineQueryFilters);
@@ -230,21 +290,29 @@ export function FollowUpOverview({
   const [loadingExamFile, setLoadingExamFile] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [openDevelopmentItem, setOpenDevelopmentItem] = useState<string>("");
+  const [openTimelineItems, setOpenTimelineItems] = useState<string[]>([]);
 
-  const followUps = useMemo(
-    () => data?.pages.flatMap((page) => page.data) || [],
-    [data],
+  const timelineFollowUps = useMemo(
+    () => timelineData?.pages.flatMap((page) => page.data) || [],
+    [timelineData],
   );
 
-  const neonatalFollowUp = followUps.find((item) => item.category === "neonatal");
-  const developmentFollowUps = followUps
-    .filter((item) => item.category === "development")
-    .sort(
-      (a, b) =>
-        new Date(a.followUpDate).getTime() - new Date(b.followUpDate).getTime(),
-    );
-  const timelineFollowUps = followUps.filter(
-    (item) => item.category !== "neonatal" && item.category !== "development",
+  const neonatalFollowUp = structure?.neonatal ?? null;
+  const developmentFollowUps = useMemo(
+    () =>
+      [...(structure?.development ?? [])].sort(
+        (a, b) =>
+          new Date(a.followUpDate).getTime() - new Date(b.followUpDate).getTime(),
+      ),
+    [structure?.development],
+  );
+  const allFollowUps = useMemo(
+    () => [
+      ...(neonatalFollowUp ? [neonatalFollowUp] : []),
+      ...developmentFollowUps,
+      ...timelineFollowUps,
+    ],
+    [developmentFollowUps, neonatalFollowUp, timelineFollowUps],
   );
 
   const currentAgeMonths = useMemo(
@@ -264,18 +332,18 @@ export function FollowUpOverview({
       .length ?? 0;
 
   useEffect(() => {
-    if (!legacyRecordId || followUps.length === 0) return;
+    if (!legacyRecordId || allFollowUps.length === 0) return;
 
-    let resolved = followUps.find((followUp) => followUp.id === legacyRecordId);
+    let resolved = allFollowUps.find((followUp) => followUp.id === legacyRecordId);
     if (!resolved && legacyTab === "history") {
-      resolved = followUps.find(
+      resolved = allFollowUps.find(
         (followUp) =>
           followUp.sourceType === "health_record" &&
           followUp.sourceId === legacyRecordId,
       );
     }
     if (!resolved && legacyTab === "medical") {
-      resolved = followUps.find(
+      resolved = allFollowUps.find(
         (followUp) =>
           followUp.sourceType === "medical_record" &&
           followUp.sourceId === legacyRecordId,
@@ -283,7 +351,7 @@ export function FollowUpOverview({
     }
 
     if (resolved) setHighlightId(resolved.id);
-  }, [legacyRecordId, legacyTab, followUps]);
+  }, [allFollowUps, legacyRecordId, legacyTab]);
 
   useEffect(() => {
     if (!highlightId) return;
@@ -373,14 +441,20 @@ export function FollowUpOverview({
   const handleExamSubmit = async () => {
     if (!selectedFollowUp || !examTitle.trim()) return;
 
+    let directUploadPaths: string[] | null = null;
+
     try {
-      const files = await Promise.all(
-        examFiles.map(async (file) => ({
-          fileBase64: await fileToBase64(file),
-          fileMimeType: file.type,
-          fileName: file.name,
-        })),
-      );
+      directUploadPaths = await uploadExamFilesDirect(childId, examFiles);
+      const fallbackFiles =
+        directUploadPaths === null
+          ? await Promise.all(
+              examFiles.map(async (file) => ({
+                fileBase64: await fileToBase64(file),
+                fileMimeType: file.type,
+                fileName: file.name,
+              })),
+            )
+          : [];
 
       const payload = {
         childId,
@@ -390,41 +464,41 @@ export function FollowUpOverview({
       };
 
       if (editingExam) {
-        updateExam.mutate(
-          {
-            id: editingExam.id,
-            ...payload,
-            newFiles: files.length > 0 ? files : undefined,
-            removeFilePaths:
-              removedExamFilePaths.length > 0 ? removedExamFilePaths : undefined,
-          },
-          {
-            onSuccess: () => {
-              setExamOpen(false);
-              resetExamForm();
-              toast({ title: "Exame atualizado" });
-            },
-          },
-        );
+        await updateExam.mutateAsync({
+          id: editingExam.id,
+          followUpId: selectedFollowUp.id,
+          ...payload,
+          newFiles: fallbackFiles.length > 0 ? fallbackFiles : undefined,
+          newFilePaths:
+            directUploadPaths && directUploadPaths.length > 0
+              ? directUploadPaths
+              : undefined,
+          removeFilePaths:
+            removedExamFilePaths.length > 0 ? removedExamFilePaths : undefined,
+        });
+        setExamOpen(false);
+        resetExamForm();
+        toast({ title: "Exame atualizado" });
         return;
       }
 
-      createExam.mutate(
-        {
-          ...payload,
-          followUpId: selectedFollowUp.id,
-          files: files.length > 0 ? files : undefined,
-        },
-        {
-          onSuccess: () => {
-            setExamOpen(false);
-            resetExamForm();
-            toast({ title: "Exame anexado" });
-          },
-        },
-      );
+      await createExam.mutateAsync({
+        ...payload,
+        followUpId: selectedFollowUp.id,
+        files: fallbackFiles.length > 0 ? fallbackFiles : undefined,
+        uploadedFilePaths:
+          directUploadPaths && directUploadPaths.length > 0
+            ? directUploadPaths
+            : undefined,
+      });
+      setExamOpen(false);
+      resetExamForm();
+      toast({ title: "Exame anexado" });
     } catch {
-      toast({ title: "Erro ao preparar arquivos", variant: "destructive" });
+      if (directUploadPaths && directUploadPaths.length > 0) {
+        await cleanupHealthExamUploads(childId, directUploadPaths).catch(() => {});
+      }
+      toast({ title: "Erro ao salvar exame", variant: "destructive" });
     }
   };
 
@@ -496,12 +570,14 @@ export function FollowUpOverview({
     milestone: DevelopmentMilestone,
     status: "ok" | "attention" | "delayed",
   ) => {
+    const nextStatus = milestone.status === status ? "pending" : status;
     updateMilestone.mutate({
       childId,
       followUpId,
       milestoneKey: milestone.milestoneKey,
-      status,
-      checkedAt: new Date().toISOString().slice(0, 10),
+      status: nextStatus,
+      checkedAt:
+        nextStatus === "pending" ? null : new Date().toISOString().slice(0, 10),
     });
   };
 
@@ -520,14 +596,14 @@ export function FollowUpOverview({
 
   const removeExam = (exam: HealthExam) => {
     deleteExam.mutate(
-      { id: exam.id, childId },
+      { id: exam.id, childId, followUpId: exam.followUpId },
       {
         onSuccess: () => toast({ title: "Exame removido" }),
       },
     );
   };
 
-  if (isLoading) {
+  if (isStructureLoading || isTimelineLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -831,7 +907,9 @@ export function FollowUpOverview({
                               <Button
                                 type="button"
                                 size="sm"
-                                variant="outline"
+                                variant={
+                                  milestone.status === "ok" ? "default" : "outline"
+                                }
                                 className="h-8 rounded-full px-3 text-xs"
                                 onClick={() =>
                                   setMilestoneStatus(followUp.id, milestone, "ok")
@@ -842,7 +920,11 @@ export function FollowUpOverview({
                               <Button
                                 type="button"
                                 size="sm"
-                                variant="outline"
+                                variant={
+                                  milestone.status === "attention"
+                                    ? "default"
+                                    : "outline"
+                                }
                                 className="h-8 rounded-full px-3 text-xs"
                                 onClick={() =>
                                   setMilestoneStatus(
@@ -857,7 +939,11 @@ export function FollowUpOverview({
                               <Button
                                 type="button"
                                 size="sm"
-                                variant="outline"
+                                variant={
+                                  milestone.status === "delayed"
+                                    ? "default"
+                                    : "outline"
+                                }
                                 className="h-8 rounded-full px-3 text-xs"
                                 onClick={() =>
                                   setMilestoneStatus(
@@ -869,6 +955,25 @@ export function FollowUpOverview({
                               >
                                 Atraso
                               </Button>
+                              {milestone.status !== "pending" ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 rounded-full px-3 text-xs text-muted-foreground"
+                                  onClick={() =>
+                                    updateMilestone.mutate({
+                                      childId,
+                                      followUpId: followUp.id,
+                                      milestoneKey: milestone.milestoneKey,
+                                      status: "pending",
+                                      checkedAt: null,
+                                    })
+                                  }
+                                >
+                                  Limpar
+                                </Button>
+                              ) : null}
                             </div>
                           </div>
                         </div>
@@ -931,142 +1036,166 @@ export function FollowUpOverview({
           </div>
         )}
 
-        {timelineFollowUps.map((followUp) => (
-          <div
-            key={followUp.id}
-            className="rounded-3xl border border-border bg-card p-5 shadow-sm transition-colors"
-            data-testid={`follow-up-card-${followUp.id}`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="rounded-full px-3 py-1">
-                    {followUpCategoryLabel(followUp.category)}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {format(parseLocalDate(followUp.followUpDate), "dd 'de' MMMM", {
-                      locale: ptBR,
-                    })}
-                  </span>
-                </div>
-                <h4 className="mt-3 text-lg font-display font-bold text-foreground">
-                  {followUp.title}
-                </h4>
-                {followUp.description && (
-                  <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                    {followUp.description}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex shrink-0 gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => handleEditFollowUp(followUp)}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => handleDeleteFollowUp(followUp)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-dashed border-border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  <p className="text-sm font-medium">Exames vinculados</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() => handleOpenExam(followUp)}
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Anexar exame
-                </Button>
-              </div>
-
-              {followUp.healthExams.length === 0 && (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Nenhum exame anexado a este acompanhamento.
-                </p>
-              )}
-
-              <p className="mt-3 text-xs text-muted-foreground">
-                Arquivos ficam no storage e o banco guarda apenas os caminhos e
-                metadados do anexo.
-              </p>
-
-              <div className="mt-3 space-y-3">
-                {followUp.healthExams.map((exam) => (
-                  <div
-                    key={exam.id}
-                    className="rounded-2xl border border-border bg-background p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-foreground">{exam.title}</p>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <CalendarDays className="w-3.5 h-3.5" />
-                          {format(parseLocalDate(exam.examDate), "dd/MM/yyyy")}
-                        </div>
-                        {exam.notes && (
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            {exam.notes}
-                          </p>
-                        )}
+        <Accordion
+          type="multiple"
+          value={openTimelineItems}
+          onValueChange={setOpenTimelineItems}
+          className="space-y-2.5"
+        >
+          {timelineFollowUps.map((followUp) => (
+            <AccordionItem
+              key={followUp.id}
+              value={String(followUp.id)}
+              className="overflow-hidden rounded-2xl border border-border bg-card px-4 shadow-sm transition-colors"
+              data-testid={`follow-up-card-${followUp.id}`}
+            >
+              <div className="flex items-start gap-2">
+                <AccordionTrigger className="flex-1 py-4 pr-2 hover:no-underline">
+                  <div className="flex w-full items-start justify-between gap-2.5 text-left">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="rounded-full px-3 py-1">
+                          {followUpCategoryLabel(followUp.category)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {format(parseLocalDate(followUp.followUpDate), "dd 'de' MMMM", {
+                            locale: ptBR,
+                          })}
+                        </span>
                       </div>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleEditExam(followUp, exam)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeExam(exam)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <h4 className="mt-2 text-[15px] font-display font-bold text-foreground">
+                        {followUp.title}
+                      </h4>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {getTimelineFollowUpSummary(followUp)}
+                      </p>
                     </div>
-
-                    {exam.filePaths && exam.filePaths.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {exam.filePaths.map((path, index) => (
-                          <button
-                            key={path}
-                            type="button"
-                            className="flex items-center gap-2 text-sm text-primary hover:underline"
-                            onClick={() => openExamFile(exam.id, index)}
-                          >
-                            {loadingExamFile === `${exam.id}-${index}` ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <FileText className="w-3.5 h-3.5" />
-                            )}
-                            <span className="truncate">{getFileName(path)}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                ))}
+                </AccordionTrigger>
+
+                <div className="flex shrink-0 gap-1 pt-3">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleEditFollowUp(followUp)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleDeleteFollowUp(followUp)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
+
+              <AccordionContent className="pb-4 pt-0.5">
+                {followUp.description ? (
+                  <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
+                    <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                      {followUp.description}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="mt-3 rounded-2xl border border-dashed border-border p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">Exames vinculados</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => handleOpenExam(followUp)}
+                    >
+                      <Plus className="mr-1 h-4 w-4" /> Anexar exame
+                    </Button>
+                  </div>
+
+                  {followUp.healthExams.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Nenhum exame anexado a este acompanhamento.
+                    </p>
+                  ) : null}
+
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Arquivos ficam no storage e o banco guarda apenas os caminhos e
+                    metadados do anexo.
+                  </p>
+
+                  <div className="mt-3 space-y-3">
+                    {followUp.healthExams.map((exam) => (
+                      <div
+                        key={exam.id}
+                        className="rounded-2xl border border-border bg-background p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground">{exam.title}</p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              {format(parseLocalDate(exam.examDate), "dd/MM/yyyy")}
+                            </div>
+                            {exam.notes ? (
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                {exam.notes}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleEditExam(followUp, exam)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => removeExam(exam)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {exam.filePaths && exam.filePaths.length > 0 ? (
+                          <div className="mt-3 space-y-2">
+                            {exam.filePaths.map((path, index) => (
+                              <button
+                                key={path}
+                                type="button"
+                                className="flex items-center gap-2 text-sm text-primary hover:underline"
+                                onClick={() => openExamFile(exam.id, index)}
+                              >
+                                {loadingExamFile === `${exam.id}-${index}` ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <FileText className="h-3.5 w-3.5" />
+                                )}
+                                <span className="truncate">{getFileName(path)}</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
 
         {hasNextPage && (
           <div className="flex justify-center pt-2">
@@ -1276,8 +1405,36 @@ export function FollowUpOverview({
                   multiple
                   className="hidden"
                   onChange={(event) => {
+                    const allowedTypes = [
+                      "application/pdf",
+                      "image/jpeg",
+                      "image/png",
+                      "image/webp",
+                    ];
                     const fileList = Array.from(event.target.files || []);
-                    setExamFiles((current) => [...current, ...fileList]);
+                    const validFiles = fileList.filter((file) => {
+                      if (!allowedTypes.includes(file.type)) {
+                        toast({
+                          title: "Arquivo nao suportado",
+                          description: `${file.name} nao e PDF nem imagem compativel.`,
+                          variant: "destructive",
+                        });
+                        return false;
+                      }
+
+                      if (file.size > 10 * 1024 * 1024) {
+                        toast({
+                          title: "Arquivo muito grande",
+                          description: `${file.name} excede o limite de 10 MB.`,
+                          variant: "destructive",
+                        });
+                        return false;
+                      }
+
+                      return true;
+                    });
+
+                    setExamFiles((current) => [...current, ...validFiles].slice(0, 5));
                     event.target.value = "";
                   }}
                 />

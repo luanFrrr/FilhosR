@@ -215,6 +215,32 @@ export const api = {
 
   // Unified Health Follow-ups
   healthFollowUps: {
+    structure: {
+      method: "GET" as const,
+      path: "/api/children/:childId/health-follow-ups/structure",
+      responses: {
+        200: z.object({
+          neonatal: z
+            .custom<
+              typeof healthFollowUps.$inferSelect & {
+                neonatalScreenings: typeof neonatalScreenings.$inferSelect[];
+                developmentMilestones: typeof developmentMilestones.$inferSelect[];
+                healthExams: typeof healthExams.$inferSelect[];
+              }
+            >()
+            .nullable(),
+          development: z.array(
+            z.custom<
+              typeof healthFollowUps.$inferSelect & {
+                neonatalScreenings: typeof neonatalScreenings.$inferSelect[];
+                developmentMilestones: typeof developmentMilestones.$inferSelect[];
+                healthExams: typeof healthExams.$inferSelect[];
+              }
+            >(),
+          ),
+        }),
+      },
+    },
     list: {
       method: "GET" as const,
       path: "/api/children/:childId/health-follow-ups",
@@ -281,6 +307,41 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    signExamUploads: {
+      method: "POST" as const,
+      path: "/api/children/:childId/health-exam-uploads/sign",
+      input: z.object({
+        files: z.array(
+          z.object({
+            fileName: z.string(),
+            fileMimeType: z.string(),
+          }),
+        ),
+      }),
+      responses: {
+        200: z.object({
+          uploads: z.array(
+            z.object({
+              path: z.string(),
+              token: z.string(),
+              signedUrl: z.string(),
+            }),
+          ),
+        }),
+        400: errorSchemas.validation,
+      },
+    },
+    cleanupExamUploads: {
+      method: "POST" as const,
+      path: "/api/children/:childId/health-exam-uploads/cleanup",
+      input: z.object({
+        paths: z.array(z.string()),
+      }),
+      responses: {
+        204: z.void(),
+        400: errorSchemas.validation,
+      },
+    },
     createExam: {
       method: "POST" as const,
       path: "/api/health-follow-ups/:id/exams",
@@ -294,6 +355,7 @@ export const api = {
             }),
           )
           .optional(),
+        uploadedFilePaths: z.array(z.string()).optional(),
       }),
       responses: {
         201: z.custom<typeof healthExams.$inferSelect>(),
@@ -314,6 +376,7 @@ export const api = {
           )
           .optional(),
         removeFilePaths: z.array(z.string()).optional(),
+        newFilePaths: z.array(z.string()).optional(),
       }),
       responses: {
         200: z.custom<typeof healthExams.$inferSelect>(),

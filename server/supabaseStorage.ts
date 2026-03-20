@@ -1,4 +1,5 @@
 // import sharp from "sharp";
+import { createClient } from "@supabase/supabase-js";
 import { Buffer } from "buffer";
 
 /**
@@ -10,6 +11,15 @@ import { Buffer } from "buffer";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAdmin =
+  SUPABASE_URL && SUPABASE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      })
+    : null;
 
 export type UploadBucket =
   | "profile-photos"
@@ -204,6 +214,28 @@ export async function getSignedUrl(
 
   const data = await res.json();
   return `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+}
+
+export async function createSignedUploadUrl(
+  bucket: UploadBucket,
+  path: string,
+  options?: { upsert?: boolean },
+): Promise<{ path: string; token: string; signedUrl: string }> {
+  if (!supabaseAdmin) {
+    throw new Error("Supabase Storage não configurado");
+  }
+
+  const { data, error } = await supabaseAdmin.storage
+    .from(bucket)
+    .createSignedUploadUrl(path, {
+      upsert: options?.upsert ?? true,
+    });
+
+  if (error || !data) {
+    throw error ?? new Error("Erro ao criar signed upload URL");
+  }
+
+  return data;
 }
 
 export async function deleteFileFromStorage(

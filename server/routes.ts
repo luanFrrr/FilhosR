@@ -32,6 +32,7 @@ import {
   deleteFromStorage,
   uploadFileBuffer,
   getSignedUrl,
+  createSignedUploadUrl,
   deleteFileFromStorage,
   type UploadBucket,
 } from "./supabaseStorage";
@@ -145,6 +146,122 @@ export async function registerRoutes(
     childId: number,
   ): Promise<boolean> => {
     return storage.hasChildAccessDirect(userId, childId);
+  };
+
+  const uploadHealthFilesBatch = async (
+    childId: number,
+    files: Array<{
+      fileBase64: string;
+      fileMimeType: string;
+      fileName: string;
+    }>,
+  ) => {
+    const allowedMimes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (files.length > 5) {
+      throw new Error("Maximo de 5 arquivos por exame");
+    }
+
+    const preparedFiles = files.map((file, index) => {
+      if (!allowedMimes.includes(file.fileMimeType)) {
+        throw new Error("Tipo de arquivo nao permitido. Use PDF ou imagens.");
+      }
+
+      const buffer = Buffer.from(file.fileBase64, "base64");
+      if (buffer.length > 10 * 1024 * 1024) {
+        throw new Error("Arquivo muito grande (max 10MB cada)");
+      }
+
+      const ext = file.fileName.split(".").pop() || "bin";
+      const safeName = `exam_${Date.now()}_${index}_${Math.random()
+        .toString(36)
+        .slice(2, 6)}.${ext}`;
+
+      return {
+        buffer,
+        mimeType: file.fileMimeType,
+        storagePath: `${childId}/${safeName}`,
+      };
+    });
+
+    const uploadedPaths: string[] = [];
+
+    try {
+      await Promise.all(
+        preparedFiles.map(async (file) => {
+          await uploadFileBuffer(
+            "health-files",
+            file.storagePath,
+            file.buffer,
+            file.mimeType,
+          );
+          uploadedPaths.push(file.storagePath);
+        }),
+      );
+      return uploadedPaths;
+    } catch (error) {
+      await Promise.allSettled(
+        uploadedPaths.map((path) => deleteFileFromStorage("health-files", path)),
+      );
+      throw error;
+    }
+  };
+
+  const createHealthExamUploadSignatures = async (
+    childId: number,
+    files: Array<{
+      fileName: string;
+      fileMimeType: string;
+    }>,
+  ) => {
+    const allowedMimes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (files.length === 0) {
+      throw new Error("Nenhum arquivo informado");
+    }
+
+    if (files.length > 5) {
+      throw new Error("Maximo de 5 arquivos por exame");
+    }
+
+    return Promise.all(
+      files.map(async (file, index) => {
+        if (!allowedMimes.includes(file.fileMimeType)) {
+          throw new Error("Tipo de arquivo nao permitido. Use PDF ou imagens.");
+        }
+
+        const ext = file.fileName.split(".").pop() || "bin";
+        const safeName = `exam_${Date.now()}_${index}_${Math.random()
+          .toString(36)
+          .slice(2, 6)}.${ext}`;
+        const path = `${childId}/${safeName}`;
+        return createSignedUploadUrl("health-files", path, { upsert: true });
+      }),
+    );
+  };
+
+  const sanitizeHealthExamPaths = (childId: number, paths?: string[] | null) => {
+    if (!paths?.length) return [];
+
+    const safePaths = paths.filter(
+      (path) =>
+        typeof path === "string" &&
+        path.startsWith(`${childId}/`) &&
+        !path.includes("..") &&
+        !path.startsWith("/"),
+    );
+
+    return safePaths;
   };
 
   // === API ROUTES ===
@@ -624,6 +741,87 @@ export async function registerRoutes(
   });
 
   // Unified health follow-ups
+  app.get(
+    api.healthFollowUps.structure.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const child = await storage.getChild(childId);
+      if (!child) {
+        return res.status(404).json({ message: "Crianca nao encontrada" });
+      }
+
+      await storage.syncHealthFollowUps(childId, child.birthDate);
+      const structure = await storage.getHealthFollowUpStructure(childId);
+      res.json(structure);
+    },
+  );
+
+  app.post(
+    api.healthFollowUps.signExamUploads.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      try {
+        const input = api.healthFollowUps.signExamUploads.input.parse(req.body);
+        const uploads = await createHealthExamUploadSignatures(childId, input.files);
+        res.json({ uploads });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        if (err instanceof Error) {
+          return res.status(400).json({ message: err.message });
+        }
+        res.status(500).json({ message: "Erro ao preparar upload" });
+      }
+    },
+  );
+
+  app.post(
+    api.healthFollowUps.cleanupExamUploads.path,
+    isAuthenticated,
+    async (req, res) => {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      try {
+        const input = api.healthFollowUps.cleanupExamUploads.input.parse(req.body);
+        const paths = sanitizeHealthExamPaths(childId, input.paths);
+
+        await Promise.allSettled(
+          paths.map((path) => deleteFileFromStorage("health-files", path)),
+        );
+
+        res.status(204).send();
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res.status(400).json({ message: err.errors[0].message });
+        }
+        res.status(500).json({ message: "Erro ao limpar uploads" });
+      }
+    },
+  );
+
   app.get(api.healthFollowUps.list.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Nao autenticado" });
@@ -650,9 +848,6 @@ export async function registerRoutes(
         ? rawCategory
         : undefined;
 
-    if (!cursor) {
-      await storage.syncHealthFollowUps(childId, child.birthDate);
-    }
     const result = await storage.getHealthFollowUps(childId, {
       cursor,
       limit,
@@ -840,39 +1035,18 @@ export async function registerRoutes(
 
       try {
         const input = api.healthFollowUps.createExam.input.parse(req.body);
-        const filePaths: string[] = [];
+        const uploadedFilePaths = sanitizeHealthExamPaths(
+          followUp.childId,
+          input.uploadedFilePaths,
+        );
+        const fallbackFilePaths =
+          Array.isArray(input.files) && input.files.length > 0
+            ? await uploadHealthFilesBatch(followUp.childId, input.files)
+            : [];
+        const filePaths = [...uploadedFilePaths, ...fallbackFilePaths];
 
-        if (Array.isArray(input.files) && input.files.length > 0) {
-          if (input.files.length > 5) {
-            return res.status(400).json({ message: "Maximo de 5 arquivos por exame" });
-          }
-
-          const allowedMimes = [
-            "application/pdf",
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-          ];
-
-          for (const file of input.files) {
-            if (!allowedMimes.includes(file.fileMimeType)) {
-              return res
-                .status(400)
-                .json({ message: "Tipo de arquivo nao permitido. Use PDF ou imagens." });
-            }
-            const buffer = Buffer.from(file.fileBase64, "base64");
-            if (buffer.length > 10 * 1024 * 1024) {
-              return res
-                .status(400)
-                .json({ message: "Arquivo muito grande (max 10MB cada)" });
-            }
-
-            const ext = file.fileName.split(".").pop() || "bin";
-            const safeName = `exam_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-            const storagePath = `${followUp.childId}/${safeName}`;
-            await uploadFileBuffer("health-files", storagePath, buffer, file.fileMimeType);
-            filePaths.push(storagePath);
-          }
+        if (filePaths.length > 5) {
+          return res.status(400).json({ message: "Maximo de 5 arquivos por exame" });
         }
 
         const exam = await storage.createHealthExam({
@@ -886,6 +1060,14 @@ export async function registerRoutes(
         res.status(201).json(exam);
       } catch (err) {
         console.error("Error creating health exam:", err);
+        if (
+          err instanceof Error &&
+          (err.message.includes("Maximo de 5 arquivos") ||
+            err.message.includes("Tipo de arquivo nao permitido") ||
+            err.message.includes("Arquivo muito grande"))
+        ) {
+          return res.status(400).json({ message: err.message });
+        }
         res.status(500).json({ message: "Erro ao criar exame" });
       }
     },
@@ -929,34 +1111,21 @@ export async function registerRoutes(
             return res.status(400).json({ message: "Maximo de 5 arquivos por exame" });
           }
 
-          const allowedMimes = [
-            "application/pdf",
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-          ];
-
-          for (const file of input.newFiles) {
-            if (!allowedMimes.includes(file.fileMimeType)) {
-              return res
-                .status(400)
-                .json({ message: "Tipo de arquivo nao permitido. Use PDF ou imagens." });
-            }
-
-            const buffer = Buffer.from(file.fileBase64, "base64");
-            if (buffer.length > 10 * 1024 * 1024) {
-              return res
-                .status(400)
-                .json({ message: "Arquivo muito grande (max 10MB cada)" });
-            }
-
-            const ext = file.fileName.split(".").pop() || "bin";
-            const safeName = `exam_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-            const storagePath = `${followUp.childId}/${safeName}`;
-            await uploadFileBuffer("health-files", storagePath, buffer, file.fileMimeType);
-            currentPaths.push(storagePath);
-          }
+          const uploadedPaths = await uploadHealthFilesBatch(
+            followUp.childId,
+            input.newFiles,
+          );
+          currentPaths.push(...uploadedPaths);
         }
+
+        const signedUploadPaths = sanitizeHealthExamPaths(
+          followUp.childId,
+          input.newFilePaths,
+        );
+        if (currentPaths.length + signedUploadPaths.length > 5) {
+          return res.status(400).json({ message: "Maximo de 5 arquivos por exame" });
+        }
+        currentPaths.push(...signedUploadPaths);
 
         const updated = await storage.updateHealthExam(id, {
           title: input.title,
@@ -968,6 +1137,14 @@ export async function registerRoutes(
         res.json(updated);
       } catch (err) {
         console.error("Error updating health exam:", err);
+        if (
+          err instanceof Error &&
+          (err.message.includes("Maximo de 5 arquivos") ||
+            err.message.includes("Tipo de arquivo nao permitido") ||
+            err.message.includes("Arquivo muito grande"))
+        ) {
+          return res.status(400).json({ message: err.message });
+        }
         res.status(500).json({ message: "Erro ao atualizar exame" });
       }
     },

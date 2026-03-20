@@ -558,9 +558,15 @@ export const healthFollowUps = pgTable(
       table.childId,
       table.followUpDate,
     ),
+    childFollowUpDateIdIdx: index(
+      "health_follow_ups_child_follow_up_date_id_idx",
+    ).on(table.childId, table.followUpDate, table.id),
     childCategoryFollowUpDateIdx: index(
       "health_follow_ups_child_category_follow_up_date_idx",
     ).on(table.childId, table.category, table.followUpDate),
+    childCategoryFollowUpDateIdIdx: index(
+      "health_follow_ups_child_category_follow_up_date_id_idx",
+    ).on(table.childId, table.category, table.followUpDate, table.id),
     sourceUnique: uniqueIndex("health_follow_ups_source_unique").on(
       table.sourceType,
       table.sourceId,

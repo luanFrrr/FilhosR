@@ -2,16 +2,64 @@ import {
   InfiniteData,
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type {
+  DevelopmentMilestone,
+  HealthExam,
   HealthFollowUp,
   HealthFollowUpWithRelations,
-  HealthExam,
   NeonatalScreening,
-  DevelopmentMilestone,
 } from "@shared/schema";
+
+type HealthFollowUpFilters = {
+  startDate?: string;
+  endDate?: string;
+  category?: string;
+};
+
+type HealthFollowUpStructure = {
+  neonatal: HealthFollowUpWithRelations | null;
+  development: HealthFollowUpWithRelations[];
+};
+
+type HealthFollowUpsPage = {
+  data: HealthFollowUpWithRelations[];
+  nextCursor: string | null;
+};
+
+interface FileInput {
+  fileBase64: string;
+  fileMimeType: string;
+  fileName: string;
+}
+
+export async function signHealthExamUploads(
+  childId: number,
+  files: Array<{ fileName: string; fileMimeType: string }>,
+): Promise<Array<{ path: string; token: string; signedUrl: string }>> {
+  const res = await apiRequest(
+    "POST",
+    `/api/children/${childId}/health-exam-uploads/sign`,
+    { files },
+  );
+  const data = (await res.json()) as {
+    uploads: Array<{ path: string; token: string; signedUrl: string }>;
+  };
+  return data.uploads;
+}
+
+export async function cleanupHealthExamUploads(
+  childId: number,
+  paths: string[],
+): Promise<void> {
+  if (paths.length === 0) return;
+  await apiRequest("POST", `/api/children/${childId}/health-exam-uploads/cleanup`, {
+    paths,
+  });
+}
 
 const healthFollowUpBaseKey = (childId: number) => [
   "/api/children",
@@ -19,25 +67,26 @@ const healthFollowUpBaseKey = (childId: number) => [
   "health-follow-ups",
 ] as const;
 
-const healthFollowUpKey = (
+const healthFollowUpStructureKey = (childId: number) => [
+  ...healthFollowUpBaseKey(childId),
+  "structure",
+] as const;
+
+const healthFollowUpTimelineBaseKey = (childId: number) => [
+  ...healthFollowUpBaseKey(childId),
+  "timeline",
+] as const;
+
+const healthFollowUpTimelineKey = (
   childId: number,
-  filters?: {
-    startDate?: string;
-    endDate?: string;
-    category?: string;
-  },
+  filters?: HealthFollowUpFilters,
 ) =>
   [
-    ...healthFollowUpBaseKey(childId),
+    ...healthFollowUpTimelineBaseKey(childId),
     filters?.startDate ?? "",
     filters?.endDate ?? "",
     filters?.category ?? "",
   ] as const;
-
-type HealthFollowUpsPage = {
-  data: HealthFollowUpWithRelations[];
-  nextCursor: string | null;
-};
 
 function compareFollowUps(
   left: Pick<HealthFollowUpWithRelations, "followUpDate" | "id">,
@@ -49,7 +98,31 @@ function compareFollowUps(
   return right.id - left.id;
 }
 
-function updateHealthFollowUpsCache(
+function compareExams(
+  left: Pick<HealthExam, "examDate" | "id">,
+  right: Pick<HealthExam, "examDate" | "id">,
+) {
+  const dateDiff =
+    new Date(right.examDate).getTime() - new Date(left.examDate).getTime();
+  if (dateDiff !== 0) return dateDiff;
+  return right.id - left.id;
+}
+
+function matchesTimelineFilters(
+  followUp: Pick<HealthFollowUpWithRelations, "category" | "followUpDate">,
+  filters?: HealthFollowUpFilters,
+) {
+  const matchesCategory =
+    !filters?.category || filters.category === followUp.category;
+  const matchesStartDate =
+    !filters?.startDate || followUp.followUpDate >= filters.startDate;
+  const matchesEndDate =
+    !filters?.endDate || followUp.followUpDate <= filters.endDate;
+
+  return matchesCategory && matchesStartDate && matchesEndDate;
+}
+
+function updateTimelineCache(
   previous:
     | InfiniteData<HealthFollowUpsPage, string | undefined>
     | undefined,
@@ -66,7 +139,7 @@ function updateHealthFollowUpsCache(
   };
 }
 
-function insertHealthFollowUpIntoCache(
+function insertTimelineFollowUp(
   previous:
     | InfiniteData<HealthFollowUpsPage, string | undefined>
     | undefined,
@@ -94,7 +167,7 @@ function insertHealthFollowUpIntoCache(
   };
 }
 
-function removeHealthFollowUpFromCache(
+function removeTimelineFollowUp(
   previous:
     | InfiniteData<HealthFollowUpsPage, string | undefined>
     | undefined,
@@ -111,16 +184,64 @@ function removeHealthFollowUpFromCache(
   };
 }
 
+function updateTimelineExam(
+  previous:
+    | InfiniteData<HealthFollowUpsPage, string | undefined>
+    | undefined,
+  followUpId: number,
+  updater: (exams: HealthExam[]) => HealthExam[],
+) {
+  if (!previous) return previous;
+
+  return {
+    ...previous,
+    pages: previous.pages.map((page) => ({
+      ...page,
+      data: page.data.map((followUp) =>
+        followUp.id === followUpId
+          ? {
+              ...followUp,
+              healthExams: updater(followUp.healthExams).sort(compareExams),
+            }
+          : followUp,
+      ),
+    })),
+  };
+}
+
+function updateStructureCache(
+  previous: HealthFollowUpStructure | undefined,
+  updater: (followUp: HealthFollowUpWithRelations) => HealthFollowUpWithRelations,
+) {
+  if (!previous) return previous;
+
+  return {
+    neonatal: previous.neonatal ? updater(previous.neonatal) : null,
+    development: previous.development.map(updater),
+  };
+}
+
+export function useHealthFollowUpStructure(childId: number) {
+  return useQuery<HealthFollowUpStructure>({
+    queryKey: healthFollowUpStructureKey(childId),
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/children/${childId}/health-follow-ups/structure`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error("Erro ao carregar estrutura de acompanhamento");
+      return res.json();
+    },
+    enabled: childId > 0,
+  });
+}
+
 export function useHealthFollowUps(
   childId: number,
-  filters?: {
-    startDate?: string;
-    endDate?: string;
-    category?: string;
-  },
+  filters?: HealthFollowUpFilters,
 ) {
   return useInfiniteQuery<HealthFollowUpsPage>({
-    queryKey: healthFollowUpKey(childId, filters),
+    queryKey: healthFollowUpTimelineKey(childId, filters),
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
       params.set("limit", "20");
@@ -143,12 +264,9 @@ export function useHealthFollowUps(
   });
 }
 
-export function useCreateHealthFollowUp(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useCreateHealthFollowUp(filters?: HealthFollowUpFilters) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       childId,
@@ -168,9 +286,9 @@ export function useCreateHealthFollowUp(filters?: {
       return (await res.json()) as HealthFollowUp;
     },
     onMutate: async (variables) => {
-      const scopedQueryKey = healthFollowUpKey(variables.childId, filters);
+      const scopedQueryKey = healthFollowUpTimelineKey(variables.childId, filters);
       await queryClient.cancelQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
+        queryKey: healthFollowUpTimelineBaseKey(variables.childId),
       });
 
       const previous = queryClient.getQueryData<
@@ -193,20 +311,11 @@ export function useCreateHealthFollowUp(filters?: {
         healthExams: [],
       };
 
-      const matchesCategory =
-        !filters?.category || filters.category === variables.category;
-      const matchesStartDate =
-        !filters?.startDate || variables.followUpDate >= filters.startDate;
-      const matchesEndDate =
-        !filters?.endDate || variables.followUpDate <= filters.endDate;
-      const shouldInsert =
-        matchesCategory && matchesStartDate && matchesEndDate;
-
       queryClient.setQueryData<
         InfiniteData<HealthFollowUpsPage, string | undefined>
       >(scopedQueryKey, (current) =>
-        shouldInsert
-          ? insertHealthFollowUpIntoCache(current, optimisticFollowUp)
+        matchesTimelineFilters(optimisticFollowUp, filters)
+          ? insertTimelineFollowUp(current, optimisticFollowUp)
           : current,
       );
 
@@ -231,7 +340,7 @@ export function useCreateHealthFollowUp(filters?: {
 
       queryClient.setQueryData<
         InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(healthFollowUpKey(variables.childId, filters), (current) => {
+      >(healthFollowUpTimelineKey(variables.childId, filters), (current) => {
         if (!current) return current;
 
         return {
@@ -250,19 +359,17 @@ export function useCreateHealthFollowUp(filters?: {
           ),
         };
       });
+
       queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
+        queryKey: healthFollowUpTimelineBaseKey(variables.childId),
       });
     },
   });
 }
 
-export function useUpdateHealthFollowUp(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useUpdateHealthFollowUp(filters?: HealthFollowUpFilters) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       id,
@@ -280,9 +387,10 @@ export function useUpdateHealthFollowUp(filters?: {
       return (await res.json()) as HealthFollowUp;
     },
     onMutate: async (variables) => {
-      const baseQueryKey = healthFollowUpBaseKey(variables.childId);
-      const queryKey = healthFollowUpKey(variables.childId, filters);
-      await queryClient.cancelQueries({ queryKey: baseQueryKey });
+      const queryKey = healthFollowUpTimelineKey(variables.childId, filters);
+      await queryClient.cancelQueries({
+        queryKey: healthFollowUpTimelineBaseKey(variables.childId),
+      });
 
       const previous = queryClient.getQueryData<
         InfiniteData<HealthFollowUpsPage, string | undefined>
@@ -290,22 +398,34 @@ export function useUpdateHealthFollowUp(filters?: {
 
       queryClient.setQueryData<
         InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(queryKey, (current) =>
-        updateHealthFollowUpsCache(current, (followUp) =>
-          followUp.id === variables.id
-            ? {
-                ...followUp,
-                category: variables.category ?? followUp.category,
-                title: variables.title ?? followUp.title,
-                description:
-                  variables.description !== undefined
-                    ? variables.description ?? null
-                    : followUp.description,
-                followUpDate: variables.followUpDate ?? followUp.followUpDate,
-              }
-            : followUp,
-        ),
-      );
+      >(queryKey, (current) => {
+        if (!current) return current;
+
+        const existing = current.pages
+          .flatMap((page) => page.data)
+          .find((followUp) => followUp.id === variables.id);
+
+        if (!existing) return current;
+
+        const updatedCandidate: HealthFollowUpWithRelations = {
+          ...existing,
+          category: variables.category ?? existing.category,
+          title: variables.title ?? existing.title,
+          description:
+            variables.description !== undefined
+              ? variables.description ?? null
+              : existing.description,
+          followUpDate: variables.followUpDate ?? existing.followUpDate,
+        };
+
+        if (!matchesTimelineFilters(updatedCandidate, filters)) {
+          return removeTimelineFollowUp(current, variables.id);
+        }
+
+        return updateTimelineCache(current, (followUp) =>
+          followUp.id === variables.id ? updatedCandidate : followUp,
+        );
+      });
 
       return { previous, queryKey };
     },
@@ -317,33 +437,49 @@ export function useUpdateHealthFollowUp(filters?: {
     onSuccess: (data, variables) => {
       queryClient.setQueryData<
         InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(healthFollowUpKey(variables.childId, filters), (current) =>
-        updateHealthFollowUpsCache(current, (followUp) =>
-          followUp.id === variables.id ? { ...followUp, ...data } : followUp,
-        ),
-      );
+      >(healthFollowUpTimelineKey(variables.childId, filters), (current) => {
+        if (!current) return current;
+
+        const existing = current.pages
+          .flatMap((page) => page.data)
+          .find((followUp) => followUp.id === variables.id);
+
+        if (!existing) return current;
+
+        const hydrated: HealthFollowUpWithRelations = {
+          ...existing,
+          ...data,
+        };
+
+        if (!matchesTimelineFilters(hydrated, filters)) {
+          return removeTimelineFollowUp(current, variables.id);
+        }
+
+        return updateTimelineCache(current, (followUp) =>
+          followUp.id === variables.id ? hydrated : followUp,
+        );
+      });
+
       queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
+        queryKey: healthFollowUpTimelineBaseKey(variables.childId),
       });
     },
   });
 }
 
-export function useDeleteHealthFollowUp(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useDeleteHealthFollowUp(filters?: HealthFollowUpFilters) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
       await apiRequest("DELETE", `/api/health-follow-ups/${id}`);
       return { id, childId };
     },
     onMutate: async (variables) => {
-      const baseQueryKey = healthFollowUpBaseKey(variables.childId);
-      const queryKey = healthFollowUpKey(variables.childId, filters);
-      await queryClient.cancelQueries({ queryKey: baseQueryKey });
+      const queryKey = healthFollowUpTimelineKey(variables.childId, filters);
+      await queryClient.cancelQueries({
+        queryKey: healthFollowUpTimelineBaseKey(variables.childId),
+      });
 
       const previous = queryClient.getQueryData<
         InfiniteData<HealthFollowUpsPage, string | undefined>
@@ -351,9 +487,7 @@ export function useDeleteHealthFollowUp(filters?: {
 
       queryClient.setQueryData<
         InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(queryKey, (current) =>
-        removeHealthFollowUpFromCache(current, variables.id),
-      );
+      >(queryKey, (current) => removeTimelineFollowUp(current, variables.id));
 
       return { previous, queryKey };
     },
@@ -364,18 +498,15 @@ export function useDeleteHealthFollowUp(filters?: {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
+        queryKey: healthFollowUpTimelineBaseKey(variables.childId),
       });
     },
   });
 }
 
-export function useUpdateNeonatalScreening(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useUpdateNeonatalScreening() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       childId,
@@ -398,19 +529,13 @@ export function useUpdateNeonatalScreening(filters?: {
       return (await res.json()) as NeonatalScreening;
     },
     onMutate: async (variables) => {
-      const scopedQueryKey = healthFollowUpKey(variables.childId, filters);
-      await queryClient.cancelQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
-      });
+      const queryKey = healthFollowUpStructureKey(variables.childId);
+      await queryClient.cancelQueries({ queryKey });
 
-      const previous = queryClient.getQueryData<
-        InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(scopedQueryKey);
+      const previous = queryClient.getQueryData<HealthFollowUpStructure>(queryKey);
 
-      queryClient.setQueryData<
-        InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(scopedQueryKey, (current) =>
-        updateHealthFollowUpsCache(current, (followUp) => {
+      queryClient.setQueryData<HealthFollowUpStructure>(queryKey, (current) =>
+        updateStructureCache(current, (followUp) => {
           if (followUp.id !== variables.followUpId) return followUp;
 
           return {
@@ -432,7 +557,7 @@ export function useUpdateNeonatalScreening(filters?: {
         }),
       );
 
-      return { previous, queryKey: scopedQueryKey };
+      return { previous, queryKey };
     },
     onError: (_error, _variables, context) => {
       if (context?.previous) {
@@ -440,41 +565,35 @@ export function useUpdateNeonatalScreening(filters?: {
       }
     },
     onSuccess: (data, variables) => {
-      queryClient.setQueryData<
-        InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(healthFollowUpKey(variables.childId, filters), (current) =>
-        updateHealthFollowUpsCache(current, (followUp) => {
-          if (followUp.id !== variables.followUpId) return followUp;
+      queryClient.setQueryData<HealthFollowUpStructure>(
+        healthFollowUpStructureKey(variables.childId),
+        (current) =>
+          updateStructureCache(current, (followUp) => {
+            if (followUp.id !== variables.followUpId) return followUp;
 
-          const hasScreening = followUp.neonatalScreenings.some(
-            (screening) => screening.screeningType === data.screeningType,
-          );
+            const hasScreening = followUp.neonatalScreenings.some(
+              (screening) => screening.screeningType === data.screeningType,
+            );
 
-          return {
-            ...followUp,
-            neonatalScreenings: hasScreening
-              ? followUp.neonatalScreenings.map((screening) =>
-                  screening.screeningType === data.screeningType
-                    ? data
-                    : screening,
-                )
-              : [...followUp.neonatalScreenings, data],
-          };
-        }),
+            return {
+              ...followUp,
+              neonatalScreenings: hasScreening
+                ? followUp.neonatalScreenings.map((screening) =>
+                    screening.screeningType === data.screeningType
+                      ? data
+                      : screening,
+                  )
+                : [...followUp.neonatalScreenings, data],
+            };
+          }),
       );
-      queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
-      });
     },
   });
 }
 
-export function useUpdateDevelopmentMilestone(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useUpdateDevelopmentMilestone() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       childId,
@@ -497,19 +616,13 @@ export function useUpdateDevelopmentMilestone(filters?: {
       return (await res.json()) as DevelopmentMilestone;
     },
     onMutate: async (variables) => {
-      const scopedQueryKey = healthFollowUpKey(variables.childId, filters);
-      await queryClient.cancelQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
-      });
+      const queryKey = healthFollowUpStructureKey(variables.childId);
+      await queryClient.cancelQueries({ queryKey });
 
-      const previous = queryClient.getQueryData<
-        InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(scopedQueryKey);
+      const previous = queryClient.getQueryData<HealthFollowUpStructure>(queryKey);
 
-      queryClient.setQueryData<
-        InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(scopedQueryKey, (current) =>
-        updateHealthFollowUpsCache(current, (followUp) => {
+      queryClient.setQueryData<HealthFollowUpStructure>(queryKey, (current) =>
+        updateStructureCache(current, (followUp) => {
           if (followUp.id !== variables.followUpId) return followUp;
 
           return {
@@ -534,7 +647,7 @@ export function useUpdateDevelopmentMilestone(filters?: {
         }),
       );
 
-      return { previous, queryKey: scopedQueryKey };
+      return { previous, queryKey };
     },
     onError: (_error, _variables, context) => {
       if (context?.previous) {
@@ -542,47 +655,35 @@ export function useUpdateDevelopmentMilestone(filters?: {
       }
     },
     onSuccess: (data, variables) => {
-      queryClient.setQueryData<
-        InfiniteData<HealthFollowUpsPage, string | undefined>
-      >(healthFollowUpKey(variables.childId, filters), (current) =>
-        updateHealthFollowUpsCache(current, (followUp) => {
-          if (followUp.id !== variables.followUpId) return followUp;
+      queryClient.setQueryData<HealthFollowUpStructure>(
+        healthFollowUpStructureKey(variables.childId),
+        (current) =>
+          updateStructureCache(current, (followUp) => {
+            if (followUp.id !== variables.followUpId) return followUp;
 
-          const hasMilestone = followUp.developmentMilestones.some(
-            (milestone) => milestone.milestoneKey === data.milestoneKey,
-          );
+            const hasMilestone = followUp.developmentMilestones.some(
+              (milestone) => milestone.milestoneKey === data.milestoneKey,
+            );
 
-          return {
-            ...followUp,
-            developmentMilestones: hasMilestone
-              ? followUp.developmentMilestones.map((milestone) =>
-                  milestone.milestoneKey === data.milestoneKey
-                    ? data
-                    : milestone,
-                )
-              : [...followUp.developmentMilestones, data],
-          };
-        }),
+            return {
+              ...followUp,
+              developmentMilestones: hasMilestone
+                ? followUp.developmentMilestones.map((milestone) =>
+                    milestone.milestoneKey === data.milestoneKey
+                      ? data
+                      : milestone,
+                  )
+                : [...followUp.developmentMilestones, data],
+            };
+          }),
       );
-      queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
-      });
     },
   });
 }
 
-interface FileInput {
-  fileBase64: string;
-  fileMimeType: string;
-  fileName: string;
-}
-
-export function useCreateHealthExam(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useCreateHealthExam(filters?: HealthFollowUpFilters) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       childId,
@@ -595,6 +696,7 @@ export function useCreateHealthExam(filters?: {
       examDate: string;
       notes?: string;
       files?: FileInput[];
+      uploadedFilePaths?: string[];
     }) => {
       const res = await apiRequest(
         "POST",
@@ -603,60 +705,75 @@ export function useCreateHealthExam(filters?: {
       );
       return (await res.json()) as HealthExam;
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
-      });
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(healthFollowUpTimelineKey(variables.childId, filters), (current) =>
+        updateTimelineExam(current, variables.followUpId, (exams) => [...exams, data]),
+      );
     },
   });
 }
 
-export function useUpdateHealthExam(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useUpdateHealthExam(filters?: HealthFollowUpFilters) {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       id,
       childId,
+      followUpId,
       ...data
     }: {
       id: number;
       childId: number;
+      followUpId: number;
       title?: string;
       examDate?: string;
       notes?: string;
       newFiles?: FileInput[];
       removeFilePaths?: string[];
+      newFilePaths?: string[];
     }) => {
       const res = await apiRequest("PATCH", `/api/health-exams/${id}`, data);
       return (await res.json()) as HealthExam;
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
-      });
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(healthFollowUpTimelineKey(variables.childId, filters), (current) =>
+        updateTimelineExam(current, variables.followUpId, (exams) =>
+          exams.map((exam) => (exam.id === data.id ? data : exam)),
+        ),
+      );
     },
   });
 }
 
-export function useDeleteHealthExam(filters?: {
-  startDate?: string;
-  endDate?: string;
-  category?: string;
-}) {
+export function useDeleteHealthExam(filters?: HealthFollowUpFilters) {
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ id, childId }: { id: number; childId: number }) => {
+    mutationFn: async ({
+      id,
+      childId,
+      followUpId,
+    }: {
+      id: number;
+      childId: number;
+      followUpId: number;
+    }) => {
       await apiRequest("DELETE", `/api/health-exams/${id}`);
-      return { childId };
+      return { id, childId, followUpId };
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: healthFollowUpBaseKey(variables.childId),
-      });
+      queryClient.setQueryData<
+        InfiniteData<HealthFollowUpsPage, string | undefined>
+      >(healthFollowUpTimelineKey(variables.childId, filters), (current) =>
+        updateTimelineExam(current, variables.followUpId, (exams) =>
+          exams.filter((exam) => exam.id !== variables.id),
+        ),
+      );
     },
   });
 }
