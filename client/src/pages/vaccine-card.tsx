@@ -184,19 +184,39 @@ export default function VaccineCard() {
 
   useEffect(() => {
     if (highlightRecordId && vaccineRecords) {
+      const targetRecord =
+        vaccineRecords.find((record) => record.id === highlightRecordId) ?? null;
+
       const timeoutId = setTimeout(() => {
-        const element = document.querySelector(`[data-testid="vaccine-card-${highlightRecordId}"]`);
+        const element =
+          document.querySelector(`[data-testid="vaccine-record-${highlightRecordId}"]`) ||
+          (targetRecord
+            ? document.querySelector(
+                `[data-testid="vaccine-card-${targetRecord.susVaccineId}"]`,
+              )
+            : null);
+
         if (element) {
           element.scrollIntoView({ behavior: "smooth", block: "center" });
-          
-          element.classList.add("ring-2", "ring-primary", "transition-all", "duration-1000");
+
+          element.classList.add(
+            "ring-2",
+            "ring-primary",
+            "bg-primary/5",
+            "transition-all",
+            "duration-1000",
+          );
           setTimeout(() => {
-            element.classList.remove("ring-2", "ring-primary");
+            element.classList.remove("ring-2", "ring-primary", "bg-primary/5");
             setHighlightRecordId(null);
           }, 4000);
         }
+
+        if (targetRecord) {
+          setDetailRecord(targetRecord);
+        }
       }, 300);
-      
+
       return () => clearTimeout(timeoutId);
     }
   }, [highlightRecordId, vaccineRecords]);
