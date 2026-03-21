@@ -57,10 +57,8 @@ import {
   useUpdateHealthFollowUp,
   useUpdateNeonatalScreening,
 } from "@/hooks/use-health-follow-ups";
-import { useGrowthRecords } from "@/hooks/use-growth";
 import { supabase } from "@/lib/supabase";
 import { cn, parseLocalDate } from "@/lib/utils";
-import { useVaccineRecords } from "@/hooks/use-vaccines";
 import {
   AGE_BASED_HEALTH_SUGGESTIONS,
   DEVELOPMENT_AGE_BANDS,
@@ -134,6 +132,15 @@ const reportSections = [
 ] as const;
 
 type ReportSectionKey = (typeof reportSections)[number]["key"];
+
+type ReportPreview = {
+  counts: Record<ReportSectionKey, number>;
+  sectionLimits: Record<ReportSectionKey, number>;
+  selectedCount: number;
+  maxTotal: number;
+  overLimit: boolean;
+  issues: string[];
+};
 
 const developmentStatusConfig: Record<
   string,
@@ -300,8 +307,6 @@ export function FollowUpOverview({
   );
   const { data: structure, isLoading: isStructureLoading } =
     useHealthFollowUpStructure(childId);
-  const { data: growthRecords = [] } = useGrowthRecords(childId);
-  const { data: vaccineRecords = [] } = useVaccineRecords(childId);
   const {
     data: timelineData,
     isLoading: isTimelineLoading,
@@ -363,6 +368,9 @@ export function FollowUpOverview({
     clinical: true,
     exams: true,
   });
+  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
+  const [isLoadingReportPreview, setIsLoadingReportPreview] = useState(false);
+  const [reportPreviewError, setReportPreviewError] = useState<string | null>(null);
   const developmentSectionRef = useRef<HTMLElement | null>(null);
   const timelineSectionRef = useRef<HTMLElement | null>(null);
 
@@ -381,6 +389,10 @@ export function FollowUpOverview({
         .map((section) => section.key),
     [selectedReportSections],
   );
+  const isReportPeriodInvalid =
+    Boolean(reportStartDate) &&
+    Boolean(reportEndDate) &&
+    reportStartDate > reportEndDate;
 
   const neonatalFollowUp = structure?.neonatal ?? null;
   const developmentFollowUps = useMemo(
@@ -439,43 +451,6 @@ export function FollowUpOverview({
   );
   const developmentAlertCount =
     developmentTotals.attention + developmentTotals.delayed;
-  const reportPreviewCounts = useMemo(() => {
-    const isWithinRange = (value?: string | null) => {
-      if (!value) return false;
-      if (reportStartDate && value < reportStartDate) return false;
-      if (reportEndDate && value > reportEndDate) return false;
-      return true;
-    };
-
-    return {
-      vaccines: vaccineRecords.filter(
-        (record) => record.applicationDate && isWithinRange(record.applicationDate),
-      ).length,
-      growth: growthRecords.filter((record) => isWithinRange(record.date)).length,
-      neonatal:
-        neonatalFollowUp?.neonatalScreenings.filter(
-          (item) => item.isCompleted && isWithinRange(item.completedAt),
-        ).length ?? 0,
-      development: developmentFollowUps.reduce((acc, followUp) => {
-        return (
-          acc +
-          followUp.developmentMilestones.filter(
-            (milestone) =>
-              milestone.status !== "pending" &&
-              milestone.checkedAt &&
-              isWithinRange(milestone.checkedAt),
-          ).length
-        );
-      }, 0),
-    };
-  }, [
-    developmentFollowUps,
-    growthRecords,
-    neonatalFollowUp,
-    reportEndDate,
-    reportStartDate,
-    vaccineRecords,
-  ]);
   const pendingNeonatalCount =
     neonatalFollowUp?.neonatalScreenings.filter((item) => !item.isCompleted)
       .length ?? 0;
@@ -506,6 +481,67 @@ export function FollowUpOverview({
   useEffect(() => {
     setReportStartDate(birthDate);
   }, [birthDate]);
+
+  useEffect(() => {
+    if (!reportDialogOpen) return;
+    if (reportStartDate && reportEndDate && reportStartDate > reportEndDate) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadPreview = async () => {
+      setIsLoadingReportPreview(true);
+      setReportPreviewError(null);
+
+      try {
+        const response = await fetch(
+          buildUrl(api.healthFollowUps.reportPreview.path, { childId }),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              startDate: reportStartDate || undefined,
+              endDate: reportEndDate || undefined,
+              sections: selectedReportSectionKeys,
+            }),
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error("Nao foi possivel calcular a previa");
+        }
+
+        const data = (await response.json()) as ReportPreview;
+        if (!cancelled) {
+          setReportPreview(data);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (!cancelled) {
+          setReportPreviewError("Nao foi possivel analisar o volume do relatorio.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingReportPreview(false);
+        }
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [
+    childId,
+    reportDialogOpen,
+    reportEndDate,
+    reportStartDate,
+    selectedReportSectionKeys,
+  ]);
 
   useEffect(() => {
     if (!neonatalFollowUp) return;
@@ -932,6 +968,17 @@ export function FollowUpOverview({
       return;
     }
 
+    if (reportPreview?.overLimit) {
+      toast({
+        title: "Reduza o periodo do relatorio",
+        description:
+          reportPreview.issues[0] ??
+          "O volume selecionado ficou acima do limite permitido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsGeneratingReport(true);
     try {
       const response = await fetch(buildUrl(api.healthFollowUps.report.path, { childId }), {
@@ -946,10 +993,13 @@ export function FollowUpOverview({
       });
 
       if (!response.ok) {
-        throw new Error("Nao foi possivel gerar o relatorio");
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || "Nao foi possivel gerar o relatorio");
       }
 
-      const blob = await response.blob();
+      const contentType = response.headers.get("Content-Type") ?? "application/pdf";
+      const arrayBuffer = await response.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: contentType });
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
@@ -957,14 +1007,17 @@ export function FollowUpOverview({
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(objectUrl);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
 
       setReportDialogOpen(false);
       toast({ title: "Relatorio gerado com sucesso" });
-    } catch {
+    } catch (error) {
       toast({
         title: "Erro ao gerar relatorio",
-        description: "Tente novamente em alguns instantes.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Tente novamente em alguns instantes.",
         variant: "destructive",
       });
     } finally {
@@ -1808,112 +1861,157 @@ export function FollowUpOverview({
       </section>
 
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="max-w-2xl rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>Emitir relatorio para o pediatra</DialogTitle>
-            <DialogDescription>
-              Escolha o periodo e os blocos que deseja incluir no PDF.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-xl overflow-hidden rounded-3xl p-0">
+          <div className="flex max-h-[85vh] flex-col">
+            <DialogHeader className="border-b px-6 pb-4 pt-6">
+              <DialogTitle>Emitir relatorio para o pediatra</DialogTitle>
+              <DialogDescription>
+                Escolha o periodo e somente os blocos que precisam entrar no PDF.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-5 pt-2">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="report-start-date">Data inicial</Label>
-                <Input
-                  id="report-start-date"
-                  type="date"
-                  value={reportStartDate}
-                  max={reportEndDate || undefined}
-                  onChange={(event) => setReportStartDate(event.target.value)}
-                />
+            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="report-start-date">Data inicial</Label>
+                  <Input
+                    id="report-start-date"
+                    type="date"
+                    value={reportStartDate}
+                    max={reportEndDate || undefined}
+                    onChange={(event) => setReportStartDate(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-end-date">Data final</Label>
+                  <Input
+                    id="report-end-date"
+                    type="date"
+                    value={reportEndDate}
+                    min={reportStartDate || undefined}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) => setReportEndDate(event.target.value)}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="report-end-date">Data final</Label>
-                <Input
-                  id="report-end-date"
-                  type="date"
-                  value={reportEndDate}
-                  min={reportStartDate || undefined}
-                  max={new Date().toISOString().slice(0, 10)}
-                  onChange={(event) => setReportEndDate(event.target.value)}
-                />
-              </div>
-            </div>
 
-            <div className="rounded-2xl border border-border bg-muted/10 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                Selecione o conteudo do PDF
-              </p>
-              <div className="mt-4 grid gap-3">
-                {reportSections.map((section) => (
-                  <label
-                    key={section.key}
-                    className="flex items-start gap-3 rounded-2xl border border-border bg-background px-4 py-3"
-                  >
-                    <Checkbox
-                      checked={selectedReportSections[section.key]}
-                      onCheckedChange={(checked) =>
-                        toggleReportSection(section.key, Boolean(checked))
-                      }
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {section.label}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {section.description}
-                      </p>
+              {isReportPeriodInvalid ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  A data inicial precisa ser anterior a data final.
+                </div>
+              ) : null}
+
+              <div className="rounded-2xl border border-border bg-muted/10 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-foreground">
+                    Conteudo do PDF
+                  </p>
+                  {isLoadingReportPreview ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Analisando volume
                     </div>
-                  </label>
-                ))}
-              </div>
-            </div>
+                  ) : null}
+                </div>
 
-            <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
-              <p className="text-sm font-semibold text-foreground">Resumo rapido</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Badge variant="outline" className="rounded-full px-3 py-1">
-                  Vacinas: {reportPreviewCounts.vaccines}
-                </Badge>
-                <Badge variant="outline" className="rounded-full px-3 py-1">
-                  Crescimento: {reportPreviewCounts.growth}
-                </Badge>
-                <Badge variant="outline" className="rounded-full px-3 py-1">
-                  Triagem: {reportPreviewCounts.neonatal}
-                </Badge>
-                <Badge variant="outline" className="rounded-full px-3 py-1">
-                  Marcos: {reportPreviewCounts.development}
-                </Badge>
+                <div className="mt-4 grid gap-2">
+                  {reportSections.map((section) => (
+                    <label
+                      key={section.key}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3"
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
+                        <Checkbox
+                          checked={selectedReportSections[section.key]}
+                          onCheckedChange={(checked) =>
+                            toggleReportSection(section.key, Boolean(checked))
+                          }
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">
+                            {section.label}
+                          </p>
+                          <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground">
+                            {section.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs">
+                          {reportPreview?.counts[section.key] ?? 0}
+                        </Badge>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          limite {reportPreview?.sectionLimits[section.key] ?? "-"}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Consultas, intercorrencias e exames tambem entram no PDF conforme o
-                periodo escolhido.
-              </p>
-            </div>
 
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setReportDialogOpen(false)}
-                disabled={isGeneratingReport}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                className="rounded-full gap-2"
-                onClick={handleGenerateReport}
-                disabled={isGeneratingReport}
-              >
-                {isGeneratingReport ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+              <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="rounded-full px-3 py-1">
+                    Selecionados: {reportPreview?.selectedCount ?? 0}
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full px-3 py-1">
+                    Limite total: {reportPreview?.maxTotal ?? "-"}
+                  </Badge>
+                </div>
+
+                {reportPreviewError ? (
+                  <p className="mt-3 text-xs text-rose-700">{reportPreviewError}</p>
+                ) : reportPreview?.overLimit ? (
+                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-sm font-medium text-amber-900">
+                      Reduza o periodo para gerar o relatorio
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {reportPreview.issues.map((issue) => (
+                        <p key={issue} className="text-xs leading-5 text-amber-800">
+                          {issue}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
-                  <FileDown className="h-4 w-4" />
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    O volume atual esta dentro do limite para gerar um PDF organizado.
+                  </p>
                 )}
-                Gerar PDF
-              </Button>
+              </div>
+            </div>
+
+            <div className="border-t px-6 py-4">
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setReportDialogOpen(false)}
+                  disabled={isGeneratingReport}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  className="rounded-full gap-2"
+                  onClick={handleGenerateReport}
+                  disabled={
+                    isGeneratingReport ||
+                    isLoadingReportPreview ||
+                    isReportPeriodInvalid ||
+                    selectedReportSectionKeys.length === 0 ||
+                    Boolean(reportPreview?.overLimit)
+                  }
+                >
+                  {isGeneratingReport ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4" />
+                  )}
+                  Gerar PDF
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>

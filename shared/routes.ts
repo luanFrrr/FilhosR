@@ -285,6 +285,52 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    reportPreview: {
+      method: "POST" as const,
+      path: "/api/children/:childId/health-report/preview",
+      input: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        sections: z
+          .array(
+            z.enum([
+              "vaccines",
+              "growth",
+              "neonatal",
+              "development",
+              "clinical",
+              "exams",
+            ]),
+          )
+          .optional(),
+      }),
+      responses: {
+        200: z.object({
+          counts: z.object({
+            vaccines: z.number(),
+            growth: z.number(),
+            neonatal: z.number(),
+            development: z.number(),
+            clinical: z.number(),
+            exams: z.number(),
+          }),
+          sectionLimits: z.object({
+            vaccines: z.number(),
+            growth: z.number(),
+            neonatal: z.number(),
+            development: z.number(),
+            clinical: z.number(),
+            exams: z.number(),
+          }),
+          selectedCount: z.number(),
+          maxTotal: z.number(),
+          overLimit: z.boolean(),
+          issues: z.array(z.string()),
+        }),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
     create: {
       method: "POST" as const,
       path: "/api/children/:childId/health-follow-ups",

@@ -19,7 +19,15 @@ import {
   vaccineRecords,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq as drizzleEq, sql } from "drizzle-orm";
+import {
+  and,
+  eq as drizzleEq,
+  gte,
+  inArray,
+  isNotNull,
+  lte,
+  sql,
+} from "drizzle-orm";
 import {
   setupAuth,
   registerAuthRoutes,
@@ -47,6 +55,132 @@ import {
   NEWBORN_SCREENINGS,
 } from "@shared/health-catalog";
 import { buildHealthReportPdf } from "./healthReportPdf";
+
+const HEALTH_REPORT_SECTION_LIMITS = {
+  vaccines: 120,
+  growth: 120,
+  neonatal: 10,
+  development: 80,
+  clinical: 100,
+  exams: 80,
+} as const;
+
+const HEALTH_REPORT_TOTAL_LIMIT = 160;
+
+type HealthReportSectionKey = keyof typeof HEALTH_REPORT_SECTION_LIMITS;
+type HealthReportCounts = Record<HealthReportSectionKey, number>;
+
+const HEALTH_REPORT_SECTION_LABELS: Record<HealthReportSectionKey, string> = {
+  vaccines: "Vacinas aplicadas",
+  growth: "Crescimento",
+  neonatal: "Triagem neonatal",
+  development: "Marcos de desenvolvimento",
+  clinical: "Consultas e intercorrencias",
+  exams: "Exames anexados",
+};
+
+function buildHealthReportIssues(
+  counts: HealthReportCounts,
+  sections: HealthReportSectionKey[],
+) {
+  const issues: string[] = [];
+  const selectedCount = sections.reduce((acc, section) => acc + counts[section], 0);
+
+  for (const section of sections) {
+    const limit = HEALTH_REPORT_SECTION_LIMITS[section];
+    if (counts[section] > limit) {
+      issues.push(
+        `${HEALTH_REPORT_SECTION_LABELS[section]} retornou ${counts[section]} item(ns), acima do limite de ${limit}. Reduza o periodo.`,
+      );
+    }
+  }
+
+  if (selectedCount > HEALTH_REPORT_TOTAL_LIMIT) {
+    issues.push(
+      `O relatorio ficou com ${selectedCount} item(ns). O limite total e ${HEALTH_REPORT_TOTAL_LIMIT}. Reduza o periodo.`,
+    );
+  }
+
+  return {
+    selectedCount,
+    overLimit: issues.length > 0,
+    issues,
+  };
+}
+
+async function getHealthReportPreview(
+  childId: number,
+  birthDate: string,
+  startDate?: string,
+  endDate?: string,
+) {
+  await storage.syncHealthFollowUps(childId, birthDate);
+
+  const [structure, growth, clinicalPage, vaccineCountRows, examCountRows] =
+    await Promise.all([
+      storage.getHealthFollowUpStructure(childId),
+      storage.getGrowthRecords(childId),
+      storage.getHealthFollowUps(childId, {
+        limit: 1,
+        startDate,
+        endDate,
+      }),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(vaccineRecords)
+        .where(
+          and(
+            drizzleEq(vaccineRecords.childId, childId),
+            isNotNull(vaccineRecords.applicationDate),
+            startDate ? gte(vaccineRecords.applicationDate, startDate) : undefined,
+            endDate ? lte(vaccineRecords.applicationDate, endDate) : undefined,
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(healthExams)
+        .innerJoin(healthFollowUps, drizzleEq(healthExams.followUpId, healthFollowUps.id))
+        .where(
+          and(
+            drizzleEq(healthFollowUps.childId, childId),
+            inArray(healthFollowUps.category, ["routine", "consultation", "condition"]),
+            startDate ? gte(healthExams.examDate, startDate) : undefined,
+            endDate ? lte(healthExams.examDate, endDate) : undefined,
+          ),
+        ),
+    ]);
+
+  const isWithinPeriod = (value?: string | null) => {
+    if (!value) return false;
+    if (startDate && value < startDate) return false;
+    if (endDate && value > endDate) return false;
+    return true;
+  };
+
+  const counts: HealthReportCounts = {
+    vaccines: vaccineCountRows[0]?.count ?? 0,
+    growth: growth.filter((item) => isWithinPeriod(item.date)).length,
+    neonatal:
+      structure.neonatal?.neonatalScreenings.filter(
+        (item) => item.isCompleted && isWithinPeriod(item.completedAt),
+      ).length ?? 0,
+    development: structure.development.reduce((acc, followUp) => {
+      return (
+        acc +
+        followUp.developmentMilestones.filter(
+          (milestone) =>
+            milestone.status !== "pending" &&
+            milestone.checkedAt &&
+            isWithinPeriod(milestone.checkedAt),
+        ).length
+      );
+    }, 0),
+    clinical: clinicalPage.totalCount,
+    exams: examCountRows[0]?.count ?? 0,
+  };
+
+  return counts;
+}
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
 const getClientAddress = (req: Request) => {
@@ -793,6 +927,52 @@ export async function registerRoutes(
     },
   );
 
+  app.post(api.healthFollowUps.reportPreview.path, isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const child = await storage.getChild(childId);
+      if (!child) {
+        return res.status(404).json({ message: "Crianca nao encontrada" });
+      }
+
+      const input = api.healthFollowUps.reportPreview.input.parse(req.body);
+      if (input.startDate && input.endDate && input.startDate > input.endDate) {
+        return res.status(400).json({ message: "Periodo invalido" });
+      }
+
+      const counts = await getHealthReportPreview(
+        childId,
+        child.birthDate,
+        input.startDate,
+        input.endDate,
+      );
+      const selectedSections = (input.sections ?? []) as HealthReportSectionKey[];
+      const limitStatus = buildHealthReportIssues(counts, selectedSections);
+
+      res.json({
+        counts,
+        sectionLimits: HEALTH_REPORT_SECTION_LIMITS,
+        selectedCount: limitStatus.selectedCount,
+        maxTotal: HEALTH_REPORT_TOTAL_LIMIT,
+        overLimit: limitStatus.overLimit,
+        issues: limitStatus.issues,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Entrada invalida" });
+      }
+      console.error("Error previewing health report:", err);
+      res.status(500).json({ message: "Erro ao analisar relatorio" });
+    }
+  });
+
   app.post(api.healthFollowUps.report.path, isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -811,6 +991,22 @@ export async function registerRoutes(
       const input = api.healthFollowUps.report.input.parse(req.body);
       if (input.startDate && input.endDate && input.startDate > input.endDate) {
         return res.status(400).json({ message: "Periodo invalido" });
+      }
+
+      const counts = await getHealthReportPreview(
+        childId,
+        child.birthDate,
+        input.startDate,
+        input.endDate,
+      );
+      const limitStatus = buildHealthReportIssues(
+        counts,
+        input.sections as HealthReportSectionKey[],
+      );
+      if (limitStatus.overLimit) {
+        return res.status(400).json({
+          message: limitStatus.issues[0] ?? "Relatorio acima do limite permitido",
+        });
       }
 
       const sections = new Set(input.sections);
