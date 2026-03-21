@@ -94,8 +94,16 @@ function ensureSpace(doc: PDFKit.PDFDocument, needed = 72) {
   doc.addPage();
 }
 
-function sectionTitle(doc: PDFKit.PDFDocument, title: string, subtitle?: string) {
-  ensureSpace(doc, 64);
+function sectionTitle(
+  doc: PDFKit.PDFDocument,
+  title: string,
+  subtitle?: string,
+  withTopSpacing = false,
+) {
+  ensureSpace(doc, withTopSpacing ? 96 : 64);
+  if (withTopSpacing) {
+    doc.moveDown(0.9);
+  }
   doc
     .font("Helvetica-Bold")
     .fontSize(15)
@@ -218,8 +226,14 @@ export async function buildHealthReportPdf(
   doc.moveDown(1);
   addDivider(doc);
 
+  let hasRenderedSection = false;
+  const startSection = (title: string, subtitle?: string) => {
+    sectionTitle(doc, title, subtitle, hasRenderedSection);
+    hasRenderedSection = true;
+  };
+
   if (data.includedSections.includes("vaccines")) {
-    sectionTitle(doc, "Vacinas aplicadas", "Somente doses com data de aplicacao registrada.");
+    startSection("Vacinas aplicadas", "Somente doses com data de aplicacao registrada.");
     if (data.sections.vaccines.length === 0) {
       emptyState(doc, "Nenhuma vacina aplicada encontrada para o periodo selecionado.");
     } else {
@@ -232,7 +246,7 @@ export async function buildHealthReportPdf(
   }
 
   if (data.includedSections.includes("growth")) {
-    sectionTitle(doc, "Crescimento", "Historico de medidas registradas.");
+    startSection("Crescimento", "Historico de medidas registradas.");
     if (data.sections.growth.length === 0) {
       emptyState(doc, "Nenhum registro de crescimento encontrado para o periodo selecionado.");
     } else {
@@ -247,7 +261,7 @@ export async function buildHealthReportPdf(
   }
 
   if (data.includedSections.includes("neonatal")) {
-    sectionTitle(doc, "Triagem neonatal", "Triagens realizadas ao nascer.");
+    startSection("Triagem neonatal", "Triagens realizadas ao nascer.");
     if (data.sections.neonatal.length === 0) {
       emptyState(doc, "Nenhuma triagem neonatal realizada encontrada para o periodo selecionado.");
     } else {
@@ -258,7 +272,7 @@ export async function buildHealthReportPdf(
   }
 
   if (data.includedSections.includes("development")) {
-    sectionTitle(doc, "Marcos de desenvolvimento", "Marcos com avaliacao registrada.");
+    startSection("Marcos de desenvolvimento", "Marcos com avaliacao registrada.");
     if (data.sections.development.length === 0) {
       emptyState(
         doc,
@@ -276,7 +290,7 @@ export async function buildHealthReportPdf(
   }
 
   if (data.includedSections.includes("clinical")) {
-    sectionTitle(doc, "Consultas e intercorrencias", "Acompanhamentos clinicos do periodo.");
+    startSection("Consultas e intercorrencias", "Acompanhamentos clinicos do periodo.");
     if (data.sections.clinical.length === 0) {
       emptyState(doc, "Nenhum acompanhamento clinico encontrado para o periodo selecionado.");
     } else {
@@ -292,7 +306,7 @@ export async function buildHealthReportPdf(
   }
 
   if (data.includedSections.includes("exams")) {
-    sectionTitle(doc, "Exames e anexos", "Exames vinculados aos acompanhamentos selecionados.");
+    startSection("Exames e anexos", "Exames vinculados aos acompanhamentos selecionados.");
     if (data.sections.exams.length === 0) {
       emptyState(doc, "Nenhum exame encontrado para o periodo selecionado.");
     } else {
