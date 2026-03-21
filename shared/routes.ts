@@ -256,7 +256,33 @@ export const api = {
             >(),
           ),
           nextCursor: z.string().nullable(),
+          totalCount: z.number(),
         }),
+      },
+    },
+    report: {
+      method: "POST" as const,
+      path: "/api/children/:childId/health-report",
+      input: z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        sections: z
+          .array(
+            z.enum([
+              "vaccines",
+              "growth",
+              "neonatal",
+              "development",
+              "clinical",
+              "exams",
+            ]),
+          )
+          .min(1),
+      }),
+      responses: {
+        200: z.any(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
       },
     },
     create: {

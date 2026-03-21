@@ -7,11 +7,15 @@ import {
   caregivers,
   activityComments,
   children,
+  developmentMilestones,
+  growthRecords,
   healthExams,
   healthFollowUps,
   milestones,
   diaryEntries,
   dailyPhotos,
+  neonatalScreenings,
+  susVaccines,
   vaccineRecords,
 } from "@shared/schema";
 import { db } from "./db";
@@ -42,6 +46,7 @@ import {
   DEVELOPMENT_AGE_BANDS,
   NEWBORN_SCREENINGS,
 } from "@shared/health-catalog";
+import { buildHealthReportPdf } from "./healthReportPdf";
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
 const getClientAddress = (req: Request) => {
@@ -787,6 +792,194 @@ export async function registerRoutes(
       res.json(structure);
     },
   );
+
+  app.post(api.healthFollowUps.report.path, isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ message: "Nao autenticado" });
+
+      const childId = Number(req.params.childId);
+      if (!(await hasChildAccess(userId, childId))) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const child = await storage.getChild(childId);
+      if (!child) {
+        return res.status(404).json({ message: "Crianca nao encontrada" });
+      }
+
+      const input = api.healthFollowUps.report.input.parse(req.body);
+      if (input.startDate && input.endDate && input.startDate > input.endDate) {
+        return res.status(400).json({ message: "Periodo invalido" });
+      }
+
+      const sections = new Set(input.sections);
+      const isWithinPeriod = (value?: string | null) => {
+        if (!value) return false;
+        if (input.startDate && value < input.startDate) return false;
+        if (input.endDate && value > input.endDate) return false;
+        return true;
+      };
+
+      const needsStructure =
+        sections.has("neonatal") || sections.has("development");
+      const needsTimeline = sections.has("clinical") || sections.has("exams");
+
+      await storage.syncHealthFollowUps(childId, child.birthDate);
+
+      const [structure, growth, vaccines] = await Promise.all([
+        needsStructure ? storage.getHealthFollowUpStructure(childId) : null,
+        sections.has("growth") ? storage.getGrowthRecords(childId) : [],
+        sections.has("vaccines")
+          ? db
+              .select({
+                id: vaccineRecords.id,
+                dose: vaccineRecords.dose,
+                applicationDate: vaccineRecords.applicationDate,
+                vaccineName: susVaccines.name,
+              })
+              .from(vaccineRecords)
+              .leftJoin(
+                susVaccines,
+                drizzleEq(vaccineRecords.susVaccineId, susVaccines.id),
+              )
+              .where(drizzleEq(vaccineRecords.childId, childId))
+          : [],
+      ]);
+
+      const timelineItems = needsTimeline
+        ? await (async () => {
+            const allItems: Awaited<ReturnType<typeof storage.getHealthFollowUps>>["data"] =
+              [];
+            let cursor: string | undefined;
+
+            do {
+              const page = await storage.getHealthFollowUps(childId, {
+                cursor,
+                limit: 50,
+                startDate: input.startDate,
+                endDate: input.endDate,
+              });
+              allItems.push(...page.data);
+              cursor = page.nextCursor ?? undefined;
+            } while (cursor);
+
+            return allItems;
+          })()
+        : [];
+
+      const pdf = await buildHealthReportPdf({
+        child: {
+          name: child.name,
+          birthDate: child.birthDate,
+        },
+        includedSections: input.sections,
+        period: {
+          startDate: input.startDate,
+          endDate: input.endDate,
+        },
+        generatedAt: new Date().toISOString(),
+        sections: {
+          vaccines: sections.has("vaccines")
+            ? vaccines
+                .filter(
+                  (item) => item.applicationDate && isWithinPeriod(item.applicationDate),
+                )
+                .map((item) => ({
+                  name: item.vaccineName ?? "Vacina",
+                  dose: item.dose,
+                  applicationDate: item.applicationDate!,
+                }))
+            : [],
+          growth: sections.has("growth")
+            ? growth
+                .filter((item) => isWithinPeriod(item.date))
+                .map((item) => ({
+                  date: item.date,
+                  weight: item.weight ?? null,
+                  height: item.height ?? null,
+                  headCircumference: item.headCircumference ?? null,
+                }))
+            : [],
+          neonatal:
+            sections.has("neonatal") && structure?.neonatal
+              ? NEWBORN_SCREENINGS.map((screening) => {
+                  const record = structure.neonatal?.neonatalScreenings.find(
+                    (item) => item.screeningType === screening.key,
+                  );
+                  if (!record?.isCompleted || !isWithinPeriod(record.completedAt)) {
+                    return null;
+                  }
+
+                  return {
+                    label: screening.label,
+                    completedAt: record.completedAt!,
+                  };
+                }).filter(Boolean) as Array<{ label: string; completedAt: string }>
+              : [],
+          development: sections.has("development")
+            ? (structure?.development ?? [])
+                .flatMap((followUp) =>
+                  followUp.developmentMilestones
+                    .filter(
+                      (milestone) =>
+                        milestone.status !== "pending" &&
+                        milestone.checkedAt &&
+                        isWithinPeriod(milestone.checkedAt),
+                    )
+                    .map((milestone) => ({
+                      ageBand:
+                        DEVELOPMENT_AGE_BANDS.find((band) => band.key === milestone.ageBand)
+                          ?.label ?? milestone.ageBand,
+                      title: milestone.title,
+                      status: milestone.status,
+                      checkedAt: milestone.checkedAt,
+                    })),
+                )
+            : [],
+          clinical: sections.has("clinical")
+            ? timelineItems.map((item) => ({
+                date: item.followUpDate,
+                category:
+                  item.category === "routine"
+                    ? "Rotina"
+                    : item.category === "consultation"
+                      ? "Consulta"
+                      : "Intercorrencia",
+                title: item.title,
+                description: item.description ?? null,
+              }))
+            : [],
+          exams: sections.has("exams")
+            ? timelineItems.flatMap((followUp) =>
+                followUp.healthExams
+                  .filter((exam) => isWithinPeriod(exam.examDate))
+                  .map((exam) => ({
+                    examDate: exam.examDate,
+                    title: exam.title,
+                    notes: exam.notes ?? null,
+                    followUpTitle: followUp.title,
+                    followUpDate: followUp.followUpDate,
+                  })),
+              )
+            : [],
+        },
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=\"relatorio-${child.name.toLowerCase().replace(/\s+/g, "-")}.pdf\"`,
+      );
+      res.send(pdf);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0]?.message ?? "Entrada invalida" });
+      }
+      console.error("Error generating health report:", err);
+      res.status(500).json({ message: "Erro ao gerar relatorio" });
+    }
+  });
 
   app.post(
     api.healthFollowUps.signExamUploads.path,

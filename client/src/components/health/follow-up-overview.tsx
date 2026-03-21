@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,8 +57,10 @@ import {
   useUpdateHealthFollowUp,
   useUpdateNeonatalScreening,
 } from "@/hooks/use-health-follow-ups";
+import { useGrowthRecords } from "@/hooks/use-growth";
 import { supabase } from "@/lib/supabase";
 import { cn, parseLocalDate } from "@/lib/utils";
+import { useVaccineRecords } from "@/hooks/use-vaccines";
 import {
   AGE_BASED_HEALTH_SUGGESTIONS,
   DEVELOPMENT_AGE_BANDS,
@@ -66,6 +68,7 @@ import {
   getClosestDevelopmentAgeBand,
   getAgeInMonthsFromDates,
 } from "@shared/health-catalog";
+import { api, buildUrl } from "@shared/routes";
 import type {
   DevelopmentMilestone,
   HealthExam,
@@ -77,8 +80,11 @@ import {
   Baby,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   ExternalLink,
+  FileDown,
   FileText,
   Loader2,
   Pencil,
@@ -93,6 +99,41 @@ const followUpCategoryOptions = [
   { value: "consultation", label: "Consulta" },
   { value: "condition", label: "Doenca/Intercorrencia" },
 ] as const;
+
+const reportSections = [
+  {
+    key: "vaccines",
+    label: "Vacinas aplicadas",
+    description: "Nome da vacina, dose e data aplicada.",
+  },
+  {
+    key: "growth",
+    label: "Crescimento",
+    description: "Historico de peso, altura e perimetro cefalico.",
+  },
+  {
+    key: "neonatal",
+    label: "Triagem neonatal",
+    description: "Somente triagens registradas como realizadas.",
+  },
+  {
+    key: "development",
+    label: "Marcos de desenvolvimento",
+    description: "Avaliacao dos marcos registrados no acompanhamento.",
+  },
+  {
+    key: "clinical",
+    label: "Consultas e intercorrencias",
+    description: "Acompanhamentos clinicos filtrados por periodo.",
+  },
+  {
+    key: "exams",
+    label: "Exames anexados",
+    description: "Exames vinculados aos acompanhamentos do periodo.",
+  },
+] as const;
+
+type ReportSectionKey = (typeof reportSections)[number]["key"];
 
 const developmentStatusConfig: Record<
   string,
@@ -246,17 +287,21 @@ export function FollowUpOverview({
   const [timelineEndDate, setTimelineEndDate] = useState<string | undefined>();
   const [timelineCategoryFilter, setTimelineCategoryFilter] =
     useState<string>("all");
+  const [timelinePageIndex, setTimelinePageIndex] = useState(0);
   const timelineQueryFilters = useMemo(
     () => ({
       startDate: timelineStartDate,
       endDate: timelineEndDate,
       category:
         timelineCategoryFilter === "all" ? undefined : timelineCategoryFilter,
+      limit: 5,
     }),
     [timelineCategoryFilter, timelineEndDate, timelineStartDate],
   );
   const { data: structure, isLoading: isStructureLoading } =
     useHealthFollowUpStructure(childId);
+  const { data: growthRecords = [] } = useGrowthRecords(childId);
+  const { data: vaccineRecords = [] } = useVaccineRecords(childId);
   const {
     data: timelineData,
     isLoading: isTimelineLoading,
@@ -299,10 +344,42 @@ export function FollowUpOverview({
   const [openTimelineItems, setOpenTimelineItems] = useState<string[]>([]);
   const [isNeonatalPanelOpen, setIsNeonatalPanelOpen] = useState(true);
   const [isNeonatalHistoryOpen, setIsNeonatalHistoryOpen] = useState(false);
+  const [neonatalDraftDates, setNeonatalDraftDates] = useState<Record<string, string>>(
+    {},
+  );
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportStartDate, setReportStartDate] = useState(birthDate);
+  const [reportEndDate, setReportEndDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
+  const [selectedReportSections, setSelectedReportSections] = useState<
+    Record<ReportSectionKey, boolean>
+  >({
+    vaccines: true,
+    growth: true,
+    neonatal: true,
+    development: true,
+    clinical: true,
+    exams: true,
+  });
+  const developmentSectionRef = useRef<HTMLElement | null>(null);
+  const timelineSectionRef = useRef<HTMLElement | null>(null);
 
   const timelineFollowUps = useMemo(
     () => timelineData?.pages.flatMap((page) => page.data) || [],
     [timelineData],
+  );
+  const timelinePages = timelineData?.pages ?? [];
+  const visibleTimelineFollowUps = timelinePages[timelinePageIndex]?.data ?? [];
+  const timelineTotalCount = timelinePages[0]?.totalCount ?? 0;
+  const totalTimelinePages = Math.max(1, Math.ceil(timelineTotalCount / 5));
+  const selectedReportSectionKeys = useMemo(
+    () =>
+      reportSections
+        .filter((section) => selectedReportSections[section.key])
+        .map((section) => section.key),
+    [selectedReportSections],
   );
 
   const neonatalFollowUp = structure?.neonatal ?? null;
@@ -362,6 +439,43 @@ export function FollowUpOverview({
   );
   const developmentAlertCount =
     developmentTotals.attention + developmentTotals.delayed;
+  const reportPreviewCounts = useMemo(() => {
+    const isWithinRange = (value?: string | null) => {
+      if (!value) return false;
+      if (reportStartDate && value < reportStartDate) return false;
+      if (reportEndDate && value > reportEndDate) return false;
+      return true;
+    };
+
+    return {
+      vaccines: vaccineRecords.filter(
+        (record) => record.applicationDate && isWithinRange(record.applicationDate),
+      ).length,
+      growth: growthRecords.filter((record) => isWithinRange(record.date)).length,
+      neonatal:
+        neonatalFollowUp?.neonatalScreenings.filter(
+          (item) => item.isCompleted && isWithinRange(item.completedAt),
+        ).length ?? 0,
+      development: developmentFollowUps.reduce((acc, followUp) => {
+        return (
+          acc +
+          followUp.developmentMilestones.filter(
+            (milestone) =>
+              milestone.status !== "pending" &&
+              milestone.checkedAt &&
+              isWithinRange(milestone.checkedAt),
+          ).length
+        );
+      }, 0),
+    };
+  }, [
+    developmentFollowUps,
+    growthRecords,
+    neonatalFollowUp,
+    reportEndDate,
+    reportStartDate,
+    vaccineRecords,
+  ]);
   const pendingNeonatalCount =
     neonatalFollowUp?.neonatalScreenings.filter((item) => !item.isCompleted)
       .length ?? 0;
@@ -372,12 +486,41 @@ export function FollowUpOverview({
   const isNeonatalInPrimaryFlow = Boolean(
     neonatalFollowUp && (!isNeonatalComplete || currentAgeMonths <= 1),
   );
+  const todayDate = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     if (!neonatalFollowUp) return;
 
     setIsNeonatalPanelOpen(!isNeonatalComplete || currentAgeMonths <= 1);
   }, [currentAgeMonths, isNeonatalComplete, neonatalFollowUp]);
+
+  useEffect(() => {
+    setTimelinePageIndex(0);
+  }, [timelineCategoryFilter, timelineEndDate, timelineStartDate]);
+
+  useEffect(() => {
+    if (timelinePageIndex <= timelinePages.length - 1) return;
+    setTimelinePageIndex(Math.max(0, timelinePages.length - 1));
+  }, [timelinePageIndex, timelinePages.length]);
+
+  useEffect(() => {
+    setReportStartDate(birthDate);
+  }, [birthDate]);
+
+  useEffect(() => {
+    if (!neonatalFollowUp) return;
+
+    setNeonatalDraftDates(
+      Object.fromEntries(
+        NEWBORN_SCREENINGS.map((screening) => {
+          const record = neonatalFollowUp.neonatalScreenings.find(
+            (item) => item.screeningType === screening.key,
+          );
+          return [screening.key, record?.completedAt ?? birthDate];
+        }),
+      ),
+    );
+  }, [birthDate, neonatalFollowUp]);
 
   useEffect(() => {
     if (!legacyRecordId || allFollowUps.length === 0) return;
@@ -599,18 +742,113 @@ export function FollowUpOverview({
     );
   };
 
-  const toggleScreening = (
+  const saveNeonatalScreening = (
     followUpId: number,
     screeningType: string,
-    checked: boolean,
+    isCompleted: boolean,
   ) => {
+    const selectedDate = neonatalDraftDates[screeningType] || birthDate;
+    if (isCompleted && !selectedDate) {
+      toast({
+        title: "Escolha a data da triagem",
+        description: "Selecione a data correta antes de marcar como realizado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     updateScreening.mutate({
       childId,
       followUpId,
       screeningType,
-      isCompleted: checked,
-      completedAt: checked ? new Date().toISOString().slice(0, 10) : null,
+      isCompleted,
+      completedAt: isCompleted ? selectedDate : null,
     });
+  };
+
+  const renderNeonatalScreeningRow = (
+    followUpId: number,
+    screening: (typeof NEWBORN_SCREENINGS)[number],
+  ) => {
+    const record = neonatalFollowUp?.neonatalScreenings.find(
+      (item) => item.screeningType === screening.key,
+    );
+    const isCompleted = record?.isCompleted ?? false;
+    const draftDate = neonatalDraftDates[screening.key] || birthDate;
+
+    return (
+      <div
+        key={screening.key}
+        className="rounded-2xl border border-border bg-background/90 px-4 py-3"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium text-foreground">{screening.label}</p>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "rounded-full border",
+                  isCompleted
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-border bg-muted text-muted-foreground",
+                )}
+              >
+                {isCompleted ? "Realizado" : "Pendente"}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {record?.completedAt
+                ? `Registrado em ${format(parseLocalDate(record.completedAt), "dd/MM/yyyy")}`
+                : "Selecione a data real do exame e marque quando confirmar."}
+            </p>
+          </div>
+
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
+            <Input
+              type="date"
+              value={draftDate}
+              max={todayDate}
+              onChange={(event) =>
+                setNeonatalDraftDates((current) => ({
+                  ...current,
+                  [screening.key]: event.target.value,
+                }))
+              }
+              className="h-9 w-full sm:w-[168px]"
+            />
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={isCompleted ? "outline" : "default"}
+                className="rounded-full"
+                disabled={updateScreening.isPending}
+                onClick={() => saveNeonatalScreening(followUpId, screening.key, true)}
+              >
+                {isCompleted ? "Salvar data" : "Marcar realizado"}
+              </Button>
+
+              {isCompleted ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-full"
+                  disabled={updateScreening.isPending}
+                  onClick={() =>
+                    saveNeonatalScreening(followUpId, screening.key, false)
+                  }
+                >
+                  Desfazer
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const setMilestoneStatus = (
@@ -649,6 +887,104 @@ export function FollowUpOverview({
         onSuccess: () => toast({ title: "Exame removido" }),
       },
     );
+  };
+
+  const scrollToSection = (element: HTMLElement | null, delay = 0) => {
+    if (!element) return;
+
+    window.setTimeout(() => {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, delay);
+  };
+
+  const handleScrollToDevelopment = () => {
+    setOpenDevelopmentSection("development-overview");
+    scrollToSection(developmentSectionRef.current, 80);
+  };
+
+  const handleScrollToTimeline = () => {
+    scrollToSection(timelineSectionRef.current);
+  };
+
+  const toggleReportSection = (key: ReportSectionKey, checked: boolean) => {
+    setSelectedReportSections((current) => ({
+      ...current,
+      [key]: checked,
+    }));
+  };
+
+  const handleGenerateReport = async () => {
+    if (selectedReportSectionKeys.length === 0) {
+      toast({
+        title: "Selecione ao menos uma secao",
+        description: "Escolha o que deseja incluir no relatorio.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (reportStartDate && reportEndDate && reportStartDate > reportEndDate) {
+      toast({
+        title: "Periodo invalido",
+        description: "A data inicial precisa ser anterior a data final.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingReport(true);
+    try {
+      const response = await fetch(buildUrl(api.healthFollowUps.report.path, { childId }), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          startDate: reportStartDate || undefined,
+          endDate: reportEndDate || undefined,
+          sections: selectedReportSectionKeys,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Nao foi possivel gerar o relatorio");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `relatorio-pediatra-${childId}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      setReportDialogOpen(false);
+      toast({ title: "Relatorio gerado com sucesso" });
+    } catch {
+      toast({
+        title: "Erro ao gerar relatorio",
+        description: "Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  const handleNextTimelinePage = async () => {
+    if (timelinePageIndex < timelinePages.length - 1) {
+      setTimelinePageIndex((current) => current + 1);
+      return;
+    }
+
+    if (!hasNextPage) return;
+
+    const loadedPagesBeforeFetch = timelinePages.length;
+    const result = await fetchNextPage();
+    if ((result.data?.pages.length ?? 0) > loadedPagesBeforeFetch) {
+      setTimelinePageIndex((current) => current + 1);
+    }
   };
 
   if (isStructureLoading || isTimelineLoading) {
@@ -691,12 +1027,33 @@ export function FollowUpOverview({
           >
             <Plus className="w-4 h-4" /> Novo acompanhamento
           </Button>
-          <Badge variant="outline" className="rounded-full px-3 py-1">
-            {timelineFollowUps.length} registros clinicos
-          </Badge>
-          <Badge variant="outline" className="rounded-full px-3 py-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-full gap-2"
+            onClick={() => setReportDialogOpen(true)}
+          >
+            <FileDown className="w-4 h-4" /> Emitir relatorio
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full px-3 py-1 text-xs"
+            onClick={handleScrollToTimeline}
+          >
+            {timelineTotalCount} registros clinicos
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full px-3 py-1 text-xs"
+            onClick={handleScrollToDevelopment}
+          >
             {developmentFollowUps.length} faixas de desenvolvimento
-          </Badge>
+          </Button>
           <Badge variant="outline" className="rounded-full px-3 py-1">
             Referencia atual: {closestAgeBand.label}
           </Badge>
@@ -889,56 +1246,16 @@ export function FollowUpOverview({
 
             <CollapsibleContent className="pt-4">
               <div className="grid gap-3">
-                {NEWBORN_SCREENINGS.map((screening) => {
-                  const record = neonatalFollowUp.neonatalScreenings.find(
-                    (item) => item.screeningType === screening.key,
-                  );
-                  return (
-                    <label
-                      key={screening.key}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background/90 px-4 py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={record?.isCompleted || false}
-                          onCheckedChange={(checked) =>
-                            toggleScreening(
-                              neonatalFollowUp.id,
-                              screening.key,
-                              Boolean(checked),
-                            )
-                          }
-                        />
-                        <div>
-                          <p className="font-medium text-foreground">{screening.label}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {record?.completedAt
-                              ? `Realizado em ${format(parseLocalDate(record.completedAt), "dd/MM/yyyy")}`
-                              : "Pendente"}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "rounded-full border",
-                          record?.isCompleted
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-border bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {record?.isCompleted ? "Realizado" : "Pendente"}
-                      </Badge>
-                    </label>
-                  );
-                })}
+                {NEWBORN_SCREENINGS.map((screening) =>
+                  renderNeonatalScreeningRow(neonatalFollowUp.id, screening),
+                )}
               </div>
             </CollapsibleContent>
           </div>
         </Collapsible>
       ) : null}
 
-      <section className="space-y-4">
+      <section ref={developmentSectionRef} className="space-y-4">
         <Accordion
           type="single"
           collapsible
@@ -1232,43 +1549,15 @@ export function FollowUpOverview({
 
           <CollapsibleContent className="pt-3">
             <div className="grid gap-3">
-              {NEWBORN_SCREENINGS.map((screening) => {
-                const record = neonatalFollowUp.neonatalScreenings.find(
-                  (item) => item.screeningType === screening.key,
-                );
-                return (
-                  <div
-                    key={screening.key}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">{screening.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {record?.completedAt
-                          ? `Realizado em ${format(parseLocalDate(record.completedAt), "dd/MM/yyyy")}`
-                          : "Sem registro de conclusao"}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "rounded-full border",
-                        record?.isCompleted
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-border bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {record?.isCompleted ? "Realizado" : "Pendente"}
-                    </Badge>
-                  </div>
-                );
-              })}
+              {NEWBORN_SCREENINGS.map((screening) =>
+                renderNeonatalScreeningRow(neonatalFollowUp.id, screening),
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>
       ) : null}
 
-      <section className="space-y-4">
+      <section ref={timelineSectionRef} className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
@@ -1304,11 +1593,11 @@ export function FollowUpOverview({
             </SelectContent>
           </Select>
           <Badge variant="outline" className="rounded-full px-3 py-1">
-            {timelineFollowUps.length} registro(s) no filtro atual
+            {timelineTotalCount} registro(s) no filtro atual
           </Badge>
         </div>
 
-        {timelineFollowUps.length === 0 && (
+        {timelineTotalCount === 0 && (
           <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
             <Stethoscope className="mx-auto h-10 w-10 text-muted-foreground/40" />
             <p className="mt-3 text-muted-foreground">
@@ -1323,7 +1612,7 @@ export function FollowUpOverview({
           onValueChange={setOpenTimelineItems}
           className="space-y-2.5"
         >
-          {timelineFollowUps.map((followUp) => (
+          {visibleTimelineFollowUps.map((followUp) => (
             <AccordionItem
               key={followUp.id}
               value={String(followUp.id)}
@@ -1478,24 +1767,157 @@ export function FollowUpOverview({
           ))}
         </Accordion>
 
-        {hasNextPage && (
-          <div className="flex justify-center pt-2">
-            <Button
-              variant="ghost"
-              className="gap-2 text-muted-foreground"
-              onClick={() => fetchNextPage()}
-              disabled={isFetchingNextPage}
-            >
-              {isFetchingNextPage ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-              Carregar mais
-            </Button>
+        {timelineTotalCount > 0 && (
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <p className="text-xs text-muted-foreground">
+              Pagina {timelinePageIndex + 1} de {totalTimelinePages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setTimelinePageIndex((current) => Math.max(0, current - 1))}
+                disabled={timelinePageIndex === 0}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Anterior
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={handleNextTimelinePage}
+                disabled={
+                  isFetchingNextPage ||
+                  (timelinePageIndex >= timelinePages.length - 1 && !hasNextPage)
+                }
+              >
+                {isFetchingNextPage ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronRight className="mr-1 h-4 w-4" />
+                )}
+                Proximos
+              </Button>
+            </div>
           </div>
         )}
       </section>
+
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Emitir relatorio para o pediatra</DialogTitle>
+            <DialogDescription>
+              Escolha o periodo e os blocos que deseja incluir no PDF.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 pt-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="report-start-date">Data inicial</Label>
+                <Input
+                  id="report-start-date"
+                  type="date"
+                  value={reportStartDate}
+                  max={reportEndDate || undefined}
+                  onChange={(event) => setReportStartDate(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="report-end-date">Data final</Label>
+                <Input
+                  id="report-end-date"
+                  type="date"
+                  value={reportEndDate}
+                  min={reportStartDate || undefined}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(event) => setReportEndDate(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-muted/10 p-4">
+              <p className="text-sm font-semibold text-foreground">
+                Selecione o conteudo do PDF
+              </p>
+              <div className="mt-4 grid gap-3">
+                {reportSections.map((section) => (
+                  <label
+                    key={section.key}
+                    className="flex items-start gap-3 rounded-2xl border border-border bg-background px-4 py-3"
+                  >
+                    <Checkbox
+                      checked={selectedReportSections[section.key]}
+                      onCheckedChange={(checked) =>
+                        toggleReportSection(section.key, Boolean(checked))
+                      }
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        {section.label}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {section.description}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+              <p className="text-sm font-semibold text-foreground">Resumo rapido</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge variant="outline" className="rounded-full px-3 py-1">
+                  Vacinas: {reportPreviewCounts.vaccines}
+                </Badge>
+                <Badge variant="outline" className="rounded-full px-3 py-1">
+                  Crescimento: {reportPreviewCounts.growth}
+                </Badge>
+                <Badge variant="outline" className="rounded-full px-3 py-1">
+                  Triagem: {reportPreviewCounts.neonatal}
+                </Badge>
+                <Badge variant="outline" className="rounded-full px-3 py-1">
+                  Marcos: {reportPreviewCounts.development}
+                </Badge>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Consultas, intercorrencias e exames tambem entram no PDF conforme o
+                periodo escolhido.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setReportDialogOpen(false)}
+                disabled={isGeneratingReport}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                className="rounded-full gap-2"
+                onClick={handleGenerateReport}
+                disabled={isGeneratingReport}
+              >
+                {isGeneratingReport ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                Gerar PDF
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={followUpOpen}

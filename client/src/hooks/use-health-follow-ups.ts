@@ -18,6 +18,7 @@ type HealthFollowUpFilters = {
   startDate?: string;
   endDate?: string;
   category?: string;
+  limit?: number;
 };
 
 type HealthFollowUpStructure = {
@@ -28,6 +29,7 @@ type HealthFollowUpStructure = {
 type HealthFollowUpsPage = {
   data: HealthFollowUpWithRelations[];
   nextCursor: string | null;
+  totalCount: number;
 };
 
 interface FileInput {
@@ -81,12 +83,13 @@ const healthFollowUpTimelineKey = (
   childId: number,
   filters?: HealthFollowUpFilters,
 ) =>
-  [
-    ...healthFollowUpTimelineBaseKey(childId),
-    filters?.startDate ?? "",
-    filters?.endDate ?? "",
-    filters?.category ?? "",
-  ] as const;
+    [
+      ...healthFollowUpTimelineBaseKey(childId),
+      filters?.startDate ?? "",
+      filters?.endDate ?? "",
+      filters?.category ?? "",
+      filters?.limit ?? 20,
+    ] as const;
 
 function compareFollowUps(
   left: Pick<HealthFollowUpWithRelations, "followUpDate" | "id">,
@@ -150,7 +153,7 @@ function insertTimelineFollowUp(
   if (previous.pages.length === 0) {
     return {
       pageParams: previous.pageParams,
-      pages: [{ data: [followUp], nextCursor: null }],
+      pages: [{ data: [followUp], nextCursor: null, totalCount: 1 }],
     };
   }
 
@@ -160,9 +163,10 @@ function insertTimelineFollowUp(
       index === 0
         ? {
             ...page,
+            totalCount: page.totalCount + 1,
             data: [...page.data, followUp].sort(compareFollowUps),
           }
-        : page,
+        : { ...page, totalCount: page.totalCount + 1 },
     ),
   };
 }
@@ -179,6 +183,7 @@ function removeTimelineFollowUp(
     ...previous,
     pages: previous.pages.map((page) => ({
       ...page,
+      totalCount: Math.max(0, page.totalCount - 1),
       data: page.data.filter((followUp) => followUp.id !== id),
     })),
   };
@@ -244,7 +249,7 @@ export function useHealthFollowUps(
     queryKey: healthFollowUpTimelineKey(childId, filters),
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
-      params.set("limit", "20");
+      params.set("limit", String(filters?.limit ?? 20));
       if (pageParam) params.set("cursor", pageParam as string);
       if (filters?.startDate) params.set("startDate", filters.startDate);
       if (filters?.endDate) params.set("endDate", filters.endDate);

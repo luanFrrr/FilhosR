@@ -238,7 +238,11 @@ export interface IStorage {
       endDate?: string;
       category?: string;
     },
-  ): Promise<{ data: HealthFollowUpWithRelations[]; nextCursor: string | null }>;
+  ): Promise<{
+    data: HealthFollowUpWithRelations[];
+    nextCursor: string | null;
+    totalCount: number;
+  }>;
   getHealthFollowUpById(id: number): Promise<HealthFollowUp | undefined>;
   createHealthFollowUp(record: InsertHealthFollowUp): Promise<HealthFollowUp>;
   updateHealthFollowUp(
@@ -882,29 +886,40 @@ export class DatabaseStorage implements IStorage {
       endDate?: string;
       category?: string;
     },
-  ): Promise<{ data: HealthFollowUpWithRelations[]; nextCursor: string | null }> {
+  ): Promise<{
+    data: HealthFollowUpWithRelations[];
+    nextCursor: string | null;
+    totalCount: number;
+  }> {
     const pageSize = Math.min(opts?.limit ?? 20, 50);
-    const conditions: SQL[] = [
+    const baseConditions: SQL[] = [
       eq(healthFollowUps.childId, childId),
       inArray(healthFollowUps.category, ["routine", "consultation", "condition"]),
     ];
 
     if (opts?.category) {
-      conditions.push(eq(healthFollowUps.category, opts.category));
+      baseConditions.push(eq(healthFollowUps.category, opts.category));
     }
     if (opts?.startDate) {
-      conditions.push(sql`${healthFollowUps.followUpDate} >= ${opts.startDate}`);
+      baseConditions.push(sql`${healthFollowUps.followUpDate} >= ${opts.startDate}`);
     }
     if (opts?.endDate) {
-      conditions.push(sql`${healthFollowUps.followUpDate} <= ${opts.endDate}`);
+      baseConditions.push(sql`${healthFollowUps.followUpDate} <= ${opts.endDate}`);
     }
 
+    const conditions = [...baseConditions];
     if (opts?.cursor) {
       const [cursorDate, cursorId] = opts.cursor.split("|");
       conditions.push(
         sql`(${healthFollowUps.followUpDate}, ${healthFollowUps.id}) < (${cursorDate}, ${Number(cursorId)})`,
       );
     }
+
+    const totalCountResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(healthFollowUps)
+      .where(and(...baseConditions));
+    const totalCount = totalCountResult[0]?.count ?? 0;
 
     const results = await db
       .select()
@@ -969,7 +984,7 @@ export class DatabaseStorage implements IStorage {
         ? `${data[data.length - 1].followUpDate}|${data[data.length - 1].id}`
         : null;
 
-    return { data: enriched, nextCursor };
+    return { data: enriched, nextCursor, totalCount };
   }
 
   async getHealthFollowUpById(id: number): Promise<HealthFollowUp | undefined> {
