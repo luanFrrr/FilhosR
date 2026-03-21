@@ -69,6 +69,11 @@ const HEALTH_REPORT_TOTAL_LIMIT = 160;
 
 type HealthReportSectionKey = keyof typeof HEALTH_REPORT_SECTION_LIMITS;
 type HealthReportCounts = Record<HealthReportSectionKey, number>;
+type HealthReportRequestInput = z.infer<typeof api.healthFollowUps.report.input>;
+
+const HEALTH_REPORT_SECTION_KEYS = Object.keys(
+  HEALTH_REPORT_SECTION_LIMITS,
+) as HealthReportSectionKey[];
 
 const HEALTH_REPORT_SECTION_LABELS: Record<HealthReportSectionKey, string> = {
   vaccines: "Vacinas aplicadas",
@@ -180,6 +185,220 @@ async function getHealthReportPreview(
   };
 
   return counts;
+}
+
+function parseHealthReportSections(value: unknown): HealthReportSectionKey[] {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+
+  return values.filter((item): item is HealthReportSectionKey =>
+    HEALTH_REPORT_SECTION_KEYS.includes(item as HealthReportSectionKey),
+  );
+}
+
+function parseHealthReportInputFromRequest(
+  req: Request,
+  source: "body" | "query",
+): HealthReportRequestInput {
+  const payload = source === "body" ? req.body : req.query;
+  return api.healthFollowUps.report.input.parse({
+    startDate:
+      typeof payload.startDate === "string" && payload.startDate.length > 0
+        ? payload.startDate
+        : undefined,
+    endDate:
+      typeof payload.endDate === "string" && payload.endDate.length > 0
+        ? payload.endDate
+        : undefined,
+    sections: parseHealthReportSections(payload.sections),
+  });
+}
+
+function buildHealthReportFileName(childId: number) {
+  return `relatorio-pediatra-${childId}.pdf`;
+}
+
+async function createHealthReportBuffer(
+  childId: number,
+  child: { name: string; birthDate: string },
+  input: HealthReportRequestInput,
+) {
+  if (input.startDate && input.endDate && input.startDate > input.endDate) {
+    const error = new Error("Periodo invalido") as Error & { status?: number };
+    error.status = 400;
+    throw error;
+  }
+
+  const counts = await getHealthReportPreview(
+    childId,
+    child.birthDate,
+    input.startDate,
+    input.endDate,
+  );
+  const limitStatus = buildHealthReportIssues(counts, input.sections as HealthReportSectionKey[]);
+  if (limitStatus.overLimit) {
+    const error = new Error(
+      limitStatus.issues[0] ?? "Relatorio acima do limite permitido",
+    ) as Error & { status?: number };
+    error.status = 400;
+    throw error;
+  }
+
+  const sections = new Set(input.sections);
+  const isWithinPeriod = (value?: string | null) => {
+    if (!value) return false;
+    if (input.startDate && value < input.startDate) return false;
+    if (input.endDate && value > input.endDate) return false;
+    return true;
+  };
+
+  const needsStructure = sections.has("neonatal") || sections.has("development");
+  const needsTimeline = sections.has("clinical") || sections.has("exams");
+
+  await storage.syncHealthFollowUps(childId, child.birthDate);
+
+  const [structure, growth, vaccines] = await Promise.all([
+    needsStructure ? storage.getHealthFollowUpStructure(childId) : null,
+    sections.has("growth") ? storage.getGrowthRecords(childId) : [],
+    sections.has("vaccines")
+      ? db
+          .select({
+            id: vaccineRecords.id,
+            dose: vaccineRecords.dose,
+            applicationDate: vaccineRecords.applicationDate,
+            vaccineName: susVaccines.name,
+          })
+          .from(vaccineRecords)
+          .leftJoin(susVaccines, drizzleEq(vaccineRecords.susVaccineId, susVaccines.id))
+          .where(drizzleEq(vaccineRecords.childId, childId))
+      : [],
+  ]);
+
+  const timelineItems = needsTimeline
+    ? await (async () => {
+        const allItems: Awaited<ReturnType<typeof storage.getHealthFollowUps>>["data"] = [];
+        let cursor: string | undefined;
+
+        do {
+          const page = await storage.getHealthFollowUps(childId, {
+            cursor,
+            limit: 50,
+            startDate: input.startDate,
+            endDate: input.endDate,
+          });
+          allItems.push(...page.data);
+          cursor = page.nextCursor ?? undefined;
+        } while (cursor);
+
+        return allItems;
+      })()
+    : [];
+
+  const pdf = await buildHealthReportPdf({
+    child: {
+      name: child.name,
+      birthDate: child.birthDate,
+    },
+    includedSections: input.sections,
+    period: {
+      startDate: input.startDate,
+      endDate: input.endDate,
+    },
+    generatedAt: new Date().toISOString(),
+    sections: {
+      vaccines: sections.has("vaccines")
+        ? vaccines
+            .filter((item) => item.applicationDate && isWithinPeriod(item.applicationDate))
+            .map((item) => ({
+              name: item.vaccineName ?? "Vacina",
+              dose: item.dose,
+              applicationDate: item.applicationDate!,
+            }))
+        : [],
+      growth: sections.has("growth")
+        ? growth
+            .filter((item) => isWithinPeriod(item.date))
+            .map((item) => ({
+              date: item.date,
+              weight: item.weight ?? null,
+              height: item.height ?? null,
+              headCircumference: item.headCircumference ?? null,
+            }))
+        : [],
+      neonatal:
+        sections.has("neonatal") && structure?.neonatal
+          ? NEWBORN_SCREENINGS.map((screening) => {
+              const record = structure.neonatal?.neonatalScreenings.find(
+                (item) => item.screeningType === screening.key,
+              );
+              if (!record?.isCompleted || !isWithinPeriod(record.completedAt)) {
+                return null;
+              }
+
+              return {
+                label: screening.label,
+                completedAt: record.completedAt!,
+              };
+            }).filter(Boolean) as Array<{ label: string; completedAt: string }>
+          : [],
+      development: sections.has("development")
+        ? (structure?.development ?? []).flatMap((followUp) =>
+            followUp.developmentMilestones
+              .filter(
+                (milestone) =>
+                  milestone.status !== "pending" &&
+                  milestone.checkedAt &&
+                  isWithinPeriod(milestone.checkedAt),
+              )
+              .map((milestone) => ({
+                ageBand:
+                  DEVELOPMENT_AGE_BANDS.find((band) => band.key === milestone.ageBand)?.label ??
+                  milestone.ageBand,
+                title: milestone.title,
+                status: milestone.status,
+                checkedAt: milestone.checkedAt,
+              })),
+          )
+        : [],
+      clinical: sections.has("clinical")
+        ? timelineItems.map((item) => ({
+            date: item.followUpDate,
+            category:
+              item.category === "routine"
+                ? "Rotina"
+                : item.category === "consultation"
+                  ? "Consulta"
+                  : "Intercorrencia",
+            title: item.title,
+            description: item.description ?? null,
+          }))
+        : [],
+      exams: sections.has("exams")
+        ? timelineItems.flatMap((followUp) =>
+            followUp.healthExams
+              .filter((exam) => isWithinPeriod(exam.examDate))
+              .map((exam) => ({
+                examDate: exam.examDate,
+                title: exam.title,
+                notes: exam.notes ?? null,
+                followUpTitle: followUp.title,
+                followUpDate: followUp.followUpDate,
+              })),
+          )
+        : [],
+    },
+  });
+
+  return {
+    fileName: buildHealthReportFileName(childId),
+    pdf,
+  };
 }
 
 // ─── Rate Limiters ────────────────────────────────────────────────────────────
@@ -973,7 +1192,11 @@ export async function registerRoutes(
     }
   });
 
-  app.post(api.healthFollowUps.report.path, isAuthenticated, async (req, res) => {
+  const handleHealthReportDownload = async (
+    req: Request,
+    res: Response,
+    source: "body" | "query",
+  ) => {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ message: "Nao autenticado" });
@@ -988,193 +1211,33 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Crianca nao encontrada" });
       }
 
-      const input = api.healthFollowUps.report.input.parse(req.body);
-      if (input.startDate && input.endDate && input.startDate > input.endDate) {
-        return res.status(400).json({ message: "Periodo invalido" });
-      }
+      const input = parseHealthReportInputFromRequest(req, source);
+      const { fileName, pdf } = await createHealthReportBuffer(childId, child, input);
 
-      const counts = await getHealthReportPreview(
-        childId,
-        child.birthDate,
-        input.startDate,
-        input.endDate,
-      );
-      const limitStatus = buildHealthReportIssues(
-        counts,
-        input.sections as HealthReportSectionKey[],
-      );
-      if (limitStatus.overLimit) {
-        return res.status(400).json({
-          message: limitStatus.issues[0] ?? "Relatorio acima do limite permitido",
-        });
-      }
-
-      const sections = new Set(input.sections);
-      const isWithinPeriod = (value?: string | null) => {
-        if (!value) return false;
-        if (input.startDate && value < input.startDate) return false;
-        if (input.endDate && value > input.endDate) return false;
-        return true;
-      };
-
-      const needsStructure =
-        sections.has("neonatal") || sections.has("development");
-      const needsTimeline = sections.has("clinical") || sections.has("exams");
-
-      await storage.syncHealthFollowUps(childId, child.birthDate);
-
-      const [structure, growth, vaccines] = await Promise.all([
-        needsStructure ? storage.getHealthFollowUpStructure(childId) : null,
-        sections.has("growth") ? storage.getGrowthRecords(childId) : [],
-        sections.has("vaccines")
-          ? db
-              .select({
-                id: vaccineRecords.id,
-                dose: vaccineRecords.dose,
-                applicationDate: vaccineRecords.applicationDate,
-                vaccineName: susVaccines.name,
-              })
-              .from(vaccineRecords)
-              .leftJoin(
-                susVaccines,
-                drizzleEq(vaccineRecords.susVaccineId, susVaccines.id),
-              )
-              .where(drizzleEq(vaccineRecords.childId, childId))
-          : [],
-      ]);
-
-      const timelineItems = needsTimeline
-        ? await (async () => {
-            const allItems: Awaited<ReturnType<typeof storage.getHealthFollowUps>>["data"] =
-              [];
-            let cursor: string | undefined;
-
-            do {
-              const page = await storage.getHealthFollowUps(childId, {
-                cursor,
-                limit: 50,
-                startDate: input.startDate,
-                endDate: input.endDate,
-              });
-              allItems.push(...page.data);
-              cursor = page.nextCursor ?? undefined;
-            } while (cursor);
-
-            return allItems;
-          })()
-        : [];
-
-      const pdf = await buildHealthReportPdf({
-        child: {
-          name: child.name,
-          birthDate: child.birthDate,
-        },
-        includedSections: input.sections,
-        period: {
-          startDate: input.startDate,
-          endDate: input.endDate,
-        },
-        generatedAt: new Date().toISOString(),
-        sections: {
-          vaccines: sections.has("vaccines")
-            ? vaccines
-                .filter(
-                  (item) => item.applicationDate && isWithinPeriod(item.applicationDate),
-                )
-                .map((item) => ({
-                  name: item.vaccineName ?? "Vacina",
-                  dose: item.dose,
-                  applicationDate: item.applicationDate!,
-                }))
-            : [],
-          growth: sections.has("growth")
-            ? growth
-                .filter((item) => isWithinPeriod(item.date))
-                .map((item) => ({
-                  date: item.date,
-                  weight: item.weight ?? null,
-                  height: item.height ?? null,
-                  headCircumference: item.headCircumference ?? null,
-                }))
-            : [],
-          neonatal:
-            sections.has("neonatal") && structure?.neonatal
-              ? NEWBORN_SCREENINGS.map((screening) => {
-                  const record = structure.neonatal?.neonatalScreenings.find(
-                    (item) => item.screeningType === screening.key,
-                  );
-                  if (!record?.isCompleted || !isWithinPeriod(record.completedAt)) {
-                    return null;
-                  }
-
-                  return {
-                    label: screening.label,
-                    completedAt: record.completedAt!,
-                  };
-                }).filter(Boolean) as Array<{ label: string; completedAt: string }>
-              : [],
-          development: sections.has("development")
-            ? (structure?.development ?? [])
-                .flatMap((followUp) =>
-                  followUp.developmentMilestones
-                    .filter(
-                      (milestone) =>
-                        milestone.status !== "pending" &&
-                        milestone.checkedAt &&
-                        isWithinPeriod(milestone.checkedAt),
-                    )
-                    .map((milestone) => ({
-                      ageBand:
-                        DEVELOPMENT_AGE_BANDS.find((band) => band.key === milestone.ageBand)
-                          ?.label ?? milestone.ageBand,
-                      title: milestone.title,
-                      status: milestone.status,
-                      checkedAt: milestone.checkedAt,
-                    })),
-                )
-            : [],
-          clinical: sections.has("clinical")
-            ? timelineItems.map((item) => ({
-                date: item.followUpDate,
-                category:
-                  item.category === "routine"
-                    ? "Rotina"
-                    : item.category === "consultation"
-                      ? "Consulta"
-                      : "Intercorrencia",
-                title: item.title,
-                description: item.description ?? null,
-              }))
-            : [],
-          exams: sections.has("exams")
-            ? timelineItems.flatMap((followUp) =>
-                followUp.healthExams
-                  .filter((exam) => isWithinPeriod(exam.examDate))
-                  .map((exam) => ({
-                    examDate: exam.examDate,
-                    title: exam.title,
-                    notes: exam.notes ?? null,
-                    followUpTitle: followUp.title,
-                    followUpDate: followUp.followUpDate,
-                  })),
-              )
-            : [],
-        },
-      });
-
+      res.status(200);
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=\"relatorio-${child.name.toLowerCase().replace(/\s+/g, "-")}.pdf\"`,
-      );
-      res.send(pdf);
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      res.setHeader("Content-Length", String(pdf.length));
+      res.setHeader("Cache-Control", "no-store");
+      res.end(pdf);
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0]?.message ?? "Entrada invalida" });
       }
+      if (err instanceof Error && "status" in err && typeof err.status === "number") {
+        return res.status(err.status).json({ message: err.message });
+      }
       console.error("Error generating health report:", err);
       res.status(500).json({ message: "Erro ao gerar relatorio" });
     }
+  };
+
+  app.get(api.healthFollowUps.report.path, isAuthenticated, async (req, res) => {
+    await handleHealthReportDownload(req, res, "query");
+  });
+
+  app.post(api.healthFollowUps.report.path, isAuthenticated, async (req, res) => {
+    await handleHealthReportDownload(req, res, "body");
   });
 
   app.post(

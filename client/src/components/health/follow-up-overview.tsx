@@ -949,6 +949,21 @@ export function FollowUpOverview({
     }));
   };
 
+  const startHealthReportDownload = (url: string) => {
+    let iframe = document.getElementById("health-report-download-frame") as
+      | HTMLIFrameElement
+      | null;
+
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.id = "health-report-download-frame";
+      iframe.style.display = "none";
+      document.body.appendChild(iframe);
+    }
+
+    iframe.src = url;
+  };
+
   const handleGenerateReport = async () => {
     if (selectedReportSectionKeys.length === 0) {
       toast({
@@ -981,36 +996,18 @@ export function FollowUpOverview({
 
     setIsGeneratingReport(true);
     try {
-      const response = await fetch(buildUrl(api.healthFollowUps.report.path, { childId }), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          startDate: reportStartDate || undefined,
-          endDate: reportEndDate || undefined,
-          sections: selectedReportSectionKeys,
-        }),
-      });
+      const params = new URLSearchParams();
+      if (reportStartDate) params.set("startDate", reportStartDate);
+      if (reportEndDate) params.set("endDate", reportEndDate);
+      params.set("sections", selectedReportSectionKeys.join(","));
+      params.set("_ts", String(Date.now()));
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.message || "Nao foi possivel gerar o relatorio");
-      }
-
-      const contentType = response.headers.get("Content-Type") ?? "application/pdf";
-      const arrayBuffer = await response.arrayBuffer();
-      const blob = new Blob([arrayBuffer], { type: contentType });
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = `relatorio-pediatra-${childId}.pdf`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      startHealthReportDownload(
+        `${buildUrl(api.healthFollowUps.report.path, { childId })}?${params.toString()}`,
+      );
 
       setReportDialogOpen(false);
-      toast({ title: "Relatorio gerado com sucesso" });
+      toast({ title: "Download do relatorio iniciado" });
     } catch (error) {
       toast({
         title: "Erro ao gerar relatorio",
@@ -1861,49 +1858,55 @@ export function FollowUpOverview({
       </section>
 
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="max-w-xl overflow-hidden rounded-3xl p-0">
-          <div className="flex max-h-[85vh] flex-col">
-            <DialogHeader className="border-b px-6 pb-4 pt-6">
-              <DialogTitle>Emitir relatorio para o pediatra</DialogTitle>
-              <DialogDescription>
-                Escolha o periodo e somente os blocos que precisam entrar no PDF.
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[31rem] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[34rem]">
+          <div className="flex max-h-[78vh] flex-col">
+            <DialogHeader className="border-b px-4 pb-3 pt-4">
+              <DialogTitle className="pr-8 text-base">Emitir relatorio</DialogTitle>
+              <DialogDescription className="text-xs leading-5">
+                Escolha o periodo e os blocos que entram no PDF.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="report-start-date">Data inicial</Label>
+                  <Label htmlFor="report-start-date" className="text-xs">
+                    Data inicial
+                  </Label>
                   <Input
                     id="report-start-date"
                     type="date"
                     value={reportStartDate}
                     max={reportEndDate || undefined}
+                    className="h-9 text-sm"
                     onChange={(event) => setReportStartDate(event.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="report-end-date">Data final</Label>
+                  <Label htmlFor="report-end-date" className="text-xs">
+                    Data final
+                  </Label>
                   <Input
                     id="report-end-date"
                     type="date"
                     value={reportEndDate}
                     min={reportStartDate || undefined}
                     max={new Date().toISOString().slice(0, 10)}
+                    className="h-9 text-sm"
                     onChange={(event) => setReportEndDate(event.target.value)}
                   />
                 </div>
               </div>
 
               {isReportPeriodInvalid ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   A data inicial precisa ser anterior a data final.
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-border bg-muted/10 p-4">
+              <div className="rounded-xl border border-border bg-muted/10 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     Conteudo do PDF
                   </p>
                   {isLoadingReportPreview ? (
@@ -1914,11 +1917,11 @@ export function FollowUpOverview({
                   ) : null}
                 </div>
 
-                <div className="mt-4 grid gap-2">
+                <div className="mt-3 grid gap-2">
                   {reportSections.map((section) => (
                     <label
                       key={section.key}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3 py-3"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-2.5 py-2.5"
                     >
                       <div className="flex min-w-0 items-start gap-3">
                         <Checkbox
@@ -1928,19 +1931,22 @@ export function FollowUpOverview({
                           }
                         />
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">
+                          <p className="text-[13px] font-medium leading-5 text-foreground">
                             {section.label}
                           </p>
-                          <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground">
+                          <p className="mt-0.5 hidden text-[10px] leading-4 text-muted-foreground sm:block">
                             {section.description}
                           </p>
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs">
+                        <Badge
+                          variant="outline"
+                          className="rounded-full px-2 py-0 text-[11px] leading-5"
+                        >
                           {reportPreview?.counts[section.key] ?? 0}
                         </Badge>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
+                        <p className="mt-1 text-[10px] text-muted-foreground">
                           limite {reportPreview?.sectionLimits[section.key] ?? "-"}
                         </p>
                       </div>
@@ -1949,12 +1955,12 @@ export function FollowUpOverview({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+              <div className="rounded-xl border border-primary/15 bg-primary/5 p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="rounded-full px-3 py-1">
+                  <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-[11px]">
                     Selecionados: {reportPreview?.selectedCount ?? 0}
                   </Badge>
-                  <Badge variant="outline" className="rounded-full px-3 py-1">
+                  <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-[11px]">
                     Limite total: {reportPreview?.maxTotal ?? "-"}
                   </Badge>
                 </div>
@@ -1962,8 +1968,8 @@ export function FollowUpOverview({
                 {reportPreviewError ? (
                   <p className="mt-3 text-xs text-rose-700">{reportPreviewError}</p>
                 ) : reportPreview?.overLimit ? (
-                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <p className="text-sm font-medium text-amber-900">
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-amber-900">
                       Reduza o periodo para gerar o relatorio
                     </p>
                     <div className="mt-2 space-y-1">
@@ -1982,10 +1988,11 @@ export function FollowUpOverview({
               </div>
             </div>
 
-            <div className="border-t px-6 py-4">
+            <div className="border-t px-4 py-3">
               <div className="flex justify-end gap-2">
                 <Button
                   type="button"
+                  size="sm"
                   variant="ghost"
                   onClick={() => setReportDialogOpen(false)}
                   disabled={isGeneratingReport}
@@ -1994,6 +2001,7 @@ export function FollowUpOverview({
                 </Button>
                 <Button
                   type="button"
+                  size="sm"
                   className="rounded-full gap-2"
                   onClick={handleGenerateReport}
                   disabled={
