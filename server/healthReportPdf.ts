@@ -131,9 +131,7 @@ function itemBlock(
   body?: string | null,
 ) {
   ensureSpace(doc, 66);
-  doc
-    .roundedRect(doc.page.margins.left, doc.y, doc.page.width - 100, 0, 12)
-    .fillOpacity(0);
+  doc.fillOpacity(1);
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
