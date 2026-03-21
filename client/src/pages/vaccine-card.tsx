@@ -42,8 +42,6 @@ import {
   Syringe,
   Plus,
   Check,
-  Camera,
-  X,
   ChevronRight,
   Shield,
   Edit2,
@@ -51,7 +49,6 @@ import {
   MapPin,
   Calendar,
   FileText,
-  Image,
   Heart,
   Star,
   Sparkles,
@@ -62,10 +59,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation, useSearch } from "wouter";
 import { cn, parseLocalDate } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  getPendingVaccines,
-  getPendingDosesByVaccine,
-} from "@/lib/vaccineCheck";
+import { getPendingDosesByVaccine } from "@/lib/vaccineCheck";
 import type { SusVaccine, VaccineRecord } from "@shared/schema";
 
 const encouragingMessages = [
@@ -76,20 +70,68 @@ const encouragingMessages = [
   "Vacininha dada, coração de mãe/pai tranquilo!",
 ];
 
-const doseOptions = [
-  "Dose única",
-  "Dose ao nascer",
-  "1ª dose",
-  "2ª dose",
-  "3ª dose",
-  "1º reforço",
-  "2º reforço",
-  "Reforço",
-  "Dose inicial",
-  "Dose anual",
-];
-
 type FormMode = "create" | "edit";
+type VaccineFormValues = {
+  susVaccineId: string;
+  dose: string;
+  applicationDate: string;
+  applicationPlace: string;
+  notes: string;
+};
+
+function normalizeDoseLabel(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getRecommendedDoseLabels(vaccine?: SusVaccine | null) {
+  if (!vaccine?.recommendedDoses) return [];
+
+  const cleaned = vaccine.recommendedDoses.replace(/\([^)]*\)/g, "");
+
+  return Array.from(
+    new Set(
+      cleaned
+        .split(/,|\+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => (/^\d+ª$/.test(part) ? `${part} dose` : part))
+        .map((part) => part.replace(/\s+/g, " ")),
+    ),
+  );
+}
+
+function getFirstMissingRecommendedDose(
+  recommendedDoses: string[],
+  existingRecords: VaccineRecord[],
+) {
+  const existingDoseSet = new Set(
+    existingRecords.map((record) => normalizeDoseLabel(record.dose)),
+  );
+
+  return (
+    recommendedDoses.find(
+      (doseLabel) => !existingDoseSet.has(normalizeDoseLabel(doseLabel)),
+    ) ?? ""
+  );
+}
+
+function getSuggestedExtraDoseLabel(
+  recommendedDoses: string[],
+  existingRecords: VaccineRecord[],
+) {
+  const numericDoses = [...recommendedDoses, ...existingRecords.map((record) => record.dose)]
+    .map((label) => {
+      const match = label.match(/(\d+)ª\s*dose/i);
+      return match ? Number(match[1]) : null;
+    })
+    .filter((value): value is number => value !== null);
+
+  if (numericDoses.length > 0) {
+    return `${Math.max(...numericDoses) + 1}ª dose`;
+  }
+
+  return "Dose extra";
+}
 
 export default function VaccineCard() {
   const { activeChild } = useChildContext();
@@ -120,19 +162,8 @@ export default function VaccineCard() {
   );
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationVaccine, setCelebrationVaccine] = useState<string>("");
-  const [batchMode, setBatchMode] = useState(false);
-  const [batchDoses, setBatchDoses] = useState("2");
 
-  const DOSE_LABELS = [
-    "1ª dose",
-    "2ª dose",
-    "3ª dose",
-    "4ª dose",
-    "5ª dose",
-    "6ª dose",
-  ];
-
-  const form = useForm({
+  const form = useForm<VaccineFormValues>({
     defaultValues: {
       susVaccineId: "",
       dose: "",
@@ -186,19 +217,44 @@ export default function VaccineCard() {
     }
   }, [editingRecord, formMode, susVaccines, form]);
 
-  const openCreateForm = () => {
-    setFormMode("create");
-    setEditingRecord(null);
+  const resetCreateForm = (vaccine?: SusVaccine | null) => {
+    const nextSelectedVaccine = vaccine ?? null;
+    const recommendedDoses = getRecommendedDoseLabels(nextSelectedVaccine);
+    const existingRecords = nextSelectedVaccine
+      ? getRecordsForVaccine(nextSelectedVaccine.id)
+      : [];
+
     form.reset({
-      susVaccineId: "",
-      dose: "",
+      susVaccineId: nextSelectedVaccine ? String(nextSelectedVaccine.id) : "",
+      dose: getFirstMissingRecommendedDose(recommendedDoses, existingRecords),
       applicationDate: "",
       applicationPlace: "",
       notes: "",
     });
-    setSelectedVaccine(null);
-    setBatchMode(false);
-    setBatchDoses("2");
+    setSelectedVaccine(nextSelectedVaccine);
+  };
+
+  const handleSelectedVaccineChange = (vaccineId: string) => {
+    const vaccine = susVaccines?.find((item) => item.id === Number(vaccineId)) ?? null;
+    const recommendedDoses = getRecommendedDoseLabels(vaccine);
+    const existingRecords = vaccine ? getRecordsForVaccine(vaccine.id) : [];
+
+    form.setValue("susVaccineId", vaccineId);
+    form.setValue(
+      "dose",
+      getFirstMissingRecommendedDose(recommendedDoses, existingRecords),
+    );
+    form.setValue("applicationDate", "");
+    form.setValue("applicationPlace", "");
+    form.setValue("notes", "");
+    setSelectedVaccine(vaccine);
+  };
+
+  const openCreateForm = (vaccine?: SusVaccine | null) => {
+    setFormMode("create");
+    setEditingRecord(null);
+    setDetailRecord(null);
+    resetCreateForm(vaccine);
     setFormOpen(true);
   };
 
@@ -237,21 +293,35 @@ export default function VaccineCard() {
     );
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: VaccineFormValues) => {
     if (!activeChild) return;
 
     try {
+      const payload = {
+        susVaccineId: parseInt(data.susVaccineId),
+        dose: data.dose.trim(),
+        applicationDate: data.applicationDate || null,
+        applicationPlace: data.applicationPlace?.trim() || null,
+        notes: data.notes?.trim() || null,
+      };
+
+      if (!payload.susVaccineId || !payload.dose) {
+        toast({
+          title: "Preencha a vacina e a dose",
+          description: "Selecione a vacina e informe qual dose deseja registrar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (
+        typeof payload.applicationDate === "string" &&
+        payload.applicationDate.includes("T")
+      ) {
+        payload.applicationDate = payload.applicationDate.split("T")[0];
+      }
+
       if (formMode === "edit" && editingRecord) {
-        const payload = {
-          susVaccineId: parseInt(data.susVaccineId),
-          dose: data.dose,
-          applicationDate: data.applicationDate,
-          applicationPlace: data.applicationPlace || null,
-          notes: data.notes || null,
-        };
-        if (payload.applicationDate?.includes("T")) {
-          payload.applicationDate = payload.applicationDate.split("T")[0];
-        }
         updateRecord.mutate(
           { id: editingRecord.id, childId: activeChild.id, ...payload },
           {
@@ -266,51 +336,7 @@ export default function VaccineCard() {
               toast({ title: "Erro ao atualizar", variant: "destructive" }),
           },
         );
-      } else if (batchMode) {
-        const count = parseInt(batchDoses);
-        const susVaccineId = parseInt(data.susVaccineId);
-        const vaccineName = selectedVaccine?.name || "Vacina";
-        let created = 0;
-
-        const doseRequests = Array.from({ length: count }, (_, i) =>
-          createRecord.mutateAsync({
-            childId: activeChild.id,
-            susVaccineId,
-            dose: DOSE_LABELS[i] ?? `${i + 1}ª dose`,
-            applicationDate: null as any,
-            notes: null,
-          }),
-        );
-
-        const results = await Promise.allSettled(doseRequests);
-
-        for (const result of results) {
-          if (result.status === "fulfilled") {
-            created++;
-          } else if (!result.reason?.message?.includes("já foi registrada")) {
-            throw result.reason;
-          }
-        }
-
-        setFormOpen(false);
-        form.reset();
-        setSelectedVaccine(null);
-        setBatchMode(false);
-        setCelebrationVaccine(
-          `${vaccineName} (${created} dose${created > 1 ? "s" : ""} criadas)`,
-        );
-        setShowCelebration(true);
       } else {
-        const payload = {
-          susVaccineId: parseInt(data.susVaccineId),
-          dose: data.dose,
-          applicationDate: data.applicationDate,
-          applicationPlace: data.applicationPlace || null,
-          notes: data.notes || null,
-        };
-        if (payload.applicationDate?.includes("T")) {
-          payload.applicationDate = payload.applicationDate.split("T")[0];
-        }
         const vaccineName = selectedVaccine?.name || "Vacina";
         await createRecord.mutateAsync({ childId: activeChild.id, ...payload });
         setFormOpen(false);
@@ -326,18 +352,6 @@ export default function VaccineCard() {
         variant: "destructive",
       });
     }
-  };
-
-  const getVaccineName = (susVaccineId: number) => {
-    return susVaccines?.find((v) => v.id === susVaccineId)?.name || "Vacina";
-  };
-
-  const getVaccineInfo = (susVaccineId: number) => {
-    return susVaccines?.find((v) => v.id === susVaccineId);
-  };
-
-  const getRecordsForVaccine = (vaccineId: number) => {
-    return vaccineRecords?.filter((r) => r.susVaccineId === vaccineId) || [];
   };
 
   const isPending = createRecord.isPending || updateRecord.isPending;
@@ -369,6 +383,53 @@ export default function VaccineCard() {
     pendingByVaccine.forEach((doses) => (count += doses.length));
     return count;
   }, [pendingByVaccine]);
+
+  function getVaccineName(susVaccineId: number) {
+    return susVaccines?.find((v) => v.id === susVaccineId)?.name || "Vacina";
+  }
+
+  function getRecordsForVaccine(vaccineId: number) {
+    return vaccineRecords?.filter((record) => record.susVaccineId === vaccineId) || [];
+  }
+
+  const selectedRecommendedDoses = useMemo(
+    () => getRecommendedDoseLabels(selectedVaccine),
+    [selectedVaccine],
+  );
+
+  const selectedVaccineRecords = useMemo(
+    () => (selectedVaccine ? getRecordsForVaccine(selectedVaccine.id) : []),
+    [selectedVaccine, vaccineRecords],
+  );
+
+  const selectedStandardDoseRecords = useMemo(
+    () =>
+      selectedRecommendedDoses.map((doseLabel) => ({
+        doseLabel,
+        record:
+          selectedVaccineRecords.find(
+            (record) => normalizeDoseLabel(record.dose) === normalizeDoseLabel(doseLabel),
+          ) ?? null,
+      })),
+    [selectedRecommendedDoses, selectedVaccineRecords],
+  );
+
+  const selectedExtraDoseRecords = useMemo(() => {
+    const recommendedSet = new Set(
+      selectedRecommendedDoses.map((doseLabel) => normalizeDoseLabel(doseLabel)),
+    );
+
+    return selectedVaccineRecords.filter(
+      (record) => !recommendedSet.has(normalizeDoseLabel(record.dose)),
+    );
+  }, [selectedRecommendedDoses, selectedVaccineRecords]);
+
+  const suggestedExtraDose = useMemo(
+    () => getSuggestedExtraDoseLabel(selectedRecommendedDoses, selectedVaccineRecords),
+    [selectedRecommendedDoses, selectedVaccineRecords],
+  );
+
+  const watchedDose = form.watch("dose");
 
   if (!activeChild) {
     return (
@@ -405,7 +466,7 @@ export default function VaccineCard() {
 
           <Button
             size="icon"
-            onClick={openCreateForm}
+            onClick={() => openCreateForm()}
             data-testid="button-add-vaccine"
           >
             <Plus className="w-5 h-5" />
@@ -448,7 +509,7 @@ export default function VaccineCard() {
                 <div
                   key={vaccine.id}
                   className={cn(
-                    "bg-card rounded-xl border p-4 transition-all",
+                    "bg-card rounded-xl border p-4 transition-all cursor-pointer hover:shadow-md",
                     hasRecords && !hasPendingDoses
                       ? "border-green-500/30 bg-green-500/5"
                       : hasPendingDoses
@@ -456,6 +517,15 @@ export default function VaccineCard() {
                         : "border-border",
                   )}
                   data-testid={`vaccine-card-${vaccine.id}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openCreateForm(vaccine)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openCreateForm(vaccine);
+                    }
+                  }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -514,7 +584,10 @@ export default function VaccineCard() {
                           {records.map((record) => (
                             <button
                               key={record.id}
-                              onClick={() => openDetail(record)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openDetail(record);
+                              }}
                               className="w-full flex items-center gap-2 text-sm bg-card rounded-lg p-2 border border-green-500/20 hover:bg-green-500/10 transition-colors text-left"
                               data-testid={`vaccine-record-${record.id}`}
                             >
@@ -538,6 +611,10 @@ export default function VaccineCard() {
                           ))}
                         </div>
                       )}
+
+                      <p className="mt-3 text-[11px] font-medium text-muted-foreground">
+                        Toque no card para registrar uma dose ou revisar essa vacina.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -554,7 +631,7 @@ export default function VaccineCard() {
                 Nenhuma vacina registrada ainda.
               </p>
               <p className="text-muted-foreground text-xs mt-1">
-                Clique no + para adicionar a primeira vacina.
+                Toque em uma vacina da lista ou use o + para registrar a primeira dose.
               </p>
             </div>
           )}
@@ -568,20 +645,19 @@ export default function VaccineCard() {
             form.reset();
             setSelectedVaccine(null);
             setEditingRecord(null);
-            setBatchMode(false);
           }
         }}
       >
-        <DialogContent className="rounded-2xl max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
+        <DialogContent className="rounded-2xl max-w-md mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Syringe className="w-5 h-5 text-primary" />
-              {formMode === "edit" ? "Editar Vacina" : "Registrar Vacina"}
+              {formMode === "edit" ? "Editar dose da vacina" : "Registrar / aplicar vacina"}
             </DialogTitle>
             <DialogDescription>
               {formMode === "edit"
-                ? "Atualize as informações da vacina"
-                : "Registre uma vacina aplicada na criança"}
+                ? "Atualize os dados desse registro vacinal."
+                : "Selecione a vacina, use uma dose padrão ou digite uma dose extra."}
             </DialogDescription>
           </DialogHeader>
 
@@ -597,14 +673,9 @@ export default function VaccineCard() {
                 rules={{ required: true }}
                 render={({ field }) => (
                   <Select
+                    disabled={formMode === "edit"}
                     value={field.value}
-                    onValueChange={(val) => {
-                      field.onChange(val);
-                      const vaccine = susVaccines?.find(
-                        (v) => v.id === parseInt(val),
-                      );
-                      setSelectedVaccine(vaccine || null);
-                    }}
+                    onValueChange={handleSelectedVaccineChange}
                   >
                     <SelectTrigger data-testid="select-vaccine">
                       <SelectValue placeholder="Selecione a vacina" />
@@ -620,8 +691,8 @@ export default function VaccineCard() {
                 )}
               />
               {selectedVaccine && (
-                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
-                  <p className="font-medium">
+                <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">
                     Previne: {selectedVaccine.diseasesPrevented}
                   </p>
                   <p>Idade: {selectedVaccine.ageRange}</p>
@@ -629,112 +700,172 @@ export default function VaccineCard() {
               )}
             </div>
 
-            {/* Batch mode toggle — apenas no modo criação */}
-            {formMode === "create" && (
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                <div className="flex items-center justify-between">
+            {formMode === "create" && selectedVaccine && (
+              <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-3">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-blue-800">
-                      Criar doses automaticamente
-                    </p>
-                    <p className="text-xs text-blue-600 mt-0.5">
-                      Cria as doses como pendentes — preencha a data quando
-                      aplicar
+                    <p className="text-sm font-semibold text-foreground">Doses padrão</p>
+                    <p className="text-xs text-muted-foreground">
+                      Toque numa dose para preencher rápido. Se ela já existir, você pode editar.
                     </p>
                   </div>
-                  <button
+                  <Button
                     type="button"
-                    role="switch"
-                    aria-checked={batchMode}
-                    onClick={() => setBatchMode((v) => !v)}
-                    className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                      batchMode ? "bg-blue-600" : "bg-gray-200",
-                    )}
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => form.setValue("dose", suggestedExtraDose)}
                   >
-                    <span
-                      className={cn(
-                        "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-                        batchMode ? "translate-x-6" : "translate-x-1",
-                      )}
-                    />
-                  </button>
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Dose extra
+                  </Button>
                 </div>
 
-                {batchMode && (
-                  <div className="mt-3 space-y-1">
-                    <Label className="text-blue-800">Número de doses</Label>
-                    <Select value={batchDoses} onValueChange={setBatchDoses}>
-                      <SelectTrigger className="bg-card">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 dose (Dose única)</SelectItem>
-                        <SelectItem value="2">2 doses (1ª + 2ª)</SelectItem>
-                        <SelectItem value="3">
-                          3 doses (1ª + 2ª + 3ª)
-                        </SelectItem>
-                        <SelectItem value="4">
-                          4 doses (1ª + 2ª + 3ª + 4ª)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-2">
+                  {selectedStandardDoseRecords.length > 0 ? (
+                    selectedStandardDoseRecords.map(({ doseLabel, record }) => {
+                      const isSelected =
+                        normalizeDoseLabel(watchedDose || "") ===
+                        normalizeDoseLabel(doseLabel);
+
+                      if (record) {
+                        return (
+                          <button
+                            key={doseLabel}
+                            type="button"
+                            onClick={() => openEditForm(record)}
+                            className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left transition-colors hover:bg-emerald-100"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium text-emerald-900">
+                                  {doseLabel}
+                                </p>
+                                <p className="text-xs text-emerald-700">
+                                  {record.applicationDate
+                                    ? `Aplicada em ${format(
+                                        parseLocalDate(record.applicationDate),
+                                        "dd/MM/yyyy",
+                                      )}`
+                                    : "Salva como pendente"}
+                                </p>
+                              </div>
+                              <span className="text-xs font-semibold text-emerald-800">
+                                Editar
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={doseLabel}
+                          type="button"
+                          onClick={() => form.setValue("dose", doseLabel)}
+                          className={cn(
+                            "w-full rounded-xl border px-3 py-2 text-left transition-colors",
+                            isSelected
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-background hover:bg-muted/60",
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {doseLabel}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Disponível para registrar
+                              </p>
+                            </div>
+                            <span className="text-xs font-semibold text-primary">
+                              Usar
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Essa vacina não tem doses padrão cadastradas. Você pode registrar manualmente.
+                    </p>
+                  )}
+                </div>
+
+                {selectedExtraDoseRecords.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Doses extras já registradas
+                    </p>
+                    {selectedExtraDoseRecords.map((record) => (
+                      <button
+                        key={record.id}
+                        type="button"
+                        onClick={() => openEditForm(record)}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              {record.dose}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {record.applicationDate
+                                ? `Aplicada em ${format(
+                                    parseLocalDate(record.applicationDate),
+                                    "dd/MM/yyyy",
+                                  )}`
+                                : "Salva como pendente"}
+                            </p>
+                          </div>
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            Editar
+                          </span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Campo Dose — oculto no batch mode */}
-            {!batchMode && (
-              <div className="space-y-2">
-                <Label>Dose</Label>
-                <Controller
-                  name="dose"
-                  control={form.control}
-                  rules={{ required: !batchMode }}
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger data-testid="select-dose">
-                        <SelectValue placeholder="Selecione a dose" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {doseOptions.map((dose) => (
-                          <SelectItem key={dose} value={dose}>
-                            {dose}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Dose</Label>
+              <Input
+                placeholder={
+                  selectedVaccine
+                    ? `Ex: ${suggestedExtraDose}`
+                    : "Ex: 1ª dose, Dose única ou Reforço"
+                }
+                {...form.register("dose", { required: true })}
+                data-testid="input-dose"
+              />
+              <p className="text-xs text-muted-foreground">
+                Use uma dose padrão acima ou digite manualmente uma extra, como `4ª dose`.
+              </p>
+            </div>
 
-            {/* Data de Aplicação — oculta no batch mode (doses são criadas como pendentes) */}
-            {!batchMode && (
-              <div className="space-y-2">
-                <Label>Data de Aplicação</Label>
-                <Input
-                  type="date"
-                  {...form.register("applicationDate", {
-                    required: !batchMode,
-                  })}
-                  data-testid="input-application-date"
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Data de Aplicação</Label>
+              <Input
+                type="date"
+                {...form.register("applicationDate")}
+                data-testid="input-application-date"
+              />
+              <p className="text-xs text-muted-foreground">
+                Se deixar em branco, a dose será salva como pendente.
+              </p>
+            </div>
 
-            {/* Local de Aplicação — ocultado no batch mode pois não se aplica a doses pendentes */}
-            {!batchMode && (
-              <div className="space-y-2">
-                <Label>Local de Aplicação (opcional)</Label>
-                <Input
-                  placeholder="Ex: UBS Centro, Hospital Municipal..."
-                  {...form.register("applicationPlace")}
-                  data-testid="input-application-place"
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Local de Aplicação (opcional)</Label>
+              <Input
+                placeholder="Ex: UBS Centro, Hospital Municipal..."
+                {...form.register("applicationPlace")}
+                data-testid="input-application-place"
+              />
+            </div>
 
             <div className="space-y-2">
               <Label>Observações (opcional)</Label>
@@ -755,9 +886,7 @@ export default function VaccineCard() {
                 ? "Salvando..."
                 : formMode === "edit"
                   ? "Salvar Alterações"
-                  : batchMode
-                    ? "Criar Doses"
-                    : "Registrar Vacina"}
+                  : "Salvar Dose"}
             </Button>
           </form>
         </DialogContent>
