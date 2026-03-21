@@ -19,6 +19,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -75,6 +80,7 @@ import {
   ClipboardList,
   ExternalLink,
   FileText,
+  History,
   Loader2,
   Pencil,
   Plus,
@@ -289,8 +295,11 @@ export function FollowUpOverview({
   const [removedExamFilePaths, setRemovedExamFilePaths] = useState<string[]>([]);
   const [loadingExamFile, setLoadingExamFile] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
+  const [openDevelopmentSection, setOpenDevelopmentSection] = useState<string>("");
   const [openDevelopmentItem, setOpenDevelopmentItem] = useState<string>("");
   const [openTimelineItems, setOpenTimelineItems] = useState<string[]>([]);
+  const [isNeonatalPanelOpen, setIsNeonatalPanelOpen] = useState(true);
+  const [isNeonatalHistoryOpen, setIsNeonatalHistoryOpen] = useState(false);
 
   const timelineFollowUps = useMemo(
     () => timelineData?.pages.flatMap((page) => page.data) || [],
@@ -327,9 +336,49 @@ export function FollowUpOverview({
     currentAgeMonths <= 1
       ? AGE_BASED_HEALTH_SUGGESTIONS.newborn
       : AGE_BASED_HEALTH_SUGGESTIONS[closestAgeBand.key];
+  const currentDevelopmentFollowUp = useMemo(
+    () =>
+      developmentFollowUps.find((followUp) => {
+        const ageBand = getAgeBandMeta(followUp);
+        return ageBand?.key === closestAgeBand.key;
+      }) ?? developmentFollowUps[0] ?? null,
+    [closestAgeBand.key, developmentFollowUps],
+  );
+  const developmentTotals = useMemo(
+    () =>
+      developmentFollowUps.reduce(
+        (acc, followUp) => {
+          for (const milestone of followUp.developmentMilestones) {
+            acc.total += 1;
+            if (milestone.status === "pending") acc.pending += 1;
+            if (milestone.status === "ok") acc.ok += 1;
+            if (milestone.status === "attention") acc.attention += 1;
+            if (milestone.status === "delayed") acc.delayed += 1;
+          }
+          return acc;
+        },
+        { total: 0, pending: 0, ok: 0, attention: 0, delayed: 0 },
+      ),
+    [developmentFollowUps],
+  );
+  const developmentAlertCount =
+    developmentTotals.attention + developmentTotals.delayed;
   const pendingNeonatalCount =
     neonatalFollowUp?.neonatalScreenings.filter((item) => !item.isCompleted)
       .length ?? 0;
+  const totalNeonatalCount = neonatalFollowUp?.neonatalScreenings.length ?? 0;
+  const completedNeonatalCount = totalNeonatalCount - pendingNeonatalCount;
+  const isNeonatalComplete =
+    totalNeonatalCount > 0 && pendingNeonatalCount === 0;
+  const isNeonatalInPrimaryFlow = Boolean(
+    neonatalFollowUp && (!isNeonatalComplete || currentAgeMonths <= 1),
+  );
+
+  useEffect(() => {
+    if (!neonatalFollowUp) return;
+
+    setIsNeonatalPanelOpen(!isNeonatalComplete || currentAgeMonths <= 1);
+  }, [currentAgeMonths, isNeonatalComplete, neonatalFollowUp]);
 
   useEffect(() => {
     if (!legacyRecordId || allFollowUps.length === 0) return;
@@ -738,254 +787,482 @@ export function FollowUpOverview({
         </div>
       </section>
 
-      {neonatalFollowUp && (
-        <section className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+      {neonatalFollowUp && isNeonatalInPrimaryFlow ? (
+        <Collapsible
+          open={isNeonatalPanelOpen}
+          onOpenChange={setIsNeonatalPanelOpen}
+          className={cn(
+            "overflow-hidden rounded-3xl border p-5 shadow-sm",
+            pendingNeonatalCount > 0
+              ? "border-sky-200 bg-gradient-to-br from-sky-50 via-background to-cyan-50"
+              : "border-emerald-200 bg-gradient-to-br from-emerald-50 via-background to-background",
+          )}
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+              <p
+                className={cn(
+                  "text-xs uppercase tracking-[0.24em]",
+                  pendingNeonatalCount > 0 ? "text-sky-700" : "text-emerald-700",
+                )}
+              >
                 Ao nascer
               </p>
-              <h3 className="mt-2 text-lg font-display font-bold">
+              <h3 className="mt-2 text-lg font-display font-bold text-foreground">
                 Triagem neonatal
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Checklist inicial inspirado na rotina real pediatrica.
+                {pendingNeonatalCount > 0
+                  ? "Mostramos esta etapa aqui enquanto ainda houver checklist pendente."
+                  : "Tudo registrado. Os detalhes continuam acessiveis sem tomar espaco da pagina."}
               </p>
             </div>
-            <div className="rounded-2xl bg-sky-100 p-3 text-sky-700">
+            <div
+              className={cn(
+                "rounded-2xl p-3",
+                pendingNeonatalCount > 0
+                  ? "bg-sky-100 text-sky-700"
+                  : "bg-emerald-100 text-emerald-700",
+              )}
+            >
               <ShieldCheck className="w-5 h-5" />
             </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant="outline" className="rounded-full px-3 py-1">
-              {pendingNeonatalCount === 0
-                ? "Triagem concluida"
-                : `${pendingNeonatalCount} item(ns) pendente(s)`}
+            <Badge
+              variant="outline"
+              className={cn(
+                "rounded-full px-3 py-1",
+                pendingNeonatalCount > 0 &&
+                  "border-amber-200 bg-amber-50 text-amber-700",
+              )}
+            >
+              {pendingNeonatalCount > 0
+                ? `${pendingNeonatalCount} item(ns) pendente(s)`
+                : `Triagem concluida • ${completedNeonatalCount}/${totalNeonatalCount}`}
             </Badge>
             {currentAgeMonths <= 1 ? (
               <Badge className="rounded-full bg-sky-100 text-sky-700 hover:bg-sky-100">
                 Prioridade da idade atual
               </Badge>
             ) : null}
+            {completedNeonatalCount > 0 && pendingNeonatalCount > 0 ? (
+              <Badge
+                variant="outline"
+                className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700"
+              >
+                {completedNeonatalCount} realizado(s)
+              </Badge>
+            ) : null}
           </div>
 
-          <div className="mt-4 grid gap-3">
-            {NEWBORN_SCREENINGS.map((screening) => {
-              const record = neonatalFollowUp.neonatalScreenings.find(
-                (item) => item.screeningType === screening.key,
-              );
-              return (
-                <label
-                  key={screening.key}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3"
+          <div className="mt-4 rounded-2xl border border-white/70 bg-white/80 p-4 backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {pendingNeonatalCount > 0
+                    ? "Checklist neonatal em andamento"
+                    : "Resumo da triagem ao nascer"}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {pendingNeonatalCount > 0
+                    ? "Abra para marcar os testes feitos e deixar a tela principal mais limpa depois."
+                    : "Os registros continuam salvos e podem ser revisados a qualquer momento."}
+                </p>
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-auto rounded-full px-3 py-2 text-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={record?.isCompleted || false}
-                      onCheckedChange={(checked) =>
-                        toggleScreening(
-                          neonatalFollowUp.id,
-                          screening.key,
-                          Boolean(checked),
-                        )
-                      }
-                    />
+                  {isNeonatalPanelOpen ? "Recolher" : "Ver checklist"}
+                  <ChevronDown
+                    className={cn(
+                      "ml-2 h-4 w-4 transition-transform",
+                      isNeonatalPanelOpen && "rotate-180",
+                    )}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+
+            <CollapsibleContent className="pt-4">
+              <div className="grid gap-3">
+                {NEWBORN_SCREENINGS.map((screening) => {
+                  const record = neonatalFollowUp.neonatalScreenings.find(
+                    (item) => item.screeningType === screening.key,
+                  );
+                  return (
+                    <label
+                      key={screening.key}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background/90 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={record?.isCompleted || false}
+                          onCheckedChange={(checked) =>
+                            toggleScreening(
+                              neonatalFollowUp.id,
+                              screening.key,
+                              Boolean(checked),
+                            )
+                          }
+                        />
+                        <div>
+                          <p className="font-medium text-foreground">{screening.label}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {record?.completedAt
+                              ? `Realizado em ${format(parseLocalDate(record.completedAt), "dd/MM/yyyy")}`
+                              : "Pendente"}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "rounded-full border",
+                          record?.isCompleted
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-border bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {record?.isCompleted ? "Realizado" : "Pendente"}
+                      </Badge>
+                    </label>
+                  );
+                })}
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
+      ) : null}
+
+      <section className="space-y-4">
+        <Accordion
+          type="single"
+          collapsible
+          value={openDevelopmentSection}
+          onValueChange={setOpenDevelopmentSection}
+        >
+          <AccordionItem
+            value="development-overview"
+            className="overflow-hidden rounded-3xl border border-border bg-card px-5 shadow-sm"
+          >
+            <AccordionTrigger className="py-5 hover:no-underline">
+              <div className="flex w-full items-start justify-between gap-3 pr-2 text-left">
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                    Eixo principal
+                  </p>
+                  <h3 className="mt-1 text-lg font-display font-bold text-foreground">
+                    Marcos de Desenvolvimento (0 a 3 anos)
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Tudo concentrado em um unico bloco, com foco na etapa atual.
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant="outline" className="rounded-full px-3 py-1">
+                      Faixa atual: {currentDevelopmentFollowUp
+                        ? getAgeBandMeta(currentDevelopmentFollowUp)?.label ??
+                          currentDevelopmentFollowUp.title
+                        : "Sem faixa"}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full px-3 py-1">
+                      {developmentFollowUps.length} faixa(s)
+                    </Badge>
+                    {developmentAlertCount > 0 ? (
+                      <Badge className="rounded-full bg-amber-100 text-amber-700 hover:bg-amber-100">
+                        {developmentAlertCount} marco(s) em atencao
+                      </Badge>
+                    ) : (
+                      <Badge className="rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                        {developmentTotals.ok} marco(s) marcados como ok
+                      </Badge>
+                    )}
+                  </div>
+
+                  {currentDevelopmentFollowUp ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {getMilestoneSummary(
+                        currentDevelopmentFollowUp.developmentMilestones,
+                      )} na faixa atual.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+                  <Baby className="h-5 w-5" />
+                </div>
+              </div>
+            </AccordionTrigger>
+
+            <AccordionContent className="pb-5 pt-0">
+              <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="rounded-full px-3 py-1">
+                    {currentAgeMonths} meses
+                  </Badge>
+                  {currentDevelopmentFollowUp ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-primary/20 bg-primary/5 px-3 py-1 text-primary"
+                    >
+                      Agora:{" "}
+                      {getAgeBandMeta(currentDevelopmentFollowUp)?.label ??
+                        currentDevelopmentFollowUp.title}
+                    </Badge>
+                  ) : null}
+                  {developmentTotals.pending > 0 ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-border px-3 py-1"
+                    >
+                      {developmentTotals.pending} pendente(s)
+                    </Badge>
+                  ) : null}
+                </div>
+
+                <Accordion
+                  type="single"
+                  collapsible
+                  value={openDevelopmentItem}
+                  onValueChange={setOpenDevelopmentItem}
+                  className="mt-4 space-y-2.5"
+                >
+                  {developmentFollowUps.map((followUp) => {
+                    const ageBand = getAgeBandMeta(followUp);
+                    const isCurrent = ageBand?.key === closestAgeBand.key;
+
+                    return (
+                      <AccordionItem
+                        key={followUp.id}
+                        value={String(followUp.id)}
+                        className="overflow-hidden rounded-2xl border border-border bg-background px-4 shadow-sm"
+                      >
+                        <AccordionTrigger className="py-4 hover:no-underline">
+                          <div className="flex w-full items-start justify-between gap-2.5 pr-2 text-left">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="text-[15px] font-display font-bold text-foreground">
+                                  {ageBand?.label || followUp.title}
+                                </h4>
+                                {isCurrent ? (
+                                  <Badge className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] text-primary hover:bg-primary/10">
+                                    Agora
+                                  </Badge>
+                                ) : null}
+                              </div>
+                              <p className="mt-0.5 text-[13px] text-muted-foreground">
+                                {ageBand
+                                  ? `Faixa de referencia em torno de ${ageBand.targetMonths} meses`
+                                  : "Acompanhamento do desenvolvimento"}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {getMilestoneSummary(followUp.developmentMilestones)}
+                              </p>
+                            </div>
+                            <div className="rounded-xl bg-amber-100 p-2.5 text-amber-700">
+                              <Baby className="h-4.5 w-4.5" />
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-4 pt-0.5">
+                          <div className="space-y-2.5">
+                            {followUp.developmentMilestones.map((milestone) => {
+                              const statusConfig =
+                                developmentStatusConfig[milestone.status] ||
+                                developmentStatusConfig.pending;
+                              return (
+                                <div
+                                  key={milestone.id}
+                                  className="rounded-xl border border-border p-3"
+                                >
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                    <div>
+                                      <p className="text-sm font-medium text-foreground">
+                                        {milestone.title}
+                                      </p>
+                                      <Badge
+                                        variant="outline"
+                                        className={cn(
+                                          "mt-1.5 rounded-full px-2.5 py-0.5 text-[11px]",
+                                          statusConfig.className,
+                                        )}
+                                      >
+                                        {statusConfig.label}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={
+                                          milestone.status === "ok"
+                                            ? "default"
+                                            : "outline"
+                                        }
+                                        className="h-8 rounded-full px-3 text-xs"
+                                        onClick={() =>
+                                          setMilestoneStatus(
+                                            followUp.id,
+                                            milestone,
+                                            "ok",
+                                          )
+                                        }
+                                      >
+                                        Ok
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={
+                                          milestone.status === "attention"
+                                            ? "default"
+                                            : "outline"
+                                        }
+                                        className="h-8 rounded-full px-3 text-xs"
+                                        onClick={() =>
+                                          setMilestoneStatus(
+                                            followUp.id,
+                                            milestone,
+                                            "attention",
+                                          )
+                                        }
+                                      >
+                                        Atencao
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={
+                                          milestone.status === "delayed"
+                                            ? "default"
+                                            : "outline"
+                                        }
+                                        className="h-8 rounded-full px-3 text-xs"
+                                        onClick={() =>
+                                          setMilestoneStatus(
+                                            followUp.id,
+                                            milestone,
+                                            "delayed",
+                                          )
+                                        }
+                                      >
+                                        Atraso
+                                      </Button>
+                                      {milestone.status !== "pending" ? (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 rounded-full px-3 text-xs text-muted-foreground"
+                                          onClick={() =>
+                                            updateMilestone.mutate({
+                                              childId,
+                                              followUpId: followUp.id,
+                                              milestoneKey: milestone.milestoneKey,
+                                              status: "pending",
+                                              checkedAt: null,
+                                            })
+                                          }
+                                        >
+                                          Limpar
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </section>
+
+      {neonatalFollowUp && !isNeonatalInPrimaryFlow ? (
+        <Collapsible
+          open={isNeonatalHistoryOpen}
+          onOpenChange={setIsNeonatalHistoryOpen}
+          className="rounded-3xl border border-border/70 bg-card/80 p-4 shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                Nascimento
+              </p>
+              <h3 className="mt-1 text-base font-display font-bold text-foreground">
+                Triagem neonatal registrada
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {completedNeonatalCount}/{totalNeonatalCount} testes marcados. Mantida
+                em historico para consulta, sem ocupar a area principal.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge className="rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                Concluida
+              </Badge>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full px-3"
+                >
+                  <History className="mr-2 h-4 w-4" />
+                  {isNeonatalHistoryOpen ? "Ocultar" : "Ver detalhes"}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+          </div>
+
+          <CollapsibleContent className="pt-4">
+            <div className="grid gap-3">
+              {NEWBORN_SCREENINGS.map((screening) => {
+                const record = neonatalFollowUp.neonatalScreenings.find(
+                  (item) => item.screeningType === screening.key,
+                );
+                return (
+                  <div
+                    key={screening.key}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3"
+                  >
                     <div>
                       <p className="font-medium text-foreground">{screening.label}</p>
                       <p className="text-xs text-muted-foreground">
                         {record?.completedAt
                           ? `Realizado em ${format(parseLocalDate(record.completedAt), "dd/MM/yyyy")}`
-                          : "Pendente"}
+                          : "Sem registro de conclusao"}
                       </p>
                     </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "rounded-full border",
+                        record?.isCompleted
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-border bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {record?.isCompleted ? "Realizado" : "Pendente"}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "rounded-full border",
-                      record?.isCompleted
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-border bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {record?.isCompleted ? "Realizado" : "Pendente"}
-                  </Badge>
-                </label>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Eixo principal
-            </p>
-            <h3 className="mt-1 text-lg font-display font-bold">
-              Marcos de desenvolvimento
-            </h3>
-          </div>
-          <Badge variant="outline" className="rounded-full px-3 py-1">
-            {currentAgeMonths} meses
-          </Badge>
-        </div>
-
-        <Accordion
-          type="single"
-          collapsible
-          value={openDevelopmentItem}
-          onValueChange={setOpenDevelopmentItem}
-          className="space-y-2.5"
-        >
-          {developmentFollowUps.map((followUp) => {
-            const ageBand = getAgeBandMeta(followUp);
-            const isCurrent = ageBand?.key === closestAgeBand.key;
-
-            return (
-              <AccordionItem
-                key={followUp.id}
-                value={String(followUp.id)}
-                className="overflow-hidden rounded-2xl border border-border bg-card px-4 shadow-sm"
-              >
-                <AccordionTrigger className="py-4 hover:no-underline">
-                  <div className="flex w-full items-start justify-between gap-2.5 pr-2 text-left">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-[15px] font-display font-bold text-foreground">
-                          {ageBand?.label || followUp.title}
-                        </h4>
-                        {isCurrent ? (
-                          <Badge className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] text-primary hover:bg-primary/10">
-                            Agora
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="mt-0.5 text-[13px] text-muted-foreground">
-                        {ageBand
-                          ? `Faixa de referencia em torno de ${ageBand.targetMonths} meses`
-                          : "Acompanhamento do desenvolvimento"}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {getMilestoneSummary(followUp.developmentMilestones)}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-amber-100 p-2.5 text-amber-700">
-                      <Baby className="h-4.5 w-4.5" />
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4 pt-0.5">
-                  <div className="space-y-2.5">
-                    {followUp.developmentMilestones.map((milestone) => {
-                      const statusConfig =
-                        developmentStatusConfig[milestone.status] ||
-                        developmentStatusConfig.pending;
-                      return (
-                        <div
-                          key={milestone.id}
-                          className="rounded-xl border border-border p-3"
-                        >
-                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-foreground">
-                                {milestone.title}
-                              </p>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "mt-1.5 rounded-full px-2.5 py-0.5 text-[11px]",
-                                  statusConfig.className,
-                                )}
-                              >
-                                {statusConfig.label}
-                              </Badge>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={
-                                  milestone.status === "ok" ? "default" : "outline"
-                                }
-                                className="h-8 rounded-full px-3 text-xs"
-                                onClick={() =>
-                                  setMilestoneStatus(followUp.id, milestone, "ok")
-                                }
-                              >
-                                Ok
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={
-                                  milestone.status === "attention"
-                                    ? "default"
-                                    : "outline"
-                                }
-                                className="h-8 rounded-full px-3 text-xs"
-                                onClick={() =>
-                                  setMilestoneStatus(
-                                    followUp.id,
-                                    milestone,
-                                    "attention",
-                                  )
-                                }
-                              >
-                                Atencao
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={
-                                  milestone.status === "delayed"
-                                    ? "default"
-                                    : "outline"
-                                }
-                                className="h-8 rounded-full px-3 text-xs"
-                                onClick={() =>
-                                  setMilestoneStatus(
-                                    followUp.id,
-                                    milestone,
-                                    "delayed",
-                                  )
-                                }
-                              >
-                                Atraso
-                              </Button>
-                              {milestone.status !== "pending" ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 rounded-full px-3 text-xs text-muted-foreground"
-                                  onClick={() =>
-                                    updateMilestone.mutate({
-                                      childId,
-                                      followUpId: followUp.id,
-                                      milestoneKey: milestone.milestoneKey,
-                                      status: "pending",
-                                      checkedAt: null,
-                                    })
-                                  }
-                                >
-                                  Limpar
-                                </Button>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            );
-          })}
-        </Accordion>
-      </section>
+                );
+              })}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
