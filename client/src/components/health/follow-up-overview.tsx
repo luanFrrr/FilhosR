@@ -80,7 +80,6 @@ import {
   ClipboardList,
   ExternalLink,
   FileText,
-  History,
   Loader2,
   Pencil,
   Plus,
@@ -1193,40 +1192,45 @@ export function FollowUpOverview({
         <Collapsible
           open={isNeonatalHistoryOpen}
           onOpenChange={setIsNeonatalHistoryOpen}
-          className="rounded-3xl border border-border/70 bg-card/80 p-4 shadow-sm"
+          className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm"
         >
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-                Nascimento
-              </p>
-              <h3 className="mt-1 text-base font-display font-bold text-foreground">
-                Triagem neonatal registrada
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {completedNeonatalCount}/{totalNeonatalCount} testes marcados. Mantida
-                em historico para consulta, sem ocupar a area principal.
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Badge className="rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                Concluida
-              </Badge>
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-full px-3"
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-foreground">Triagem neonatal</p>
+                <Badge
+                  variant="outline"
+                  className="rounded-full border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-emerald-700"
                 >
-                  <History className="mr-2 h-4 w-4" />
-                  {isNeonatalHistoryOpen ? "Ocultar" : "Ver detalhes"}
-                </Button>
-              </CollapsibleTrigger>
+                  Concluida
+                </Badge>
+                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs">
+                  {completedNeonatalCount}/{totalNeonatalCount} testes
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Registro de nascimento salvo no historico.
+              </p>
             </div>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0 self-start rounded-full px-3 text-xs sm:self-center"
+              >
+                {isNeonatalHistoryOpen ? "Ocultar detalhes" : "Ver detalhes"}
+                <ChevronDown
+                  className={cn(
+                    "ml-2 h-4 w-4 transition-transform",
+                    isNeonatalHistoryOpen && "rotate-180",
+                  )}
+                />
+              </Button>
+            </CollapsibleTrigger>
           </div>
 
-          <CollapsibleContent className="pt-4">
+          <CollapsibleContent className="pt-3">
             <div className="grid gap-3">
               {NEWBORN_SCREENINGS.map((screening) => {
                 const record = neonatalFollowUp.neonatalScreenings.find(
