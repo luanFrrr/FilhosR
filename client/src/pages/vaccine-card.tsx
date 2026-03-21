@@ -212,9 +212,6 @@ export default function VaccineCard() {
           }, 4000);
         }
 
-        if (targetRecord) {
-          setDetailRecord(targetRecord);
-        }
       }, 300);
 
       return () => clearTimeout(timeoutId);
