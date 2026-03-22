@@ -459,14 +459,14 @@ export function FollowUpOverview({
   const isNeonatalComplete =
     totalNeonatalCount > 0 && pendingNeonatalCount === 0;
   const isNeonatalInPrimaryFlow = Boolean(
-    neonatalFollowUp && (!isNeonatalComplete || currentAgeMonths <= 1),
+    neonatalFollowUp && !isNeonatalComplete,
   );
   const todayDate = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     if (!neonatalFollowUp) return;
 
-    setIsNeonatalPanelOpen(!isNeonatalComplete || currentAgeMonths <= 1);
+    setIsNeonatalPanelOpen(!isNeonatalComplete);
   }, [currentAgeMonths, isNeonatalComplete, neonatalFollowUp]);
 
   useEffect(() => {
